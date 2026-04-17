@@ -1,0 +1,241 @@
+{
+  "economy": {
+    "1330145990468178024": {
+      "balance": 3939,
+      "last_work": 1776366796.2605178,
+      "last_daily": 0
+    },
+    "1364968114541953085": {
+      "balance": 2012,
+      "last_work": 1776192564.8888206,
+      "last_daily": 0
+    },
+    "1492919809472729258": {
+      "balance": 3000,
+      "last_work": 0,
+      "last_daily": 0
+    },
+    "1492915886409908344": {
+      "balance": 3000,
+      "last_work": 0,
+      "last_daily": 0
+    },
+    "1492931665000140800": {
+      "balance": 3000,
+      "last_work": 0,
+      "last_daily": 0
+    },
+    "1492897756350775346": {
+      "balance": 3000,
+      "last_work": 0,
+      "last_daily": 0
+    },
+    "1492895719420596325": {
+      "balance": 3000,
+      "last_work": 0,
+      "last_daily": 0
+    },
+    "1492922225630904480": {
+      "balance": 3000,
+      "last_work": 0,
+      "last_daily": 0
+    },
+    "1492905338595184870": {
+      "balance": 3000,
+      "last_work": 0,
+      "last_daily": 0
+    }
+  },
+  "xp": {
+    "1364968114541953085": {
+      "xp": 24,
+      "level": 1
+    },
+    "1330145990468178024": {
+      "xp": 143,
+      "level": 2
+    }
+  },
+  "warnings": {},
+  "zoo": {
+    "1330145990468178024": {
+      "Nilski konj": 1,
+      "Gušter": 1,
+      "Vuk": 1,
+      "Lisica": 1
+    },
+    "1364968114541953085": {}
+  },
+  "quests": {
+    "1330145990468178024": {
+      "date": "2026-04-16",
+      "assigned": [
+        "bj_win",
+        "msgs20",
+        "work3"
+      ],
+      "progress": {
+        "bj_win": 0,
+        "msgs20": 20,
+        "work3": 1
+      },
+      "done": {
+        "bj_win": false,
+        "msgs20": true,
+        "work3": false
+      }
+    },
+    "1160654357952471090": {
+      "date": "2026-04-15",
+      "assigned": [
+        "hunt5",
+        "msgs20",
+        "hunt10"
+      ],
+      "progress": {
+        "hunt5": 0,
+        "msgs20": 6,
+        "hunt10": 0
+      },
+      "done": {
+        "hunt5": false,
+        "msgs20": false,
+        "hunt10": false
+      }
+    },
+    "1147918513705603112": {
+      "date": "2026-04-15",
+      "assigned": [
+        "msgs20",
+        "hunt10",
+        "work3"
+      ],
+      "progress": {
+        "msgs20": 5,
+        "hunt10": 0,
+        "work3": 0
+      },
+      "done": {
+        "msgs20": false,
+        "hunt10": false,
+        "work3": false
+      }
+    },
+    "1364968114541953085": {
+      "date": "2026-04-16",
+      "assigned": [
+        "kviz3",
+        "work3",
+        "msgs20"
+      ],
+      "progress": {
+        "kviz3": 0,
+        "work3": 0,
+        "msgs20": 1
+      },
+      "done": {
+        "kviz3": false,
+        "work3": false,
+        "msgs20": false
+      }
+    },
+    "1009516690100474049": {
+      "date": "2026-04-16",
+      "assigned": [
+        "work3",
+        "bj_win",
+        "hunt5"
+      ],
+      "progress": {
+        "work3": 0,
+        "bj_win": 0,
+        "hunt5": 0
+      },
+      "done": {
+        "work3": false,
+        "bj_win": false,
+        "hunt5": false
+      }
+    },
+    "1478077114161959084": {
+      "date": "2026-04-16",
+      "assigned": [
+        "bj_win",
+        "work3",
+        "msgs20"
+      ],
+      "progress": {
+        "bj_win": 0,
+        "work3": 0,
+        "msgs20": 3
+      },
+      "done": {
+        "bj_win": false,
+        "work3": false,
+        "msgs20": false
+      }
+    },
+    "1483032045092339813": {
+      "date": "2026-04-16",
+      "assigned": [
+        "bj_win",
+        "hunt5",
+        "msgs20"
+      ],
+      "progress": {
+        "bj_win": 0,
+        "hunt5": 0,
+        "msgs20": 5
+      },
+      "done": {
+        "bj_win": false,
+        "hunt5": false,
+        "msgs20": false
+      }
+    },
+    "415241378587475978": {
+      "date": "2026-04-16",
+      "assigned": [
+        "msgs20",
+        "bj_win",
+        "daily1"
+      ],
+      "progress": {
+        "msgs20": 2,
+        "bj_win": 0,
+        "daily1": 0
+      },
+      "done": {
+        "msgs20": false,
+        "bj_win": false,
+        "daily1": false
+      }
+    }
+  },
+  "selfroles": {
+    "1494043955980140754:1494058515319230614": {
+      "guild_id": 1494043955980140754,
+      "channel_id": 1494058515319230614,
+      "message_id": 1494059052475482135,
+      "title": "🏷️ Self Roles",
+      "description": "Klikni dugme da dobiješ/skineš ulogu!",
+      "roles": [
+        {
+          "role_id": 1494043956143722704,
+          "emoji": "🖤",
+          "label": "Crna"
+        }
+      ]
+    }
+  },
+  "guild_config": {
+    "1494043955980140754": {
+      "welcome_channel": 1494043957242495113,
+      "welcome_message": "Stigli ste u Chat !"
+    }
+  },
+  "afk": {},
+  "birthdays": {},
+  "starboard_done": {},
+  "counting": {}
+}
