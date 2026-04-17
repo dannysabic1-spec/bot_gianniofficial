@@ -521,9 +521,10 @@ async def on_ready():
             data["invite_uses"][str(guild.id)] = {inv.code: inv.uses for inv in invs}
         except Exception as _e: print(f"[invite cache] {guild.name}: {_e}")
     save_data()
-    change_status.start()
-    birthday_check.start()
-    auto_backup.start()
+    if not change_status.is_running(): change_status.start()
+    if not birthday_check.is_running(): birthday_check.start()
+    if not auto_backup.is_running(): auto_backup.start()
+    if not reminder_loop.is_running(): reminder_loop.start()
     print(f"  🛡️ Sigurnost: Anti-Nuke ✓ • Anti-Invite ✓ • Auto-Backup ✓ • Owner whitelist: {len(OWNER_IDS)}")
     for key, panel in data.get("selfroles", {}).items():
         if not panel.get("message_id"):
@@ -4932,7 +4933,6 @@ async def reminder_loop():
 
 @reminder_loop.before_loop
 async def _rb(): await bot.wait_until_ready()
-reminder_loop.start()
 
 # ─── 📱 QR KOD ───
 @bot.tree.command(name="qr", description="📱 Generiši QR kod iz teksta ili URL-a")
