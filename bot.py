@@ -1,4 +1,4 @@
-import discord, random, asyncio, json, os, time, aiohttp
+import discord, random, asyncio, json, os, time, aiohttp, re
 from collections import defaultdict, deque, Counter
 from discord.ext import commands, tasks
 from discord import app_commands
