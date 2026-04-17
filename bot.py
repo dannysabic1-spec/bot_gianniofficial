@@ -1440,13 +1440,15 @@ async def invite_cmd(i: discord.Interaction, korisnik: discord.Member = None):
     ikey = f"{i.guild.id}:{u.id}"
     inv_rec = data["invites"].get(ikey, {})
     inv_count = inv_rec.get("count", 0)
-    inv_link = "—"
+    invite_url = None
+    invite_uses = 0
     try:
         invs = await i.guild.invites()
         user_invs = [inv for inv in invs if inv.inviter and inv.inviter.id == u.id]
         if user_invs:
             best = max(user_invs, key=lambda x: x.uses)
-            inv_link = f"[discord.gg/{best.code}](https://discord.gg/{best.code}) — `{best.uses}` korišćenja"
+            invite_url = f"https://discord.gg/{best.code}"
+            invite_uses = best.uses
             if not inv_rec:
                 inv_count = best.uses
     except Exception as _e: print(f"[pump] {_e}")
@@ -1455,10 +1457,14 @@ async def invite_cmd(i: discord.Interaction, korisnik: discord.Member = None):
         ("✍️ Poruke poslato", f"`{msg_n:,}`", True),
         ("👥 Doveo članova",   f"`{inv_count}`", True),
         ("📅 Pridružio",       u.joined_at.strftime("%d.%m.%Y.") if u.joined_at else "N/A", True),
-        ("🔗 Invite link",     inv_link, False),
+        ("🔗 Tvoj invite",     f"`{invite_uses}` korišćenja" if invite_url else "*nemaš svoj invite link*", False),
     ])
     e.set_footer(text=f"Korisnik: {u} • ID: {u.id}")
-    await i.response.send_message(embed=e)
+    view = None
+    if invite_url:
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Otvori invite", emoji="🔗", url=invite_url, style=discord.ButtonStyle.link))
+    await i.response.send_message(embed=e, view=view) if view else await i.response.send_message(embed=e)
 
 @bot.tree.command(name="avatar", description="🖼️ Prikaži avatar korisnika")
 async def avatar(i: discord.Interaction, korisnik: discord.Member = None):
@@ -4288,17 +4294,34 @@ def _build_selfrole_view(key: str) -> discord.ui.View:
             style=discord.ButtonStyle.secondary,
         )
         async def _cb(interaction: discord.Interaction, role_id=r["role_id"], label=r["label"]):
-            role = interaction.guild.get_role(role_id)
-            if not role:
-                return await interaction.response.send_message("❌ Uloga ne postoji!", ephemeral=True)
-            if role in interaction.user.roles:
-                await interaction.user.remove_roles(role)
-                await interaction.response.send_message(
-                    embed=em("🏷️", f"Uklonjena uloga **{label}**!", color=COLORS["error"]), ephemeral=True)
-            else:
-                await interaction.user.add_roles(role)
-                await interaction.response.send_message(
-                    embed=em("✅", f"Dobio/la si ulogu **{label}**!", color=COLORS["success"]), ephemeral=True)
+            try:
+                try:
+                    await interaction.response.defer(ephemeral=True, thinking=False)
+                except (discord.NotFound, discord.InteractionResponded):
+                    pass
+                role = interaction.guild.get_role(role_id)
+                if not role:
+                    try: await interaction.followup.send("❌ Uloga ne postoji!", ephemeral=True)
+                    except: pass
+                    return
+                me = interaction.guild.me
+                if role >= me.top_role:
+                    try: await interaction.followup.send(embed=em("❌", f"Uloga **{label}** je viša od moje! Admin: pomjeri moju ulogu iznad nje.", color=COLORS["error"]), ephemeral=True)
+                    except: pass
+                    return
+                if role in interaction.user.roles:
+                    await interaction.user.remove_roles(role, reason="Self-role panel")
+                    try: await interaction.followup.send(embed=em("🏷️", f"Uklonjena uloga **{label}**!", color=COLORS["error"]), ephemeral=True)
+                    except: pass
+                else:
+                    await interaction.user.add_roles(role, reason="Self-role panel")
+                    try: await interaction.followup.send(embed=em("✅", f"Dobio/la si ulogu **{label}**!", color=COLORS["success"]), ephemeral=True)
+                    except: pass
+            except discord.Forbidden:
+                try: await interaction.followup.send(embed=em("❌", "Nemam dozvolu za upravljanje tom ulogom!", color=COLORS["error"]), ephemeral=True)
+                except: pass
+            except Exception as ex:
+                print(f"[selfrole _cb] {type(ex).__name__}: {ex}")
         btn.callback = _cb
         view.add_item(btn)
     return view
