@@ -281,6 +281,82 @@ def _parse_channel(text, guild):
         if c.name.lower() == text.lower(): return c
     return None
 
+# ═══════════════════════════════════════════
+#    KANAL PRAVILA — gdje koja igra/komanda smije
+# ═══════════════════════════════════════════
+# Format: "ime_komande": "dio_imena_kanala_gdje_smije"
+CHANNEL_RULES = {
+    # Igre
+    "kaladont": "kaladont", "kaladont-stop": "kaladont",
+    "vjasala": "vješalo",  # ili "vjesalo"
+    "kpm": "kamen-papir",
+    "kviz": "kviz",
+    "geografija": "geografija",
+    "toplo-hladno": "geografija",
+    "amogus": "among-us", "amogus-stop": "among-us",
+    # Casino
+    "blackjack": "casino", "slots": "casino", "rulet": "casino",
+    "flip": "casino", "kocka": "casino", "kradi": "casino",
+    # Ekonomija
+    "baki": "economics", "posao": "economics", "daily": "economics",
+    "daj": "economics", "shop": "economics", "kupi": "economics",
+    "bank": "economics", "lottery": "economics", "heist": "economics",
+    "quests": "economics", "rank": "economics", "leaderboard": "economics",
+    # Brojanje
+    # (auto, brojanje ima svoj kanal kroz cnt_cfg)
+    # Ljubavne
+    "zagrljaj": "zagrljaji", "poljubac": "zagrljaji", "mazi": "zagrljaji",
+    "srce": "zagrljaji", "high5": "zagrljaji", "tapsi": "zagrljaji",
+    "cudan": "zagrljaji", "pocetkaj": "zagrljaji", "mazenje": "zagrljaji",
+    "zbunjen": "zagrljaji", "curse": "zagrljaji",
+    # Fun
+    "meme": "zabava", "8ball": "zabava",
+}
+# Ove komande RADE SVUDA (ne ograničavamo)
+CMDS_ANYWHERE = {
+    "ping", "help", "serverinfo", "userinfo", "avatar", "invite", "spotify",
+    "qr", "remind", "birthday", "birthdays", "afk", "serverstats", "topchatters",
+    "say", "poll", "suggest", "confess", "report", "pravila", "warn", "warnings",
+    "clearwarnings", "ban", "kick", "timeout", "clear",
+    # setup
+    "setup", "setup-roles", "setup-welcome", "setup-leave", "setup-autorole",
+    "setup-log", "setup-starboard", "setup-levelrole", "setup-birthday",
+    "setup-panels", "ticket-setup", "brojanje-postavi", "brojanje-info",
+    "brojanje-reset", "setname", "setavatar", "setchannel", "sort-roles",
+    "server-config", "selfroles-setup",
+}
+
+# Kanali u kojima SVE komande rade (slobodne zone)
+FREE_CHANNELS = ["comanda", "komanda", "komande", "giveaways", "events", "bot-spam", "bot-commands"]
+
+def check_channel_rule(channel, cmd_name: str):
+    """Vrati None ako smije, ili ime potrebnog kanala ako ne smije."""
+    ch_name = (channel.name or "").lower()
+    # Slobodne zone — sve smije
+    if any(fc in ch_name for fc in FREE_CHANNELS): return None
+    if cmd_name in CMDS_ANYWHERE: return None
+    needed = CHANNEL_RULES.get(cmd_name)
+    if not needed: return None  # nije ograničena
+    if needed.lower() in ch_name: return None  # OK
+    return needed
+
+async def _global_channel_check(interaction: discord.Interaction) -> bool:
+    if not interaction.guild or not interaction.command: return True
+    # admini smiju svuda
+    try:
+        if interaction.user.guild_permissions.administrator: return True
+    except: return True
+    needed = check_channel_rule(interaction.channel, interaction.command.name)
+    if needed is None: return True
+    target = discord.utils.find(lambda c: needed.lower() in c.name.lower(), interaction.guild.text_channels)
+    msg = f"❌ **Ova komanda nije za ovaj kanal!**\n➡️ Koristi je u {target.mention if target else f'#{needed}'}"
+    try:
+        await interaction.response.send_message(embed=em("🚫 Pogrešan kanal", msg, color=COLORS["warning"]), ephemeral=True)
+    except: pass
+    return False
+
+bot.tree.interaction_check = _global_channel_check
+
 async def try_prefix_command(message):
     """Returns True if a .command was found and executed."""
     content = message.content.strip()
@@ -293,6 +369,18 @@ async def try_prefix_command(message):
     cmd_name = PREFIX_ALIASES.get(cmd_name, cmd_name)
     cmd = bot.tree.get_command(cmd_name)
     if cmd is None: return False
+    # Kanal pravila
+    if not message.author.guild_permissions.administrator:
+        needed = check_channel_rule(message.channel, cmd_name)
+        if needed:
+            target = discord.utils.find(lambda c: needed.lower() in c.name.lower(), message.guild.text_channels)
+            await message.channel.send(
+                embed=em("🚫 Pogrešan kanal", f"❌ {message.author.mention} — **ova komanda nije za ovaj kanal!**\n➡️ Idi u {target.mention if target else f'#{needed}'}", color=COLORS["warning"]),
+                delete_after=10
+            )
+            try: await message.delete()
+            except: pass
+            return True
     fake = FakeInteraction(message)
     kwargs = {}
     try:
