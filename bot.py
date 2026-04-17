@@ -176,7 +176,7 @@ VJASALA_FAZE = [
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-bot = commands.Bot(command_prefix=".", intents=intents)
+bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
 # ═══════════════════════════════════════════
 #    PREFIX BRIDGE — .kpm radi kao /kpm
@@ -289,6 +289,8 @@ async def try_prefix_command(message):
     parts = content[1:].split(maxsplit=1)
     cmd_name = parts[0].lower()
     args_text = parts[1] if len(parts) > 1 else ""
+    PREFIX_ALIASES = {"i": "invite", "inv": "invite", "h": "help", "p": "ping", "lb": "leaderboard", "np": "spotify", "sp": "spotify", "stats": "serverstats", "ss": "serverstats", "tc": "topchatters", "top": "topchatters", "b": "bank", "lot": "lottery", "r": "remind", "qrcode": "qr"}
+    cmd_name = PREFIX_ALIASES.get(cmd_name, cmd_name)
     cmd = bot.tree.get_command(cmd_name)
     if cmd is None: return False
     fake = FakeInteraction(message)
@@ -365,9 +367,21 @@ async def try_prefix_command(message):
 # ═══════════════════════════════════════════
 #    PODACI
 # ═══════════════════════════════════════════
-DATA_FILE = "oleun_data.json"
+import os as _os
+_DATA_DIR = "/app/data" if _os.path.isdir("/app/data") else "."
+try: _os.makedirs(_DATA_DIR, exist_ok=True)
+except: _DATA_DIR = "."
+DATA_FILE = _os.path.join(_DATA_DIR, "oleun_data.json")
+if not _os.path.exists(DATA_FILE) and _os.path.exists("oleun_data.json"):
+    try:
+        import shutil as _sh
+        _sh.copy("oleun_data.json", DATA_FILE)
+        print(f"[migracija] Kopiran oleun_data.json → {DATA_FILE}")
+    except Exception as _e: print(f"[migracija] {_e}")
+print(f"[storage] DATA_FILE = {DATA_FILE}")
 data = {"economy": {}, "xp": {}, "warnings": {}, "zoo": {}, "quests": {}, "selfroles": {},
-        "guild_config": {}, "afk": {}, "birthdays": {}, "starboard_done": {}, "counting": {}}
+        "guild_config": {}, "afk": {}, "birthdays": {}, "starboard_done": {}, "counting": {},
+        "msg_count": {}, "invites": {}, "invite_uses": {}}
 
 def load_data():
     global data
@@ -384,6 +398,9 @@ def load_data():
             data["afk"]           = loaded.get("afk", {})
             data["birthdays"]     = loaded.get("birthdays", {})
             data["starboard_done"]= loaded.get("starboard_done", {})
+            data["msg_count"]     = loaded.get("msg_count", {})
+            data["invites"]       = loaded.get("invites", {})
+            data["invite_uses"]   = loaded.get("invite_uses", {})
 
 def save_data():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -497,8 +514,17 @@ async def on_ready():
         except Exception as e:
             print(f"  ✘ {guild.name}: {e}")
     print(f"{'═'*45}\n")
+    # Cache invites
+    for guild in bot.guilds:
+        try:
+            invs = await guild.invites()
+            data["invite_uses"][str(guild.id)] = {inv.code: inv.uses for inv in invs}
+        except Exception as _e: print(f"[invite cache] {guild.name}: {_e}")
+    save_data()
     change_status.start()
     birthday_check.start()
+    auto_backup.start()
+    print(f"  🛡️ Sigurnost: Anti-Nuke ✓ • Anti-Invite ✓ • Auto-Backup ✓ • Owner whitelist: {len(OWNER_IDS)}")
     for key, panel in data.get("selfroles", {}).items():
         if not panel.get("message_id"):
             continue
@@ -541,6 +567,34 @@ async def on_guild_join(guild):
 async def on_member_join(member):
     cfg = get_guild_config(member.guild.id)
 
+    # ── Anti-Raid (PAMETNI: ne lockuje, samo kickuje sumnjive) ──
+    try:
+        if await antiraid_check(member):
+            return  # Kickovan, ne radi welcome
+    except Exception as _e: print(f"[anti-raid] {_e}")
+
+    # ── Invite Tracking ────────────────────────────────
+    try:
+        gkey = str(member.guild.id)
+        old = data["invite_uses"].get(gkey, {})
+        new_invites = await member.guild.invites()
+        new_uses = {inv.code: inv.uses for inv in new_invites}
+        used_code = None
+        for code, uses in new_uses.items():
+            if uses > old.get(code, 0):
+                used_code = code
+                break
+        if used_code:
+            inviter = next((inv.inviter for inv in new_invites if inv.code == used_code), None)
+            if inviter and not inviter.bot:
+                ikey = f"{member.guild.id}:{inviter.id}"
+                rec = data["invites"].setdefault(ikey, {"count": 0, "code": used_code})
+                rec["count"] += 1
+                rec["code"] = used_code
+        data["invite_uses"][gkey] = new_uses
+        save_data()
+    except Exception as _e: print(f"[invite-track join] {_e}")
+
     # ── Auto-Role ──────────────────────────────────────
     if auto_role_id := cfg.get("auto_role"):
         role = member.guild.get_role(auto_role_id)
@@ -556,6 +610,25 @@ async def on_member_join(member):
         le.add_field(name="Nalog kreiran", value=member.created_at.strftime("%d.%m.%Y."), inline=True)
         le.add_field(name="Ukupno članova", value=f"`{member.guild.member_count}`", inline=True)
         await log_ch.send(embed=le)
+
+    # ── DM Dobrodošlice ──────────────────────────────
+    try:
+        dm_e = discord.Embed(
+            title=f"🎉 Dobrodošao/la na {member.guild.name}!",
+            description=(
+                f"Hej **{member.display_name}**! Drago nam je što si tu! 🥳\n\n"
+                f"📋 Pročitaj **#pravila** i upiši se u **#informacije**\n"
+                f"🎮 Pridruži se **#glavni-chat** i upoznaj ekipu\n"
+                f"❓ Trebaš pomoć? Otvori **ticket** ili pitaj bilo kog moderatora\n\n"
+                f"💡 *Pišeš `.help` za sve dostupne komande bota!*\n"
+                f"🇷🇸 Uživaj na **{member.guild.name}** — najboljem Balkan serveru! 🍻"
+            ),
+            color=COLORS["error"], timestamp=datetime.now(timezone.utc)
+        )
+        if member.guild.icon: dm_e.set_thumbnail(url=member.guild.icon.url)
+        dm_e.set_footer(text=f"{BOT_NAME} • Welcome Bot")
+        await member.send(embed=dm_e)
+    except: pass  # Korisnik ima zatvorene DM
 
     # ── Welcome ────────────────────────────────────────
     ch_id = cfg.get("welcome_channel")
@@ -824,6 +897,8 @@ async def on_message(message):
         return
 
     # ── Auto-Mod ──────────────────────────────────────
+    if await check_nsfw(message):
+        return
     if await check_automod(message):
         return
 
@@ -895,6 +970,10 @@ async def on_message(message):
                 try: await game["msg"].edit(embed=kaladont_active_embed(game))
                 except: pass
         return  # don't process XP for kaladont channel messages
+
+    # ── Msg Counter ───────────────────────────────────
+    mkey = f"{message.guild.id}:{message.author.id}"
+    data["msg_count"][mkey] = data["msg_count"].get(mkey, 0) + 1
 
     # ── XP ────────────────────────────────────────────
     if random.random() < 0.12:
@@ -1032,6 +1111,155 @@ async def sync_cmd(ctx):
     except Exception as e:
         await ctx.send(embed=em("❌ Greška", str(e), color=COLORS["error"]))
 
+# ═══════════════════════════════════════════
+#    🛡️ SIGURNOST: Anti-Nuke / Audit / Backup / Whitelist
+# ═══════════════════════════════════════════
+OWNER_IDS: set = set()  # Discord ID-evi koji su 100% sigurni. Dodaj npr. {123456789012345678}
+NUKE_WINDOW = 30        # sekundi
+NUKE_BAN_LIMIT = 3      # max banova/kickova/brisanja u prozoru
+nuke_tracker: dict = defaultdict(lambda: defaultdict(deque))
+
+# ── PAMETNI Anti-Raid (NE LOCKUJE server, samo kickuje sumnjive) ───
+RAID_WINDOW = 10            # sekundi
+RAID_JOIN_LIMIT = 5         # 5+ NOVIH naloga u 10s = raid
+SUSPICIOUS_AGE_DAYS = 7     # nalozi mlađi od ovoliko dana = sumnjivi
+join_tracker: dict = defaultdict(deque)   # guild_id -> deque[(timestamp, member_id, account_age_days)]
+raid_mode: dict = {}        # guild_id -> until_timestamp (period gdje se sumnjivi auto-kickaju)
+
+def is_suspicious_account(member) -> bool:
+    """Nalog je sumnjiv ako je: < 7 dana star, default avatar, prazan profil"""
+    age_days = (datetime.now(timezone.utc) - member.created_at).days
+    if age_days < SUSPICIOUS_AGE_DAYS:
+        return True
+    return False
+
+async def antiraid_check(member):
+    """Prati joinove. Ako je raid, ulazi u raid mod gdje se sumnjivi nalozi automatski kickaju."""
+    now = time.time()
+    gid = member.guild.id
+    age_days = (datetime.now(timezone.utc) - member.created_at).days
+    dq = join_tracker[gid]
+    dq.append((now, member.id, age_days))
+    while dq and dq[0][0] < now - RAID_WINDOW:
+        dq.popleft()
+    # Brojanje SAMO novih naloga (sumnjivih) u prozoru
+    suspicious_recent = sum(1 for _, _, ad in dq if ad < SUSPICIOUS_AGE_DAYS)
+    if suspicious_recent >= RAID_JOIN_LIMIT:
+        # ULAZAK U RAID MOD na 5 minuta
+        raid_mode[gid] = now + 300
+        await audit_log(member.guild, "🚨 RAID DETEKTOVAN!",
+            f"**{suspicious_recent}** sumnjivih naloga (mlađih od {SUSPICIOUS_AGE_DAYS} dana) u zadnjih {RAID_WINDOW}s!\n"
+            f"⚙️ **Raid mode AKTIVAN 5min** — sumnjivi nalozi će biti automatski kickovani.\n"
+            f"✅ Stari/legitimni nalozi prolaze normalno.")
+    # Ako smo u raid modu i nalog je sumnjiv → kickuj
+    if gid in raid_mode and now < raid_mode[gid] and is_suspicious_account(member):
+        try:
+            await member.send(embed=em("🛡️ Raid Zaštita", f"Server **{member.guild.name}** je trenutno pod raid zaštitom. Tvoj nalog je premlad ({age_days}d). Pokušaj ponovo kasnije.", color=COLORS["warning"]))
+        except: pass
+        try:
+            await member.kick(reason="🛡️ Anti-Raid: sumnjiv nalog tokom raida")
+            await audit_log(member.guild, "🛡️ Anti-Raid Kick", f"Kickovan: `{member}` (`{member.id}`) — nalog star {age_days}d")
+            return True
+        except: pass
+    return False
+
+async def audit_log(guild, title, desc):
+    """Šalje sigurnosni log u log_channel + DM-uje OWNER_IDS."""
+    try:
+        cfg = get_guild_config(guild.id)
+        if log_ch := guild.get_channel(cfg.get("log_channel", 0)):
+            await log_ch.send(embed=em(title, desc, color=COLORS["error"]))
+    except: pass
+    for oid in OWNER_IDS:
+        try:
+            owner = await bot.fetch_user(oid)
+            await owner.send(embed=em(f"🔔 [{guild.name}] {title}", desc, color=COLORS["warning"]))
+        except: pass
+
+async def antinuke_check(guild, mod, action: str):
+    """Vrati True ako moderator prelazi limit. Skida mu admin uloge i obavještava."""
+    if mod.id in OWNER_IDS or mod.bot:
+        return False
+    now = time.time()
+    dq = nuke_tracker[guild.id][mod.id]
+    dq.append(now)
+    while dq and dq[0] < now - NUKE_WINDOW:
+        dq.popleft()
+    if len(dq) >= NUKE_BAN_LIMIT:
+        dq.clear()
+        # Skini sve admin uloge
+        try:
+            removed = []
+            for r in list(mod.roles):
+                if r.permissions.administrator or r.permissions.ban_members or r.permissions.kick_members or r.permissions.manage_roles:
+                    try:
+                        await mod.remove_roles(r, reason="🛡️ Anti-Nuke: prelazak limita")
+                        removed.append(r.name)
+                    except: pass
+            await audit_log(guild, "🚨 ANTI-NUKE AKTIVAN!",
+                f"**Moderator:** {mod.mention} (`{mod}`)\n**Akcija:** {action}\n**Limit:** {NUKE_BAN_LIMIT} u {NUKE_WINDOW}s\n**Skinute uloge:** {', '.join(removed) if removed else 'nijedna'}")
+        except Exception as _e: print(f"[anti-nuke] {_e}")
+        return True
+    return False
+
+@bot.event
+async def on_member_ban(guild, user):
+    try:
+        async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.ban):
+            if entry.target.id == user.id:
+                await antinuke_check(guild, entry.user, f"BAN korisnika `{user}`")
+                await audit_log(guild, "🔨 BAN", f"**Moderator:** {entry.user.mention}\n**Korisnik:** `{user}` (`{user.id}`)\n**Razlog:** {entry.reason or '—'}")
+                break
+    except Exception as _e: print(f"[on_member_ban] {_e}")
+
+@bot.event
+async def on_member_remove(member):
+    try:
+        async for entry in member.guild.audit_logs(limit=1, action=discord.AuditLogAction.kick):
+            if entry.target.id == member.id and (time.time() - entry.created_at.timestamp()) < 5:
+                await antinuke_check(member.guild, entry.user, f"KICK korisnika `{member}`")
+                await audit_log(member.guild, "👢 KICK", f"**Moderator:** {entry.user.mention}\n**Korisnik:** `{member}` (`{member.id}`)")
+                break
+    except Exception as _e: print(f"[on_member_remove] {_e}")
+
+@bot.event
+async def on_guild_channel_delete(channel):
+    try:
+        async for entry in channel.guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
+            if entry.target.id == channel.id:
+                await antinuke_check(channel.guild, entry.user, f"BRISANJE kanala #{channel.name}")
+                await audit_log(channel.guild, "🗑️ KANAL OBRISAN", f"**Moderator:** {entry.user.mention}\n**Kanal:** `#{channel.name}`")
+                break
+    except Exception as _e: print(f"[on_channel_delete] {_e}")
+
+@bot.event
+async def on_guild_role_delete(role):
+    try:
+        async for entry in role.guild.audit_logs(limit=1, action=discord.AuditLogAction.role_delete):
+            if entry.target.id == role.id:
+                await antinuke_check(role.guild, entry.user, f"BRISANJE uloge {role.name}")
+                await audit_log(role.guild, "🏷️ ULOGA OBRISANA", f"**Moderator:** {entry.user.mention}\n**Uloga:** `{role.name}`")
+                break
+    except Exception as _e: print(f"[on_role_delete] {_e}")
+
+# ── Auto-backup svakih 6 sati ────────────────────────
+@tasks.loop(hours=6)
+async def auto_backup():
+    try:
+        import shutil as _sh
+        backup_dir = _os.path.join(_DATA_DIR, "backups")
+        _os.makedirs(backup_dir, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        dst = _os.path.join(backup_dir, f"oleun_data_{ts}.json")
+        _sh.copy(DATA_FILE, dst)
+        # Drži maksimum 20 backupa
+        backups = sorted(_os.listdir(backup_dir))
+        for old in backups[:-20]:
+            try: _os.remove(_os.path.join(backup_dir, old))
+            except: pass
+        print(f"[backup] {dst}")
+    except Exception as _e: print(f"[backup] {_e}")
+
 @tasks.loop(seconds=30)
 async def change_status():
     statuses = [
@@ -1085,6 +1313,63 @@ async def userinfo(i: discord.Interaction, korisnik: discord.Member = None):
         ("📈 Level",       f"`{xpd['level']}`",                                   True),
         ("⚠️ Upozorenja",  f"`{warns}`",                                           True),
     ]))
+
+@bot.tree.command(name="spotify", description="🎵 Pogledaj šta korisnik trenutno sluša na Spotifyu")
+async def spotify_cmd(i: discord.Interaction, korisnik: discord.Member = None):
+    u = korisnik or i.user
+    spotify = next((a for a in u.activities if isinstance(a, discord.Spotify)), None)
+    if not spotify:
+        return await i.response.send_message(
+            embed=em("🎵 Spotify", f"{u.mention} trenutno **ne sluša ništa** na Spotifyu.\n\n💡 *Mora imati Spotify povezan sa Discord nalogom i pustiti pjesmu.*", color=COLORS["warning"]),
+            ephemeral=False
+        )
+    duration = spotify.duration
+    elapsed = datetime.now(timezone.utc) - spotify.start
+    progress = min(elapsed.total_seconds() / duration.total_seconds(), 1.0)
+    bar_len = 20
+    filled = int(progress * bar_len)
+    bar = "▰" * filled + "▱" * (bar_len - filled)
+    def fmt_t(td):
+        s = int(td.total_seconds()); return f"{s//60}:{s%60:02d}"
+    e = discord.Embed(
+        title=f"🎵 {spotify.title}",
+        url=f"https://open.spotify.com/track/{spotify.track_id}",
+        description=f"**Izvođač:** {spotify.artist}\n**Album:** {spotify.album}\n\n`{fmt_t(elapsed)}` {bar} `{fmt_t(duration)}`",
+        color=0x1DB954,  # Spotify zelena
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.set_author(name=f"{u.display_name} sluša", icon_url=u.display_avatar.url)
+    if spotify.album_cover_url: e.set_thumbnail(url=spotify.album_cover_url)
+    e.set_footer(text=f"Spotify • {BOT_NAME}")
+    await i.response.send_message(embed=e)
+
+@bot.tree.command(name="invite", description="📊 Statistika — poruke + invite-ovi")
+async def invite_cmd(i: discord.Interaction, korisnik: discord.Member = None):
+    u = korisnik or i.user
+    mkey = f"{i.guild.id}:{u.id}"
+    msg_n = data["msg_count"].get(mkey, 0)
+    ikey = f"{i.guild.id}:{u.id}"
+    inv_rec = data["invites"].get(ikey, {})
+    inv_count = inv_rec.get("count", 0)
+    inv_link = "—"
+    try:
+        invs = await i.guild.invites()
+        user_invs = [inv for inv in invs if inv.inviter and inv.inviter.id == u.id]
+        if user_invs:
+            best = max(user_invs, key=lambda x: x.uses)
+            inv_link = f"[discord.gg/{best.code}](https://discord.gg/{best.code}) — `{best.uses}` korišćenja"
+            if not inv_rec:
+                inv_count = best.uses
+    except Exception as _e: print(f"[pump] {_e}")
+    e = em(f"📊 Statistika — {u.display_name}",
+        color=u.accent_color or COLORS["balkan"], thumb=u.display_avatar.url, fields=[
+        ("✍️ Poruke poslato", f"`{msg_n:,}`", True),
+        ("👥 Doveo članova",   f"`{inv_count}`", True),
+        ("📅 Pridružio",       u.joined_at.strftime("%d.%m.%Y.") if u.joined_at else "N/A", True),
+        ("🔗 Invite link",     inv_link, False),
+    ])
+    e.set_footer(text=f"Korisnik: {u} • ID: {u.id}")
+    await i.response.send_message(embed=e)
 
 @bot.tree.command(name="avatar", description="🖼️ Prikaži avatar korisnika")
 async def avatar(i: discord.Interaction, korisnik: discord.Member = None):
@@ -2775,9 +3060,108 @@ SPAM_LIMIT  = 7
 BAD_WORDS: set = set()  # add bad words here: BAD_WORDS = {"rijec1", "rijec2"}
 user_msg_times: dict = defaultdict(deque)
 
+# ── Anti-NSFW (pornografija, slike) ─────────────────────
+NSFW_KEYWORDS = [
+    # Balkan
+    "kurac", "kurcina", "kurčina", "picka", "pička", "pizda", "pičke", "picke",
+    "jebi se", "jebem", "drkanje", "drkam", "drka", "drkati",
+    "guza", "guzica", "sise", "sisa", "sisuljke", "bradavica",
+    "porn", "porno", "pornic", "pornić", "kurva", "kurve",
+    # English
+    "nude", "nudes", "naked", "sex", "sexy", "xxx", "nsfw", "hentai",
+    "boobs", "tits", "ass", "pussy", "dick", "cock", "penis", "vagina",
+    "fuck", "blowjob", "anal", "cumshot", "milf", "horny",
+    # NSFW sajtovi
+    "pornhub", "xvideos", "xnxx", "redtube", "youporn", "onlyfans",
+    "rule34", "e-hentai", "xhamster", "spankbang", "chaturbate",
+]
+
+def _contains_nsfw(text: str) -> str | None:
+    if not text: return None
+    t = text.lower()
+    for w in NSFW_KEYWORDS:
+        if w in t:
+            return w
+    return None
+
+async def check_nsfw(message) -> bool:
+    """Briše NSFW sadržaj. Vraća True ako je obrisao."""
+    if message.channel.is_nsfw():  # NSFW kanal je dozvoljen
+        return False
+    # 1) Tekst poruke
+    found = _contains_nsfw(message.content)
+    # 2) Imena fajlova attachmenta
+    if not found:
+        for att in message.attachments:
+            found = _contains_nsfw(att.filename) or _contains_nsfw(att.url)
+            if found: break
+    # 3) Embeds (linkovi)
+    if not found:
+        for emb in message.embeds:
+            for field in [emb.title, emb.description, emb.url]:
+                if field and (found := _contains_nsfw(str(field))): break
+            if found: break
+    if not found: return False
+    # OBRIŠI
+    try:
+        await message.delete()
+    except: pass
+    # Upozorenje korisniku
+    try:
+        await message.channel.send(
+            embed=em("🔞 NSFW Sadržaj Zabranjen",
+                     f"{message.author.mention} — pornografija/eksplicitan sadržaj nije dozvoljen!\n"
+                     f"⚠️ Detektovano: `{found}`\n"
+                     f"💡 Za NSFW koristi posebne **age-restricted** kanale.",
+                     color=COLORS["error"]),
+            delete_after=10
+        )
+    except: pass
+    # Auto-warn + log
+    try:
+        await audit_log(message.guild, "🔞 Anti-NSFW",
+                        f"{message.author.mention} pokušao slati NSFW u {message.channel.mention}\n**Trigger:** `{found}`")
+    except: pass
+    # 3+ NSFW = timeout 1h
+    nsfw_strikes = data.setdefault("nsfw_strikes", {})
+    skey = f"{message.guild.id}:{message.author.id}"
+    nsfw_strikes[skey] = nsfw_strikes.get(skey, 0) + 1
+    save_data()
+    if nsfw_strikes[skey] >= 3:
+        try:
+            await message.author.timeout(timedelta(hours=1), reason="Anti-NSFW: 3+ pokušaja")
+            await message.channel.send(
+                embed=em("🔇 Timeout", f"{message.author.mention} dobio **1h timeout** zbog ponovljenog NSFW sadržaja!", color=COLORS["error"]),
+                delete_after=15
+            )
+            nsfw_strikes[skey] = 0; save_data()
+        except: pass
+    return True
+
+# ── Anti-Invite (drugi serveri) ─────────────────────────
+INVITE_REGEX = re.compile(
+    r"(?:"
+    r"discord\s*\.\s*(?:gg|io|me|li)\s*\/\s*[a-zA-Z0-9-]+"
+    r"|discord(?:app)?\s*\.\s*com\s*\/\s*invite\s*\/\s*[a-zA-Z0-9-]+"
+    r"|dsc\s*\.\s*gg\s*\/\s*[a-zA-Z0-9-]+"
+    r")",
+    re.I
+)
+
 async def check_automod(message) -> bool:
     if message.author.guild_permissions.administrator:
         return False
+    # ── Anti-Invite filter ──────────────────────────
+    if INVITE_REGEX.search(message.content):
+        try:
+            await message.delete()
+            await message.channel.send(
+                embed=em("🚫 Reklama zabranjena", f"{message.author.mention} — invite linkovi drugih servera nisu dozvoljeni!", color=COLORS["error"]),
+                delete_after=8
+            )
+            await audit_log(message.guild, "🚫 Anti-Invite", f"{message.author.mention} pokušao reklamirati drugi server u {message.channel.mention}")
+        except: pass
+        return True
     content_lower = message.content.lower()
     for word in BAD_WORDS:
         if word in content_lower:
@@ -3967,6 +4351,77 @@ async def selfroles_remove(i: discord.Interaction, kanal: discord.TextChannel, u
         embed=em("✅", f"Uloga **{uloga.name}** uklonjena iz panela!", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
+#    AUTO SETUP — SVA 3 PANELA ODJEDNOM
+# ═══════════════════════════════════════════
+PANEL_PRESETS = [
+    {
+        "title": "🌍 Odaberi svoju državu",
+        "description": "Klikni dugme da dobiješ/skineš ulogu!",
+        "roles": [
+            {"name": "〢 Bosnia and Herzegovina", "label": "Bosnia and Herzegovina", "emoji": "🇧🇦"},
+            {"name": "〢 Croatia",                 "label": "Croatia",                 "emoji": "🇭🇷"},
+            {"name": "〢 Serbia",                  "label": "Serbia",                  "emoji": "🇷🇸"},
+            {"name": "〢 Macedonia",               "label": "Macedonia",               "emoji": "🇲🇰"},
+        ],
+    },
+    {
+        "title": "Odaberi svoju malenokst",
+        "description": "Klikni dugme da dobiješ/skineš ulogu!",
+        "roles": [
+            {"name": "〢 Musko",  "label": "Musko",  "emoji": "👦"},
+            {"name": "〢 Zensko", "label": "Zensko", "emoji": "👧"},
+        ],
+    },
+    {
+        "title": "Klasične Permisije",
+        "description": "Klikni dugme da dobiješ/skineš ulogu!",
+        "roles": [
+            {"name": "〢 Chatter",          "label": "Chatter",          "emoji": "💬"},
+            {"name": "〢 Voice Permission", "label": "Voice Permission", "emoji": "🔊"},
+            {"name": "〢 Main Permission",  "label": "Main Permission",  "emoji": "✅"},
+        ],
+    },
+]
+
+@bot.tree.command(name="setup-panels", description="🏷️ [ADMIN] Auto-kreiraj sva 3 self-role panela odjednom")
+@app_commands.default_permissions(administrator=True)
+async def setup_panels_cmd(i: discord.Interaction, kanal: discord.TextChannel = None):
+    if not i.user.guild_permissions.administrator:
+        return await i.response.send_message("❌ Samo admin.", ephemeral=True)
+    ch = kanal or i.channel
+    await i.response.send_message(embed=em("⏳", f"Kreiram panele u {ch.mention}...", color=COLORS["info"]), ephemeral=True)
+    created, missing = [], []
+    for idx, preset in enumerate(PANEL_PRESETS):
+        key = _selfrole_key(i.guild.id, ch.id) + f":{idx}"
+        # pronađi uloge po imenu (probaj tačan match, pa case-insensitive)
+        roles_found = []
+        for r in preset["roles"]:
+            role = discord.utils.get(i.guild.roles, name=r["name"])
+            if not role:
+                role = next((rr for rr in i.guild.roles if rr.name.lower().strip() == r["name"].lower().strip()), None)
+            if not role:
+                role = next((rr for rr in i.guild.roles if r["label"].lower() in rr.name.lower()), None)
+            if role:
+                roles_found.append({"role_id": role.id, "label": r["label"], "emoji": r["emoji"]})
+            else:
+                missing.append(r["name"])
+        if not roles_found: continue
+        data["selfroles"][key] = {
+            "guild_id": i.guild.id, "channel_id": ch.id, "message_id": None,
+            "title": preset["title"], "description": preset["description"], "roles": roles_found
+        }
+        view = _build_selfrole_view(key)
+        msg = await ch.send(embed=_selfrole_embed(data["selfroles"][key]), view=view)
+        data["selfroles"][key]["message_id"] = msg.id
+        bot.add_view(view, message_id=msg.id)
+        created.append(preset["title"])
+    save_data()
+    desc = f"✅ Kreirano: **{len(created)}** panela\n" + "\n".join(f"• {t}" for t in created)
+    if missing:
+        desc += f"\n\n⚠️ Nisu pronađene uloge: {', '.join(set(missing))}\n*(Pokreni `/setup-uloge` ako ih nemaš)*"
+    await i.followup.send(embed=em("🎉 Paneli postavljeni!", desc, color=COLORS["success"]), ephemeral=True)
+
+# ═══════════════════════════════════════════
 #    PRAVILA
 # ═══════════════════════════════════════════
 @bot.tree.command(name="pravila", description="📜 Pravila servera")
@@ -4062,25 +4517,33 @@ async def pravila(i: discord.Interaction):
 # ═══════════════════════════════════════════
 @bot.tree.command(name="help", description="📖 Sve dostupne komande")
 async def help_cmd(i: discord.Interaction):
+    is_admin = False
+    try:
+        is_admin = i.user.guild_permissions.administrator or any(r.name == "〢 /GIANNI" for r in i.user.roles)
+    except: pass
     e = discord.Embed(
-        title=f"📖 {BOT_NAME} — Sve Komande",
+        title=f"📖 {BOT_NAME} — {'Admin Komande' if is_admin else 'Komande'}",
         description=f"Verzija **{VERSION}** | Prefix: `.` ili `/`",
         color=COLORS["balkan"], timestamp=datetime.now(timezone.utc)
     )
-    e.add_field(name="ℹ️ Info & Utiliti",  value="`.ping` `.serverinfo` `.userinfo` `.avatar` `.say` `.setname` `.setavatar` `.pravila`", inline=False)
-    e.add_field(name="⚙️ Server Setup",    value="`.setup` `.setup-levelrole` `.server-config`\n*(pojedinačno: `.setup-welcome` `.setup-leave` `.setup-autorole` `.setup-log` `.setup-starboard` `.setup-birthday`)*", inline=False)
-    e.add_field(name="🏷️ Self Roles",      value="`.selfroles-setup` `.selfroles-add` `.selfroles-remove`", inline=False)
-    e.add_field(name="😴 AFK & Socijalno", value="`.afk` `.birthday` `.birthdays`", inline=False)
+    # ── Komande za sve ──────────────────────────────
+    e.add_field(name="ℹ️ Info & Utiliti",   value="`.ping` `.serverinfo` `.userinfo` `.avatar` `.invite` `.pravila`", inline=False)
+    e.add_field(name="😴 AFK & Socijalno",  value="`.afk` `.birthday` `.birthdays`", inline=False)
     e.add_field(name="👋 Pozdravi & Muvanje", value="`.pozz` `.kompli` `.fora` `.muv` `.crush`", inline=False)
-    e.add_field(name="🛡️ Moderacija",      value="`.ban` `.kick` `.timeout` `.warn` `.warnings` `.clearwarnings` `.clear`", inline=False)
-    e.add_field(name="💰 Ekonomija",        value="`.baki` `.posao` `.daily` `.daj` `.kradi` `.rank` `.leaderboard` `.shop` `.kupi`", inline=False)
-    e.add_field(name="🎮 Igre",             value="`.kpm` `.slots` `.rulet` `.flip` `.8ball` `.vjasala` `.kaladont` `.toplo-hladno` `.meme` `.blackjack` `.kviz` `.kocka`", inline=False)
-    e.add_field(name="🚀 Among Us",         value="`.amogus` `.amogus-stop`\n*Min 4 igrača • DM uloge • Zadaci • Glasanje*", inline=False)
-    e.add_field(name="🐾 OWO — Životinje",  value="`.hunt` `.zoo` `.battle` `.sell` `.animals` `.pray` `.curse`", inline=False)
-    e.add_field(name="📋 Quests & Server",  value="`.quests` `.poll` `.giveaway start` `.giveaway end` `.ticket-setup`", inline=False)
-    e.add_field(name="🛡️ Auto-Mod",        value="Anti-spam (7msg/5s → 30s timeout) • Bad words filter — automatski aktivan", inline=False)
-    e.add_field(name="❤️ Ljubav & Akcije", value="`.zagrljaj` `.poljubac` `.mazi` `.tapsi` `.high5` `.srce` `.mazenje` `.brak` `.pocetkaj` `.cudan` `.pljes` `.zbunjen`", inline=False)
-    e.set_footer(text=f"{BOT_NAME} {VERSION} • Napravio za Balkan servere 🇷🇸")
+    e.add_field(name="💰 Ekonomija",         value="`.baki` `.posao` `.daily` `.daj` `.kradi` `.rank` `.leaderboard` `.shop` `.kupi`", inline=False)
+    e.add_field(name="🎮 Igre",              value="`.kpm` `.slots` `.rulet` `.flip` `.8ball` `.vjasala` `.kaladont` `.toplo-hladno` `.meme` `.blackjack` `.kviz` `.kocka`", inline=False)
+    e.add_field(name="🚀 Among Us",          value="`.amogus` `.amogus-stop`", inline=False)
+    e.add_field(name="🐾 OWO — Životinje",   value="`.hunt` `.zoo` `.battle` `.sell` `.animals` `.pray` `.curse`", inline=False)
+    e.add_field(name="❤️ Ljubav & Akcije",  value="`.zagrljaj` `.poljubac` `.mazi` `.tapsi` `.high5` `.srce` `.mazenje` `.brak` `.pocetkaj` `.cudan` `.pljes` `.zbunjen`", inline=False)
+    e.add_field(name="📋 Quests",            value="`.quests` `.poll`", inline=False)
+    # ── Samo za admine ──────────────────────────────
+    if is_admin:
+        e.add_field(name="⚙️ Server Setup [ADMIN]",  value="`.setup` `.setup-levelrole` `.server-config`\n*(pojedinačno: `.setup-welcome` `.setup-leave` `.setup-autorole` `.setup-log` `.setup-starboard` `.setup-birthday`)*", inline=False)
+        e.add_field(name="🏷️ Self Roles [ADMIN]",   value="`.selfroles-setup` `.selfroles-add` `.selfroles-remove`", inline=False)
+        e.add_field(name="🛡️ Moderacija [ADMIN]",   value="`.ban` `.kick` `.timeout` `.warn` `.warnings` `.clearwarnings` `.clear`", inline=False)
+        e.add_field(name="🎁 Server [ADMIN]",        value="`.giveaway start` `.giveaway end` `.ticket-setup` `.say` `.setname` `.setavatar`", inline=False)
+        e.add_field(name="🛡️ Auto-Mod",             value="Anti-spam (7msg/5s → 30s timeout) • Bad words filter — automatski aktivan", inline=False)
+    e.set_footer(text=f"{BOT_NAME} {VERSION} • {'Admin pristup ✅' if is_admin else 'Member pristup'}")
     e.set_thumbnail(url=bot.user.display_avatar.url)
     await i.response.send_message(embed=e, ephemeral=True)
 
@@ -4288,6 +4751,263 @@ class GamesView(discord.ui.View):
         await i.response.edit_message(content="Zatvoreno.", embed=None, view=self, attachments=[])
 
 """
+
+# ═══════════════════════════════════════════
+#    DODATNE KORISNE KOMANDE (v2.1)
+# ═══════════════════════════════════════════
+data.setdefault("bank", {})
+data.setdefault("lottery", {"pot": 0, "tickets": {}, "last_draw": 0})
+data.setdefault("reminders", [])
+data.setdefault("heist_cooldown", {})
+data.setdefault("confess_count", 0)
+data.setdefault("suggest_count", 0)
+
+# ─── 📊 SERVER STATS ───
+@bot.tree.command(name="serverstats", description="📊 Statistika servera")
+async def serverstats_cmd(i: discord.Interaction):
+    g = i.guild
+    total_msgs = sum(v for k, v in data.get("msg_count", {}).items() if k.startswith(f"{g.id}:"))
+    online = sum(1 for m in g.members if m.status != discord.Status.offline)
+    bots = sum(1 for m in g.members if m.bot)
+    boosts = g.premium_subscription_count or 0
+    e = discord.Embed(title=f"📊 {g.name} — Statistika", color=COLORS["info"], timestamp=datetime.now(timezone.utc))
+    if g.icon: e.set_thumbnail(url=g.icon.url)
+    e.add_field(name="👥 Članovi", value=f"`{g.member_count}`", inline=True)
+    e.add_field(name="🟢 Online", value=f"`{online}`", inline=True)
+    e.add_field(name="🤖 Botovi", value=f"`{bots}`", inline=True)
+    e.add_field(name="💬 Tekst kanali", value=f"`{len(g.text_channels)}`", inline=True)
+    e.add_field(name="🔊 Voice kanali", value=f"`{len(g.voice_channels)}`", inline=True)
+    e.add_field(name="🏷️ Uloge", value=f"`{len(g.roles)}`", inline=True)
+    e.add_field(name="💎 Boostovi", value=f"`{boosts}` (Lvl {g.premium_tier})", inline=True)
+    e.add_field(name="📨 Ukupno poruka", value=f"`{total_msgs:,}`", inline=True)
+    e.add_field(name="📅 Server od", value=f"<t:{int(g.created_at.timestamp())}:R>", inline=True)
+    await i.response.send_message(embed=e)
+
+# ─── 🏆 TOP CHATTERS ───
+@bot.tree.command(name="topchatters", description="🏆 Top 10 najaktivnijih chatera")
+async def topchatters_cmd(i: discord.Interaction):
+    gid = str(i.guild.id)
+    rows = [(int(k.split(":")[1]), v) for k, v in data.get("msg_count", {}).items() if k.startswith(f"{gid}:")]
+    rows.sort(key=lambda x: x[1], reverse=True)
+    rows = rows[:10]
+    if not rows:
+        return await i.response.send_message(embed=em("🏆 Top Chatters", "Još nema podataka.", color=COLORS["warning"]))
+    medals = ["🥇", "🥈", "🥉"] + [f"`#{n}`" for n in range(4, 11)]
+    desc = []
+    for idx, (uid, cnt) in enumerate(rows):
+        m = i.guild.get_member(uid)
+        name = m.display_name if m else f"User {uid}"
+        desc.append(f"{medals[idx]} **{name}** — `{cnt:,}` poruka")
+    e = discord.Embed(title="🏆 Top 10 Najaktivnijih", description="\n".join(desc), color=COLORS["success"], timestamp=datetime.now(timezone.utc))
+    await i.response.send_message(embed=e)
+
+# ─── 🏦 BANKA ───
+@bot.tree.command(name="bank", description="🏦 Banka — deposit/withdraw/balance (5% nedjeljna kamata)")
+async def bank_cmd(i: discord.Interaction, akcija: str = "balance", iznos: int = 0):
+    uid = str(i.user.id)
+    bnk = data["bank"].setdefault(uid, {"saved": 0, "last_interest": int(time.time())})
+    eco = get_economy(i.user.id)
+    # kamata
+    weeks = (int(time.time()) - bnk["last_interest"]) // (7*86400)
+    if weeks > 0 and bnk["saved"] > 0:
+        for _ in range(weeks): bnk["saved"] = int(bnk["saved"] * 1.05)
+        bnk["last_interest"] = int(time.time())
+    a = akcija.lower()
+    if a in ("balance", "bal", "stanje"):
+        return await i.response.send_message(embed=em("🏦 Banka", f"💰 Wallet: `{eco['balance']:,}`\n🏦 Banka: `{bnk['saved']:,}`\n📈 Kamata: **5% / nedjeljno**", color=COLORS["info"]))
+    if a in ("deposit", "dep", "ulozi"):
+        if iznos <= 0 or iznos > eco["balance"]:
+            return await i.response.send_message(embed=em("❌", "Nemaš toliko.", color=COLORS["error"]), ephemeral=True)
+        eco["balance"] -= iznos; bnk["saved"] += iznos; save_data()
+        return await i.response.send_message(embed=em("✅ Uloženo", f"Uloženo `{iznos:,}` u banku.", color=COLORS["success"]))
+    if a in ("withdraw", "wd", "podigni"):
+        if iznos <= 0 or iznos > bnk["saved"]:
+            return await i.response.send_message(embed=em("❌", "Nemaš toliko u banci.", color=COLORS["error"]), ephemeral=True)
+        eco["balance"] += iznos; bnk["saved"] -= iznos; save_data()
+        return await i.response.send_message(embed=em("✅ Podignuto", f"Podigao `{iznos:,}` iz banke.", color=COLORS["success"]))
+    await i.response.send_message(embed=em("🏦 Banka — pomoć", "`/bank balance` — stanje\n`/bank deposit 100` — uloži\n`/bank withdraw 50` — podigni", color=COLORS["info"]))
+
+# ─── 🎰 LOTO ───
+@bot.tree.command(name="lottery", description="🎰 Sedmična loto — kupi tiket za 100 coina")
+async def lottery_cmd(i: discord.Interaction, akcija: str = "info"):
+    lot = data["lottery"]
+    uid = str(i.user.id)
+    a = akcija.lower()
+    # auto-žrijeb svake nedjelje
+    if int(time.time()) - lot.get("last_draw", 0) > 7*86400 and lot["tickets"]:
+        winner_uid = random.choice(list(lot["tickets"].keys()))
+        prize = lot["pot"]
+        get_economy(int(winner_uid))["balance"] += prize
+        lot["pot"] = 0; lot["tickets"] = {}; lot["last_draw"] = int(time.time())
+        save_data()
+        try:
+            w = await bot.fetch_user(int(winner_uid))
+            await w.send(embed=em("🎉 LOTO POBJEDA!", f"Osvojio si **{prize:,}** coina! 💰", color=COLORS["success"]))
+        except: pass
+    if a == "buy":
+        eco = get_economy(i.user.id)
+        if eco["balance"] < 100:
+            return await i.response.send_message(embed=em("❌", "Treba ti 100 coina.", color=COLORS["error"]), ephemeral=True)
+        eco["balance"] -= 100; lot["pot"] += 100
+        lot["tickets"][uid] = lot["tickets"].get(uid, 0) + 1
+        save_data()
+        return await i.response.send_message(embed=em("🎫 Tiket kupljen", f"Imaš `{lot['tickets'][uid]}` tiket(a).\n💰 Pot: `{lot['pot']:,}`", color=COLORS["success"]))
+    total = sum(lot["tickets"].values())
+    my = lot["tickets"].get(uid, 0)
+    chance = (my/total*100) if total else 0
+    next_draw = lot["last_draw"] + 7*86400
+    e = discord.Embed(title="🎰 Sedmična Loto", color=COLORS["info"])
+    e.add_field(name="💰 Pot", value=f"`{lot['pot']:,}` coina", inline=True)
+    e.add_field(name="🎫 Tvoji tiketi", value=f"`{my}` / `{total}`", inline=True)
+    e.add_field(name="🎯 Šansa", value=f"`{chance:.1f}%`", inline=True)
+    e.add_field(name="⏰ Sljedeći žrijeb", value=f"<t:{next_draw}:R>", inline=False)
+    e.set_footer(text="/lottery buy — kupi tiket za 100 coina")
+    await i.response.send_message(embed=e)
+
+# ─── 💰 HEIST (timski razboj) ───
+@bot.tree.command(name="heist", description="💰 Timski razboj — okupi 3+ ljudi i dobijte 1000-5000")
+async def heist_cmd(i: discord.Interaction):
+    uid = str(i.user.id)
+    cd = data["heist_cooldown"].get(uid, 0)
+    if int(time.time()) < cd:
+        return await i.response.send_message(embed=em("⏳", f"Pokušaj ponovo <t:{cd}:R>.", color=COLORS["warning"]), ephemeral=True)
+    e = discord.Embed(title="💰 RAZBOJ U PRIPREMI", description=f"{i.user.mention} organizuje razboj!\n**Klikni dugme da se pridružiš** (treba 3+ ljudi za uspjeh)\n⏰ 30 sekundi do akcije!", color=COLORS["warning"])
+    crew = {i.user.id}
+    class HeistView(discord.ui.View):
+        def __init__(self): super().__init__(timeout=30)
+        @discord.ui.button(label="🤝 Pridruži se", style=discord.ButtonStyle.success)
+        async def join(self, ix: discord.Interaction, _):
+            crew.add(ix.user.id)
+            await ix.response.send_message(f"✅ {ix.user.mention} u ekipi! ({len(crew)} članova)", ephemeral=True, delete_after=5)
+    v = HeistView()
+    await i.response.send_message(embed=e, view=v)
+    await asyncio.sleep(30)
+    n = len(crew)
+    data["heist_cooldown"][uid] = int(time.time()) + 3600
+    if n < 3:
+        save_data()
+        return await i.followup.send(embed=em("💥 PROPAO RAZBOJ", f"Samo {n} članova — premalo. Policija je došla! 🚓", color=COLORS["error"]))
+    success = random.random() < (0.4 + n*0.05)
+    if success:
+        per = random.randint(1000, 5000) // n
+        for cid in crew: get_economy(cid)["balance"] += per
+        save_data()
+        await i.followup.send(embed=em("🎉 USPJEŠAN RAZBOJ!", f"Ekipa od **{n}** članova podijelila plijen!\n💰 Svako je dobio: `{per:,}` coina", color=COLORS["success"]))
+    else:
+        for cid in crew:
+            eco = get_economy(cid); eco["balance"] = max(0, eco["balance"] - 200)
+        save_data()
+        await i.followup.send(embed=em("🚓 UHVAĆENI!", f"Policija je sve pohvatala! Svako je izgubio 200 coina.", color=COLORS["error"]))
+
+# ─── ⏰ REMINDER ───
+@bot.tree.command(name="remind", description="⏰ Postavi podsjetnik (npr: 1h, 30m, 2d)")
+async def remind_cmd(i: discord.Interaction, vrijeme: str, poruka: str):
+    m = re.match(r"^(\d+)([smhd])$", vrijeme.lower())
+    if not m:
+        return await i.response.send_message(embed=em("❌", "Format: `30s`, `15m`, `2h`, `1d`", color=COLORS["error"]), ephemeral=True)
+    n, u = int(m.group(1)), m.group(2)
+    secs = n * {"s":1, "m":60, "h":3600, "d":86400}[u]
+    if secs > 30*86400:
+        return await i.response.send_message(embed=em("❌", "Maksimalno 30 dana.", color=COLORS["error"]), ephemeral=True)
+    when = int(time.time()) + secs
+    data["reminders"].append({"uid": i.user.id, "cid": i.channel.id, "when": when, "msg": poruka[:200]})
+    save_data()
+    await i.response.send_message(embed=em("⏰ Podsjetnik postavljen", f"Podsjetiću te <t:{when}:R>:\n*{poruka[:200]}*", color=COLORS["success"]))
+
+@tasks.loop(seconds=30)
+async def reminder_loop():
+    now = int(time.time())
+    due = [r for r in data["reminders"] if r["when"] <= now]
+    for r in due:
+        try:
+            ch = bot.get_channel(r["cid"])
+            u = bot.get_user(r["uid"]) or await bot.fetch_user(r["uid"])
+            if ch:
+                await ch.send(f"⏰ {u.mention} **PODSJETNIK:** {r['msg']}")
+            else:
+                await u.send(f"⏰ **PODSJETNIK:** {r['msg']}")
+        except: pass
+        data["reminders"].remove(r)
+    if due: save_data()
+
+@reminder_loop.before_loop
+async def _rb(): await bot.wait_until_ready()
+reminder_loop.start()
+
+# ─── 📱 QR KOD ───
+@bot.tree.command(name="qr", description="📱 Generiši QR kod iz teksta ili URL-a")
+async def qr_cmd(i: discord.Interaction, tekst: str):
+    url = f"https://api.qrserver.com/v1/create-qr-code/?size=400x400&data={discord.utils.escape_markdown(tekst).replace(' ', '%20')}"
+    e = discord.Embed(title="📱 QR Kod", description=f"```{tekst[:200]}```", color=COLORS["info"])
+    e.set_image(url=url)
+    e.set_footer(text=f"{BOT_NAME} • QR Generator")
+    await i.response.send_message(embed=e)
+
+# ─── 🤫 CONFESS (anonimno) ───
+@bot.tree.command(name="confess", description="🤫 Pošalji anonimnu ispovjed u confess kanal")
+async def confess_cmd(i: discord.Interaction, poruka: str):
+    cfg = get_config(i.guild.id)
+    ch_id = cfg.get("confess_channel")
+    ch = i.guild.get_channel(ch_id) if ch_id else None
+    if not ch:
+        return await i.response.send_message(embed=em("❌", "Confess kanal nije postavljen.\nAdmin: `/setconfess #kanal`", color=COLORS["error"]), ephemeral=True)
+    data["confess_count"] += 1; save_data()
+    e = discord.Embed(title=f"🤫 Anonimna Ispovjed #{data['confess_count']}", description=poruka[:1500], color=0x9b59b6, timestamp=datetime.now(timezone.utc))
+    e.set_footer(text=f"Šalji svoju: /confess")
+    await ch.send(embed=e)
+    await i.response.send_message(embed=em("✅", "Ispovjed poslana anonimno!", color=COLORS["success"]), ephemeral=True)
+
+@bot.tree.command(name="setconfess", description="⚙️ [ADMIN] Postavi confess kanal")
+async def setconfess_cmd(i: discord.Interaction, kanal: discord.TextChannel):
+    if not i.user.guild_permissions.administrator:
+        return await i.response.send_message("❌ Samo admin.", ephemeral=True)
+    get_config(i.guild.id)["confess_channel"] = kanal.id; save_data()
+    await i.response.send_message(embed=em("✅", f"Confess kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
+
+# ─── 💡 SUGGEST ───
+@bot.tree.command(name="suggest", description="💡 Pošalji sugestiju (sa glasanjem)")
+async def suggest_cmd(i: discord.Interaction, sugestija: str):
+    cfg = get_config(i.guild.id)
+    ch_id = cfg.get("suggest_channel")
+    ch = i.guild.get_channel(ch_id) if ch_id else i.channel
+    data["suggest_count"] += 1; save_data()
+    e = discord.Embed(title=f"💡 Sugestija #{data['suggest_count']}", description=sugestija[:1500], color=COLORS["info"], timestamp=datetime.now(timezone.utc))
+    e.set_author(name=str(i.user), icon_url=i.user.display_avatar.url)
+    msg = await ch.send(embed=e)
+    try:
+        await msg.add_reaction("👍"); await msg.add_reaction("👎"); await msg.add_reaction("🤷")
+    except: pass
+    await i.response.send_message(embed=em("✅", "Sugestija poslana!", color=COLORS["success"]), ephemeral=True)
+
+@bot.tree.command(name="setsuggest", description="⚙️ [ADMIN] Postavi suggest kanal")
+async def setsuggest_cmd(i: discord.Interaction, kanal: discord.TextChannel):
+    if not i.user.guild_permissions.administrator:
+        return await i.response.send_message("❌ Samo admin.", ephemeral=True)
+    get_config(i.guild.id)["suggest_channel"] = kanal.id; save_data()
+    await i.response.send_message(embed=em("✅", f"Suggest kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
+
+# ─── 🚨 REPORT (anoniman) ───
+@bot.tree.command(name="report", description="🚨 Anonimno prijavi korisnika moderatorima")
+async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: str):
+    cfg = get_config(i.guild.id)
+    ch_id = cfg.get("report_channel") or cfg.get("log_channel")
+    ch = i.guild.get_channel(ch_id) if ch_id else None
+    if not ch:
+        return await i.response.send_message(embed=em("❌", "Report kanal nije postavljen.\nAdmin: `/setreport #kanal`", color=COLORS["error"]), ephemeral=True)
+    e = discord.Embed(title="🚨 Anonimni Report", color=COLORS["error"], timestamp=datetime.now(timezone.utc))
+    e.add_field(name="👤 Prijavljen", value=korisnik.mention, inline=True)
+    e.add_field(name="📅 Nalog star", value=f"<t:{int(korisnik.created_at.timestamp())}:R>", inline=True)
+    e.add_field(name="📝 Razlog", value=razlog[:1000], inline=False)
+    e.set_thumbnail(url=korisnik.display_avatar.url)
+    await ch.send(embed=e)
+    await i.response.send_message(embed=em("✅", "Report poslan anonimno moderatorima!", color=COLORS["success"]), ephemeral=True)
+
+@bot.tree.command(name="setreport", description="⚙️ [ADMIN] Postavi report kanal")
+async def setreport_cmd(i: discord.Interaction, kanal: discord.TextChannel):
+    if not i.user.guild_permissions.administrator:
+        return await i.response.send_message("❌ Samo admin.", ephemeral=True)
+    get_config(i.guild.id)["report_channel"] = kanal.id; save_data()
+    await i.response.send_message(embed=em("✅", f"Report kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
 #    POKRETANJE
