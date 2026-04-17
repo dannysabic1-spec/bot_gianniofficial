@@ -189,6 +189,14 @@ class _FakeResponse:
         if embed is not None: kwargs["embed"] = embed
         if embeds is not None: kwargs["embeds"] = embeds
         if view is not None: kwargs["view"] = view
+        if ephemeral:
+            try:
+                msg = await self.fake.user.send(**kwargs)
+                try: await self.fake.message.add_reaction("📬")
+                except: pass
+                self.fake._original = msg; self._sent = True
+                return msg
+            except: pass
         msg = await self.fake.channel.send(**kwargs)
         self.fake._original = msg; self._sent = True
         return msg
@@ -206,6 +214,9 @@ class _FakeFollowup:
         if embed is not None: kwargs["embed"] = embed
         if embeds is not None: kwargs["embeds"] = embeds
         if view is not None: kwargs["view"] = view
+        if ephemeral:
+            try: return await self.fake.user.send(**kwargs)
+            except: pass
         return await self.fake.channel.send(**kwargs)
 
 class FakeInteraction:
