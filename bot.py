@@ -189,7 +189,8 @@ class _FakeResponse:
         if embed is not None: kwargs["embed"] = embed
         if embeds is not None: kwargs["embeds"] = embeds
         if view is not None: kwargs["view"] = view
-        if ephemeral:
+        cmd_name = (self.fake.message.content[1:].split(maxsplit=1)[0].lower() if self.fake.message.content.startswith(".") else "")
+        if ephemeral and cmd_name == "help":
             try:
                 msg = await self.fake.user.send(**kwargs)
                 try: await self.fake.message.add_reaction("📬")
@@ -197,6 +198,8 @@ class _FakeResponse:
                 self.fake._original = msg; self._sent = True
                 return msg
             except: pass
+        if ephemeral:
+            kwargs["delete_after"] = 10
         msg = await self.fake.channel.send(**kwargs)
         self.fake._original = msg; self._sent = True
         return msg
@@ -214,9 +217,12 @@ class _FakeFollowup:
         if embed is not None: kwargs["embed"] = embed
         if embeds is not None: kwargs["embeds"] = embeds
         if view is not None: kwargs["view"] = view
-        if ephemeral:
+        cmd_name = (self.fake.message.content[1:].split(maxsplit=1)[0].lower() if self.fake.message.content.startswith(".") else "")
+        if ephemeral and cmd_name == "help":
             try: return await self.fake.user.send(**kwargs)
             except: pass
+        if ephemeral:
+            kwargs["delete_after"] = 10
         return await self.fake.channel.send(**kwargs)
 
 class FakeInteraction:
