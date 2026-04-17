@@ -852,12 +852,10 @@ async def on_message(message):
         req = game["word"][-letters:]
 
         async def reject(reason: str):
-            err = await message.channel.send(
+            await message.channel.send(
                 embed=em("❌ " + reason, f"Potrebno: počinje sa **`{req}`**", color=COLORS["error"]),
                 delete_after=5
             )
-            try: await message.delete()
-            except: pass
 
         if not word.isalpha():
             pass  # ignore non-word messages silently
@@ -873,7 +871,7 @@ async def on_message(message):
             game["chain"].append((word, message.author.display_name))
             count   = len(game["chain"])
             new_req = word[-letters:]
-            try: await message.delete()
+            try: await message.add_reaction("✅")
             except: pass
             await message.channel.send(embed=kaladont_word_card(word, message.author.display_name, new_req, count))
             if game["msg"]:
@@ -902,6 +900,12 @@ async def on_message(message):
                 fields=lv_fields, footer=f"⚡ {BOT_NAME} • XP Sistem")
             await message.channel.send(embed=lv_em, delete_after=10)
     await bot.process_commands(message)
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    raise error
 
 @bot.event
 async def on_message_edit(before, after):
