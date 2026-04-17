@@ -1386,32 +1386,6 @@ async def say(i: discord.Interaction, tekst: str, kanal: discord.TextChannel = N
     await target.send(tekst, allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
     await i.response.send_message(embed=em("✅ Poslato!", f"Kanal: {target.mention}", color=COLORS["success"]), ephemeral=True)
 
-@bot.tree.command(name="welcome-test", description="🧪 Testiraj welcome poruku (samo za tebe) [ADMIN]")
-@app_commands.default_permissions(administrator=True)
-async def welcome_test(i: discord.Interaction):
-    member = i.user
-    GIANNI_CHANNELS = {
-        "informacije": 1494359372531372094,
-        "pravila":     1494043958131556448,
-        "giveaways":   1494058515319230614,
-        "glavni":      1494043956965544092,
-        "voice":       1494043957242495113,
-    }
-    rezultat = []
-    for label, cid in GIANNI_CHANNELS.items():
-        c = i.guild.get_channel(cid)
-        if c:
-            rezultat.append(f"✅ **{label}** → {c.mention} *(stvarno ime: `#{c.name}`)*")
-        else:
-            rezultat.append(f"❌ **{label}** → Kanal sa ID `{cid}` NE POSTOJI ili bot nema pristup!")
-    e = discord.Embed(
-        title="🧪 Welcome Test — Provjera kanala",
-        description="\n".join(rezultat),
-        color=COLORS["info"]
-    )
-    e.set_footer(text="Ako neki kanal ima krivi naziv, reci mi pa zamijenim ID")
-    await i.response.send_message(embed=e, ephemeral=True)
-
 @bot.tree.command(name="brojanje-postavi", description="🔢 Postavi kanal za brojanje [ADMIN]")
 @app_commands.describe(kanal="Kanal u kojem će se brojati", pocetak="Od kog broja krenuti (default 0 → sljedeći je 1)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -4255,102 +4229,6 @@ def _selfrole_embed(panel: dict) -> discord.Embed:
     e.set_footer(text="Klikni dugme ispod ↓")
     return e
 
-@bot.tree.command(name="selfroles-setup", description="🏷️ Postavi self-roles panel u kanalu [ADMIN]")
-@app_commands.default_permissions(manage_roles=True)
-@discord.app_commands.describe(
-    kanal="Kanal gdje se postavlja panel",
-    naslov="Naslov panela",
-    opis="Opis panela"
-)
-@discord.app_commands.default_permissions(manage_roles=True)
-async def selfroles_setup(i: discord.Interaction, kanal: discord.TextChannel,
-                           naslov: str = "🏷️ Self Roles", opis: str = "Klikni dugme da dobiješ/skineš ulogu!"):
-    key = _selfrole_key(i.guild.id, kanal.id)
-    data["selfroles"][key] = {
-        "guild_id":   i.guild.id,
-        "channel_id": kanal.id,
-        "message_id": None,
-        "title":      naslov,
-        "description": opis,
-        "roles":      []
-    }
-    panel  = data["selfroles"][key]
-    view   = _build_selfrole_view(key)
-    msg    = await kanal.send(embed=_selfrole_embed(panel), view=view)
-    data["selfroles"][key]["message_id"] = msg.id
-    save_data()
-    bot.add_view(view, message_id=msg.id)
-    await i.response.send_message(
-        embed=em("✅", f"Self-roles panel kreiran u {kanal.mention}!\nDodaj uloge sa `/selfroles-add`.", color=COLORS["success"]),
-        ephemeral=True
-    )
-
-@bot.tree.command(name="selfroles-add", description="🏷️ Dodaj ulogu u self-roles panel [ADMIN]")
-@app_commands.default_permissions(manage_roles=True)
-@discord.app_commands.describe(
-    kanal="Kanal u kome je panel",
-    uloga="Uloga koju dodaješ",
-    naziv="Naziv na dugmetu",
-    emoji="Emoji na dugmetu (opcionalno)"
-)
-@discord.app_commands.default_permissions(manage_roles=True)
-async def selfroles_add(i: discord.Interaction, kanal: discord.TextChannel, uloga: discord.Role,
-                         naziv: str = "", emoji: str = ""):
-    key = _selfrole_key(i.guild.id, kanal.id)
-    if key not in data["selfroles"]:
-        return await i.response.send_message(
-            embed=em("❌", f"Nema panela u {kanal.mention}! Prvo pokreni `/selfroles-setup`.", color=COLORS["error"]),
-            ephemeral=True)
-    panel = data["selfroles"][key]
-    if any(r["role_id"] == uloga.id for r in panel["roles"]):
-        return await i.response.send_message(
-            embed=em("❌", "Ta uloga je već u panelu!", color=COLORS["error"]), ephemeral=True)
-    if len(panel["roles"]) >= 25:
-        return await i.response.send_message(
-            embed=em("❌", "Maksimum 25 uloga po panelu!", color=COLORS["error"]), ephemeral=True)
-    panel["roles"].append({"role_id": uloga.id, "emoji": emoji.strip() or None, "label": naziv or uloga.name})
-    save_data()
-    view = _build_selfrole_view(key)
-    try:
-        ch  = bot.get_channel(panel["channel_id"])
-        msg = await ch.fetch_message(panel["message_id"])
-        await msg.edit(embed=_selfrole_embed(panel), view=view)
-        bot.add_view(view, message_id=msg.id)
-    except Exception as e:
-        print(f"[selfroles-add] edit error: {e}")
-    await i.response.send_message(
-        embed=em("✅", f"Uloga **{uloga.name}** dodana u panel!", color=COLORS["success"]), ephemeral=True)
-
-@bot.tree.command(name="selfroles-remove", description="🏷️ Ukloni ulogu iz self-roles panela [ADMIN]")
-@app_commands.default_permissions(manage_roles=True)
-@discord.app_commands.describe(
-    kanal="Kanal u kome je panel",
-    uloga="Uloga koju uklanjamo"
-)
-@discord.app_commands.default_permissions(manage_roles=True)
-async def selfroles_remove(i: discord.Interaction, kanal: discord.TextChannel, uloga: discord.Role):
-    key = _selfrole_key(i.guild.id, kanal.id)
-    if key not in data["selfroles"]:
-        return await i.response.send_message(
-            embed=em("❌", f"Nema panela u {kanal.mention}!", color=COLORS["error"]), ephemeral=True)
-    panel = data["selfroles"][key]
-    before = len(panel["roles"])
-    panel["roles"] = [r for r in panel["roles"] if r["role_id"] != uloga.id]
-    if len(panel["roles"]) == before:
-        return await i.response.send_message(
-            embed=em("❌", "Ta uloga nije u panelu!", color=COLORS["error"]), ephemeral=True)
-    save_data()
-    view = _build_selfrole_view(key)
-    try:
-        ch  = bot.get_channel(panel["channel_id"])
-        msg = await ch.fetch_message(panel["message_id"])
-        await msg.edit(embed=_selfrole_embed(panel), view=view)
-        bot.add_view(view, message_id=msg.id)
-    except Exception as e:
-        print(f"[selfroles-remove] edit error: {e}")
-    await i.response.send_message(
-        embed=em("✅", f"Uloga **{uloga.name}** uklonjena iz panela!", color=COLORS["success"]), ephemeral=True)
-
 # ═══════════════════════════════════════════
 #    AUTO SETUP — SVA 3 PANELA ODJEDNOM
 # ═══════════════════════════════════════════
@@ -4957,12 +4835,18 @@ async def confess_cmd(i: discord.Interaction, poruka: str):
     await ch.send(embed=e)
     await i.response.send_message(embed=em("✅", "Ispovjed poslana anonimno!", color=COLORS["success"]), ephemeral=True)
 
-@bot.tree.command(name="setconfess", description="⚙️ [ADMIN] Postavi confess kanal")
-async def setconfess_cmd(i: discord.Interaction, kanal: discord.TextChannel):
+@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/suggest/report kanal")
+@app_commands.describe(tip="confess | suggest | report", kanal="Kanal za taj tip")
+@app_commands.choices(tip=[
+    app_commands.Choice(name="confess", value="confess_channel"),
+    app_commands.Choice(name="suggest", value="suggest_channel"),
+    app_commands.Choice(name="report",  value="report_channel"),
+])
+async def setchannel_cmd(i: discord.Interaction, tip: app_commands.Choice[str], kanal: discord.TextChannel):
     if not i.user.guild_permissions.administrator:
         return await i.response.send_message("❌ Samo admin.", ephemeral=True)
-    get_config(i.guild.id)["confess_channel"] = kanal.id; save_data()
-    await i.response.send_message(embed=em("✅", f"Confess kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
+    get_config(i.guild.id)[tip.value] = kanal.id; save_data()
+    await i.response.send_message(embed=em("✅", f"{tip.name.capitalize()} kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
 
 # ─── 💡 SUGGEST ───
 @bot.tree.command(name="suggest", description="💡 Pošalji sugestiju (sa glasanjem)")
@@ -4979,13 +4863,6 @@ async def suggest_cmd(i: discord.Interaction, sugestija: str):
     except: pass
     await i.response.send_message(embed=em("✅", "Sugestija poslana!", color=COLORS["success"]), ephemeral=True)
 
-@bot.tree.command(name="setsuggest", description="⚙️ [ADMIN] Postavi suggest kanal")
-async def setsuggest_cmd(i: discord.Interaction, kanal: discord.TextChannel):
-    if not i.user.guild_permissions.administrator:
-        return await i.response.send_message("❌ Samo admin.", ephemeral=True)
-    get_config(i.guild.id)["suggest_channel"] = kanal.id; save_data()
-    await i.response.send_message(embed=em("✅", f"Suggest kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
-
 # ─── 🚨 REPORT (anoniman) ───
 @bot.tree.command(name="report", description="🚨 Anonimno prijavi korisnika moderatorima")
 async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: str):
@@ -5001,13 +4878,6 @@ async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: s
     e.set_thumbnail(url=korisnik.display_avatar.url)
     await ch.send(embed=e)
     await i.response.send_message(embed=em("✅", "Report poslan anonimno moderatorima!", color=COLORS["success"]), ephemeral=True)
-
-@bot.tree.command(name="setreport", description="⚙️ [ADMIN] Postavi report kanal")
-async def setreport_cmd(i: discord.Interaction, kanal: discord.TextChannel):
-    if not i.user.guild_permissions.administrator:
-        return await i.response.send_message("❌ Samo admin.", ephemeral=True)
-    get_config(i.guild.id)["report_channel"] = kanal.id; save_data()
-    await i.response.send_message(embed=em("✅", f"Report kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
 #    POKRETANJE
