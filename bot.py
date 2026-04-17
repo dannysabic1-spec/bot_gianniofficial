@@ -4065,7 +4065,7 @@ async def help_cmd(i: discord.Interaction):
     e.add_field(name="❤️ Ljubav & Akcije", value="`.zagrljaj` `.poljubac` `.mazi` `.tapsi` `.high5` `.srce` `.mazenje` `.brak` `.pocetkaj` `.cudan` `.pljes` `.zbunjen`", inline=False)
     e.set_footer(text=f"{BOT_NAME} {VERSION} • Napravio za Balkan servere 🇷🇸")
     e.set_thumbnail(url=bot.user.display_avatar.url)
-    await i.response.send_message(embed=e)
+    await i.response.send_message(embed=e, ephemeral=True)
 
 # ═══════════════════════════════════════════
 #    ERROR HANDLING
