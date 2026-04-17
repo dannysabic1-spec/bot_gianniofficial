@@ -3109,11 +3109,11 @@ async def kocka(i: discord.Interaction, korisnik: discord.Member, oklada: int = 
 #    SHOP + KUPI
 # ═══════════════════════════════════════════
 SHOP_ITEMS = {
-    "lucky_hunter": {"name":"🍀 Srećni Lovac", "desc":"2× šansa za lov na životinju (1h)",  "price":800,  "duration":3600},
-    "xp_boost":     {"name":"⚡ XP Boost",      "desc":"2× XP od poruka (1h)",               "price":1000, "duration":3600},
-    "shield":       {"name":"🛡️ Štit",         "desc":"Zaštita od krađe (24h)",             "price":600,  "duration":86400},
-    "double_steal": {"name":"💣 Bomba",         "desc":"Sljedeća krađa donosi duplo",        "price":400,  "duration":None},
-    "daily_boost":  {"name":"📅 Daily Boost",   "desc":"+500 💶 bonusa na sljedeći /daily",  "price":350,  "duration":None},
+    "lucky_hunter": {"name": "🍀 Srećni Lovac", "desc":"2× šansa za lov na životinju (1h)",  "price":800,  "duration":3600},
+    "xp_boost":     {"name": "⚡ XP Boost",      "desc":"2× XP od poruka (1h)",               "price":1000, "duration":3600},
+    "shield":       {"name": "🛡️ Štit",         "desc":"Zaštita od krađe (24h)",             "price":600,  "duration":86400},
+    "double_steal": {"name": "💣 Bomba",         "desc":"Sljedeća krađa donosi duplo",        "price":400,  "duration":None},
+    "daily_boost":  {"name": "📅 Daily Boost",   "desc":"+500 💶 bonusa na sljedeći /daily",  "price":350,  "duration":None},
 }
 
 def get_items(uid):
@@ -3167,13 +3167,13 @@ async def kupi(i: discord.Interaction, predmet: str):
 #    QUESTS / DNEVNI ZADACI
 # ═══════════════════════════════════════════
 QUEST_POOL = [
-    {"id":"hunt5",   "name":"🏹 Lovac",      "desc":"Ulovi 5 životinja",           "target":5,  "reward":200},
-    {"id":"work3",   "name":"💼 Radnik",      "desc":"Radi posao 3 puta",           "target":3,  "reward":300},
-    {"id":"msgs20",  "name":"💬 Pričalo",     "desc":"Pošalji 20 poruka",           "target":20, "reward":150},
-    {"id":"bj_win",  "name":"🃏 Kockar",      "desc":"Pobijedi u Blackjacku",       "target":1,  "reward":500},
-    {"id":"kviz3",   "name":"🧠 Znalac",      "desc":"Tačno odgovori na 3 kviz pitanja","target":3,"reward":400},
-    {"id":"hunt10",  "name":"🎯 Pro Lovac",   "desc":"Ulovi 10 životinja",          "target":10, "reward":500},
-    {"id":"daily1",  "name":"📅 Redovan",     "desc":"Uzmi /daily nagradu",         "target":1,  "reward":250},
+    {"id":"hunt5",   "name": "🏹 Lovac",      "desc":"Ulovi 5 životinja",           "target":5,  "reward":200},
+    {"id":"work3",   "name": "💼 Radnik",      "desc":"Radi posao 3 puta",           "target":3,  "reward":300},
+    {"id":"msgs20",  "name": "💬 Pričalo",     "desc":"Pošalji 20 poruka",           "target":20, "reward":150},
+    {"id":"bj_win",  "name": "🃏 Kockar",      "desc":"Pobijedi u Blackjacku",       "target":1,  "reward":500},
+    {"id":"kviz3",   "name": "🧠 Znalac",      "desc":"Tačno odgovori na 3 kviz pitanja","target":3,"reward":400},
+    {"id":"hunt10",  "name": "🎯 Pro Lovac",   "desc":"Ulovi 10 životinja",          "target":10, "reward":500},
+    {"id":"daily1",  "name": "📅 Redovan",     "desc":"Uzmi /daily nagradu",         "target":1,  "reward":250},
 ]
 
 def get_quests(uid):
@@ -3446,78 +3446,88 @@ async def ticket_setup(i: discord.Interaction):
 # ═══════════════════════════════════════════
 #    SETUP ROLES — GIANNI
 # ═══════════════════════════════════════════
+PERM_ADMIN = discord.Permissions(administrator=True)
+PERM_MOD = discord.Permissions(
+    ban_members=True, kick_members=True,
+    manage_messages=True, moderate_members=True,
+    view_channel=True, send_messages=True,
+    read_message_history=True, manage_threads=True
+)
+PERM_MEMBER = discord.Permissions(
+    view_channel=True, send_messages=True,
+    read_message_history=True, connect=True, speak=True,
+    attach_files=True, embed_links=True, add_reactions=True
+)
+PERM_BOT = discord.Permissions(
+    view_channel=True, send_messages=True,
+    read_message_history=True, manage_messages=True,
+    embed_links=True, attach_files=True, add_reactions=True,
+    connect=True, speak=True
+)
+PERM_BASIC = discord.Permissions(
+    view_channel=True, send_messages=True,
+    read_message_history=True, add_reactions=True
+)
+PERM_VOICE = discord.Permissions(
+    view_channel=True, connect=True, speak=True,
+    use_voice_activation=True, stream=True
+)
+
 GIANNI_ROLES = [
-    {
-        "name": "👑 GIANNI | Owner",
-        "color": discord.Color.from_str("#FFD700"),
-        "permissions": discord.Permissions(administrator=True),
-        "hoist": True,
-        "desc": "Vlasnik servera"
-    },
-    {
-        "name": "🛡️ GIANNI | Admin",
-        "color": discord.Color.from_str("#E74C3C"),
-        "permissions": discord.Permissions(administrator=True),
-        "hoist": True,
-        "desc": "Administrator"
-    },
-    {
-        "name": "⚔️ GIANNI | Moderator",
-        "color": discord.Color.from_str("#3498DB"),
-        "permissions": discord.Permissions(
-            ban_members=True, kick_members=True,
-            manage_messages=True, moderate_members=True,
-            view_channel=True, send_messages=True,
-            read_message_history=True, manage_threads=True
-        ),
-        "hoist": True,
-        "desc": "Moderator servera"
-    },
-    {
-        "name": "💎 GIANNI | VIP",
-        "color": discord.Color.from_str("#9B59B6"),
-        "permissions": discord.Permissions(
-            view_channel=True, send_messages=True,
-            read_message_history=True, connect=True, speak=True,
-            attach_files=True, embed_links=True, add_reactions=True
-        ),
-        "hoist": True,
-        "desc": "VIP član"
-    },
-    {
-        "name": "🌟 GIANNI | Member",
-        "color": discord.Color.from_str("#2ECC71"),
-        "permissions": discord.Permissions(
-            view_channel=True, send_messages=True,
-            read_message_history=True, connect=True, speak=True,
-            attach_files=True, embed_links=True, add_reactions=True
-        ),
-        "hoist": True,
-        "desc": "Verificirani član"
-    },
-    {
-        "name": "🎮 GIANNI | Gamer",
-        "color": discord.Color.from_str("#E67E22"),
-        "permissions": discord.Permissions(
-            view_channel=True, send_messages=True,
-            read_message_history=True, connect=True, speak=True,
-            attach_files=True, embed_links=True, add_reactions=True
-        ),
-        "hoist": False,
-        "desc": "Gaming uloga"
-    },
-    {
-        "name": "🤖 GIANNI | Bot",
-        "color": discord.Color.from_str("#95A5A6"),
-        "permissions": discord.Permissions(
-            view_channel=True, send_messages=True,
-            read_message_history=True, manage_messages=True,
-            embed_links=True, attach_files=True, add_reactions=True,
-            connect=True, speak=True
-        ),
-        "hoist": False,
-        "desc": "Bot uloga"
-    },
+    # ═══ JEDINA ULOGA SA POWER-OM (ban/kick/admin) ═══
+    {"name": "〢 /GIANNI",                     "color": discord.Color.from_str("#FFD700"), "permissions": PERM_ADMIN,  "hoist": True,  "desc": "Glavni admin — ban/kick/sve"},
+    # ═══ DEKORATIVNE TOP ULOGE ═══
+    {"name": "〢 Cryptid Gianni ( Vlasnik )", "color": discord.Color.from_str("#FF3B3B"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Vlasnik (dekorativna)"},
+    {"name": "〢 High Masculinity",            "color": discord.Color.from_str("#1F2A44"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "High Masculinity"},
+    {"name": "〢 Cristal De Gianni",           "color": discord.Color.from_str("#A569FF"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Cristal De Gianni"},
+    {"name": "〢 Toxic Command ™",             "color": discord.Color.from_str("#00E676"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Toxic Command"},
+    # ═══ STAFF (dekorativno) ═══
+    {"name": "〢 Owners",                      "color": discord.Color.from_str("#FFC400"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Vlasnici"},
+    {"name": "〢 Founders",                    "color": discord.Color.from_str("#FF8A00"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Osnivači"},
+    {"name": "〢 Creators",                    "color": discord.Color.from_str("#5DADE2"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Kreatori"},
+    {"name": "〢 Administrator",               "color": discord.Color.from_str("#EC407A"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Administrator (dekorativna)"},
+    {"name": "〢 Hello Kitty Moderator",       "color": discord.Color.from_str("#FF85C8"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Hello Kitty Moderator"},
+    {"name": "〢 Moderator",                   "color": discord.Color.from_str("#42A5F5"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Moderator (dekorativna)"},
+    {"name": "〢 StaffTeam",                   "color": discord.Color.from_str("#26C6A4"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Staff Team"},
+    # ═══ SPECIJALNE ULOGE ═══
+    {"name": "〢 Mjauch",                      "color": discord.Color.from_str("#FF9ECF"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Mjauch ✨"},
+    {"name": "〢 Samo Njoj",                   "color": discord.Color.from_str("#FF4FA3"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Samo Njoj"},
+    {"name": "〢 Girly Pop",                   "color": discord.Color.from_str("#FFB7D5"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Girly Pop"},
+    {"name": "〢 Slay Queen",                  "color": discord.Color.from_str("#E91EFF"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Slay Queen"},
+    {"name": "〢 67 Pookie",                   "color": discord.Color.from_str("#C58CFF"), "permissions": PERM_MEMBER, "hoist": False, "desc": "67 Pookie"},
+    {"name": "〢 Sexy",                        "color": discord.Color.from_str("#D81B60"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Sexy"},
+    {"name": "〢 Hello Kitty",                 "color": discord.Color.from_str("#FFC9DD"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Hello Kitty"},
+    # ═══ ČLANSTVO & PERMISIJE ═══
+    {"name": "〢 Members for /Gianni !",       "color": discord.Color.from_str("#8E44AD"), "permissions": PERM_MEMBER, "hoist": True,  "desc": "Verificirani članovi"},
+    {"name": "〢 Chatter",                     "color": discord.Color.from_str("#3DDC97"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Aktivni chatter"},
+    {"name": "〢 Main Permission",             "color": discord.Color.from_str("#B0BEC5"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Glavna permisija"},
+    {"name": "〢 Voice Permission",            "color": discord.Color.from_str("#78909C"), "permissions": PERM_VOICE,  "hoist": False, "desc": "Voice permisija"},
+    # ═══ POL & KATEGORIJE ═══
+    {"name": "〢 Musko",                       "color": discord.Color.from_str("#4FC3F7"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Muški članovi"},
+    {"name": "〢 Zensko",                      "color": discord.Color.from_str("#F48FB1"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Ženski članovi"},
+    {"name": "〢 Radio",                       "color": discord.Color.from_str("#FF5252"), "permissions": PERM_VOICE,  "hoist": False, "desc": "Radio uloga"},
+    {"name": "〢 Bots",                        "color": discord.Color.from_str("#90A4AE"), "permissions": PERM_BOT,    "hoist": False, "desc": "Bot uloga"},
+    {"name": "〢 Streaks",                     "color": discord.Color.from_str("#AB47BC"), "permissions": PERM_MEMBER, "hoist": False, "desc": "Streak uloga"},
+    # ═══ DRŽAVE ═══
+    {"name": "〢 Bosnia and Herzegovina",      "color": discord.Color.from_str("#FFCE00"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Bosna i Hercegovina"},
+    {"name": "〢 Croatia",                     "color": discord.Color.from_str("#E53935"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Hrvatska"},
+    {"name": "〢 Serbia",                      "color": discord.Color.from_str("#1E88E5"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Srbija"},
+    {"name": "〢 Macedonia",                   "color": discord.Color.from_str("#FB8C00"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Makedonija"},
+    {"name": "〢 Europe",                      "color": discord.Color.from_str("#26A69A"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Europa"},
+    # ═══ GODINE ═══
+    {"name": "〢 20+",                         "color": discord.Color.from_str("#00897B"), "permissions": PERM_BASIC,  "hoist": False, "desc": "20+ godina"},
+    {"name": "〢 18+",                         "color": discord.Color.from_str("#43A047"), "permissions": PERM_BASIC,  "hoist": False, "desc": "18+ godina"},
+    {"name": "〢 15+",                         "color": discord.Color.from_str("#FB8C00"), "permissions": PERM_BASIC,  "hoist": False, "desc": "15+ godina"},
+    {"name": "〢 14+",                         "color": discord.Color.from_str("#E65100"), "permissions": PERM_BASIC,  "hoist": False, "desc": "14+ godina"},
+    # ═══ BOJE (Color Roles) ═══
+    {"name": "〢 Bela",                      "color": discord.Color.from_str("#F5F5F5"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Bijela boja"},
+    {"name": "〢 Zelena",                    "color": discord.Color.from_str("#4CAF50"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Zelena boja"},
+    {"name": "〢 Aqea",                      "color": discord.Color.from_str("#00BCD4"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Aqua boja"},
+    {"name": "〢 Žuta",                      "color": discord.Color.from_str("#FFEB3B"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Žuta boja"},
+    {"name": "〢 Plava",                     "color": discord.Color.from_str("#2196F3"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Plava boja"},
+    {"name": "〢 Roza",                      "color": discord.Color.from_str("#FF4081"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Roza boja"},
+    {"name": "〢 Crvena",                    "color": discord.Color.from_str("#F44336"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Crvena boja"},
+    {"name": "〢 Crna",                      "color": discord.Color.from_str("#1A1B1E"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Crna boja"},
 ]
 
 @bot.tree.command(name="sort-roles", description="📋 Poredaj GIANNI uloge u pravi redoslijed [ADMIN]")
@@ -3525,15 +3535,7 @@ GIANNI_ROLES = [
 async def sort_roles(i: discord.Interaction):
     await i.response.defer(ephemeral=True)
     guild = i.guild
-    desired_order = [
-        "👑 GIANNI | Owner",
-        "🛡️ GIANNI | Admin",
-        "⚔️ GIANNI | Moderator",
-        "💎 GIANNI | VIP",
-        "🌟 GIANNI | Member",
-        "🎮 GIANNI | Gamer",
-        "🤖 GIANNI | Bot",
-    ]
+    desired_order = [r["name"] for r in GIANNI_ROLES]
     role_map = {r.name: r for r in guild.roles}
     found, missing = [], []
     for name in desired_order:
@@ -3606,7 +3608,7 @@ async def setup_roles(i: discord.Interaction):
         name="📋 Slijedeći korak",
         value=(
             "**Server Settings → Roles** — Povuci uloge u željeni redosljed!\n"
-            "Dodijeli `👑 GIANNI | Owner` sebi, `🤖 GIANNI | Bot` botu."
+            "Dodijeli `〢 Cryptid Gianni ( Vlasnik )` sebi, `〢 Bots` botu."
         ),
         inline=False
     )
