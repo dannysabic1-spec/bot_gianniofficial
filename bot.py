@@ -176,7 +176,174 @@ VJASALA_FAZE = [
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix=".", intents=intents)
+
+# ═══════════════════════════════════════════
+#    PREFIX BRIDGE — .kpm radi kao /kpm
+# ═══════════════════════════════════════════
+class _FakeResponse:
+    def __init__(self, fake): self.fake = fake; self._sent = False
+    async def send_message(self, content=None, *, embed=None, embeds=None, view=None, ephemeral=False, **kw):
+        kwargs = {}
+        if content is not None: kwargs["content"] = content
+        if embed is not None: kwargs["embed"] = embed
+        if embeds is not None: kwargs["embeds"] = embeds
+        if view is not None: kwargs["view"] = view
+        msg = await self.fake.channel.send(**kwargs)
+        self.fake._original = msg; self._sent = True
+        return msg
+    async def defer(self, ephemeral=False, thinking=False): self._sent = True
+    async def edit_message(self, **kw):
+        try: await self.fake._original.edit(**{k:v for k,v in kw.items() if v is not None})
+        except: pass
+    def is_done(self): return self._sent
+
+class _FakeFollowup:
+    def __init__(self, fake): self.fake = fake
+    async def send(self, content=None, *, embed=None, embeds=None, view=None, ephemeral=False, **kw):
+        kwargs = {}
+        if content is not None: kwargs["content"] = content
+        if embed is not None: kwargs["embed"] = embed
+        if embeds is not None: kwargs["embeds"] = embeds
+        if view is not None: kwargs["view"] = view
+        return await self.fake.channel.send(**kwargs)
+
+class FakeInteraction:
+    def __init__(self, message):
+        self.user = message.author
+        self.channel = message.channel
+        self.guild = message.guild
+        self.message = message
+        self.client = bot
+        self.command = None
+        self._original = None
+        self._response = _FakeResponse(self)
+        self._followup = _FakeFollowup(self)
+    @property
+    def response(self): return self._response
+    @property
+    def followup(self): return self._followup
+    @property
+    def channel_id(self): return self.channel.id
+    @property
+    def guild_id(self): return self.guild.id if self.guild else None
+    async def original_response(self): return self._original
+
+def _parse_member(text, guild):
+    text = text.strip()
+    if not text: return None
+    m = re.match(r"<@!?(\d+)>", text)
+    if m:
+        return guild.get_member(int(m.group(1)))
+    if text.isdigit():
+        return guild.get_member(int(text))
+    text_low = text.lower()
+    for mem in guild.members:
+        if mem.name.lower() == text_low or mem.display_name.lower() == text_low:
+            return mem
+    for mem in guild.members:
+        if text_low in mem.name.lower() or text_low in mem.display_name.lower():
+            return mem
+    return None
+
+def _parse_role(text, guild):
+    text = text.strip()
+    m = re.match(r"<@&(\d+)>", text)
+    if m: return guild.get_role(int(m.group(1)))
+    if text.isdigit(): return guild.get_role(int(text))
+    for r in guild.roles:
+        if r.name.lower() == text.lower(): return r
+    return None
+
+def _parse_channel(text, guild):
+    text = text.strip()
+    m = re.match(r"<#(\d+)>", text)
+    if m: return guild.get_channel(int(m.group(1)))
+    if text.isdigit(): return guild.get_channel(int(text))
+    for c in guild.channels:
+        if c.name.lower() == text.lower(): return c
+    return None
+
+async def try_prefix_command(message):
+    """Returns True if a .command was found and executed."""
+    content = message.content.strip()
+    if not content.startswith("."): return False
+    if len(content) < 2 or content[1] in (" ", ".", "/"): return False
+    parts = content[1:].split(maxsplit=1)
+    cmd_name = parts[0].lower()
+    args_text = parts[1] if len(parts) > 1 else ""
+    cmd = bot.tree.get_command(cmd_name)
+    if cmd is None: return False
+    fake = FakeInteraction(message)
+    kwargs = {}
+    try:
+        params = list(cmd.parameters) if hasattr(cmd, "parameters") else []
+        remaining = args_text
+        for idx, p in enumerate(params):
+            ptype = getattr(p.type, "name", str(p.type)).lower()
+            is_last = (idx == len(params) - 1)
+            if not remaining and not p.required:
+                continue
+            if not remaining and p.required:
+                await message.channel.send(embed=em("❌", f"Fali argument: `{p.name}`. Probaj sa `/` umjesto `.` za pomoć.", color=COLORS["error"]), delete_after=8)
+                return True
+            if "user" in ptype or "member" in ptype:
+                token, _, rest = remaining.partition(" ")
+                mem = _parse_member(token, message.guild)
+                if mem is None:
+                    await message.channel.send(embed=em("❌", f"Korisnik nije pronađen: `{token}`", color=COLORS["error"]), delete_after=6)
+                    return True
+                kwargs[p.name] = mem
+                remaining = rest.strip()
+            elif "role" in ptype:
+                token, _, rest = remaining.partition(" ")
+                r = _parse_role(token, message.guild)
+                if r is None:
+                    await message.channel.send(embed=em("❌", f"Uloga nije pronađena: `{token}`", color=COLORS["error"]), delete_after=6)
+                    return True
+                kwargs[p.name] = r
+                remaining = rest.strip()
+            elif "channel" in ptype:
+                token, _, rest = remaining.partition(" ")
+                ch = _parse_channel(token, message.guild)
+                if ch is None:
+                    await message.channel.send(embed=em("❌", f"Kanal nije pronađen: `{token}`", color=COLORS["error"]), delete_after=6)
+                    return True
+                kwargs[p.name] = ch
+                remaining = rest.strip()
+            elif "integer" in ptype or "int" in ptype:
+                token, _, rest = remaining.partition(" ")
+                try: kwargs[p.name] = int(token)
+                except ValueError:
+                    await message.channel.send(embed=em("❌", f"`{p.name}` mora biti broj. Dao si: `{token}`", color=COLORS["error"]), delete_after=6)
+                    return True
+                remaining = rest.strip()
+            elif "number" in ptype or "float" in ptype:
+                token, _, rest = remaining.partition(" ")
+                try: kwargs[p.name] = float(token)
+                except ValueError:
+                    await message.channel.send(embed=em("❌", f"`{p.name}` mora biti broj.", color=COLORS["error"]), delete_after=6)
+                    return True
+                remaining = rest.strip()
+            elif "boolean" in ptype or "bool" in ptype:
+                token, _, rest = remaining.partition(" ")
+                kwargs[p.name] = token.lower() in ("da","yes","true","1","on")
+                remaining = rest.strip()
+            else:  # string
+                if is_last:
+                    kwargs[p.name] = remaining
+                    remaining = ""
+                else:
+                    token, _, rest = remaining.partition(" ")
+                    kwargs[p.name] = token
+                    remaining = rest.strip()
+        await cmd.callback(fake, **kwargs)
+    except app_commands.CommandOnCooldown as e:
+        await message.channel.send(embed=em("⏱️ Cooldown", f"Probaj ponovo za `{int(e.retry_after)}s`", color=COLORS["warning"]), delete_after=6)
+    except Exception as e:
+        await message.channel.send(embed=em("❌ Greška", f"`{type(e).__name__}`: {str(e)[:200]}\n\n💡 Probaj sa `/{cmd_name}` umjesto `.{cmd_name}`", color=COLORS["error"]), delete_after=10)
+        print(f"[prefix bridge] {cmd_name}: {e}")
+    return True
 
 # ═══════════════════════════════════════════
 #    PODACI
@@ -258,6 +425,24 @@ def em(title, desc="", color=COLORS["balkan"], fields=None, footer=None, thumb=N
         for n, v, inline in fields:
             e.add_field(name=n, value=v or "\u200b", inline=inline)
     e.set_footer(text=footer or f"{BOT_NAME} {VERSION}")
+    if thumb:  e.set_thumbnail(url=thumb)
+    if image:  e.set_image(url=image)
+    return e
+
+# Premium embed za važne ekrane (profil, daily, level-up, pobjede, shop)
+def em_pro(title, desc="", color=COLORS["gold"], fields=None, footer=None, thumb=None, image=None, author=None, accent=True):
+    sep = "˚｡⋆୨୧˚ ───────────── ˚୨୧⋆｡˚"
+    if accent and desc:
+        desc = f"{sep}\n{desc}\n{sep}"
+    elif accent:
+        desc = sep
+    e = discord.Embed(title=f"✦ {title} ✦", description=desc, color=color, timestamp=datetime.now(timezone.utc))
+    if fields:
+        for n, v, inline in fields:
+            e.add_field(name=f"⟢ {n}", value=v or "\u200b", inline=inline)
+    if author:
+        e.set_author(name=author.display_name, icon_url=author.display_avatar.url)
+    e.set_footer(text=footer or f"⚡ {BOT_NAME} {VERSION}")
     if thumb:  e.set_thumbnail(url=thumb)
     if image:  e.set_image(url=image)
     return e
@@ -524,6 +709,11 @@ async def on_message(message):
     if message.author.bot: return
     if not message.guild: return
 
+    # ── Prefix bridge (.kpm radi kao /kpm) ──
+    if message.content.startswith("."):
+        if await try_prefix_command(message):
+            return
+
     # ── Brojanje handler (PRIJE auto-mod-a, da se uvijek reaguje) ──
     cnt_cfg = data.get("counting", {}).get(str(message.guild.id))
     if cnt_cfg and message.channel.id == cnt_cfg.get("channel_id"):
@@ -704,15 +894,12 @@ async def on_message(message):
                 if lvl_role:
                     try: await message.author.add_roles(lvl_role)
                     except: pass
-            lv_em = discord.Embed(
-                title="🎊 LEVEL UP!",
-                description=f"{message.author.mention} prešao na **Level {lvl}**! Svaka čast! 🏆",
-                color=COLORS["gold"], timestamp=datetime.now(timezone.utc)
-            )
+            lv_fields = [("🌟 Novi Level", f"```fix\n★ Level {lvl} ★\n```", True), ("👤 Igrač", message.author.mention, True)]
             if str(lvl) in lr and message.guild.get_role(lr[str(lvl)]):
-                lv_em.add_field(name="🏷️ Nova uloga", value=message.guild.get_role(lr[str(lvl)]).mention, inline=True)
-            lv_em.set_thumbnail(url=message.author.display_avatar.url)
-            lv_em.set_footer(text=f"{BOT_NAME} • XP Sistem")
+                lv_fields.append(("🏷️ Nova Uloga", message.guild.get_role(lr[str(lvl)]).mention, True))
+            lv_em = em_pro("🎊 LEVEL UP", f"🚀 **{message.author.display_name}** je dostigao novi nivo!\n*Svaka čast, samo napred!* 🏆",
+                color=COLORS["gold"], thumb=message.author.display_avatar.url, author=message.author,
+                fields=lv_fields, footer=f"⚡ {BOT_NAME} • XP Sistem")
             await message.channel.send(embed=lv_em, delete_after=10)
     await bot.process_commands(message)
 
@@ -1094,8 +1281,8 @@ async def baki(i: discord.Interaction, korisnik: discord.Member = None):
     u = korisnik or i.user
     d = get_economy(u.id)
     last = time.strftime("%H:%M", time.localtime(d["last_work"])) if d["last_work"] else "Nikad"
-    await i.response.send_message(embed=em(f"💰 {u.display_name} — Novčanik", color=COLORS["gold"], thumb=u.display_avatar.url, fields=[
-        ("💶 Balans", f"`{d['balance']:,} 💶`", True), ("💼 Poslednji posao", last, True),
+    await i.response.send_message(embed=em_pro(f"💰 Novčanik", f"💎 Stanje računa za {u.mention}", color=COLORS["gold"], thumb=u.display_avatar.url, author=u, fields=[
+        ("💶 Balans", f"```yaml\n{d['balance']:,} 💶\n```", True), ("💼 Poslednji posao", f"`{last}`", True),
     ]))
 
 @bot.tree.command(name="posao", description="💼 Radi i zaradi (svaki sat)")
@@ -1116,8 +1303,8 @@ async def daily(i: discord.Interaction):
     reward = random.randint(300, 800)
     d["balance"] += reward; d["last_daily"] = time.time(); save_data()
     quest_progress(i.user.id, "daily1")
-    await i.response.send_message(embed=em("🎁 Dnevna nagrada!", "Vrati se sutra! 🔄", color=COLORS["gold"], fields=[
-        ("💶 Nagrada", f"`+{reward} 💶`", True), ("🏦 Balans", f"`{d['balance']:,} 💶`", True),
+    await i.response.send_message(embed=em_pro("🎁 Dnevna Nagrada", "🌟 Tvoj dnevni poklon je stigao!\n*Vrati se sutra za novu nagradu* 🔄", color=COLORS["gold"], author=i.user, thumb=i.user.display_avatar.url, fields=[
+        ("💶 Nagrada", f"```diff\n+ {reward} 💶\n```", True), ("🏦 Balans", f"```yaml\n{d['balance']:,} 💶\n```", True),
     ]))
 
 @bot.tree.command(name="daj", description="🤝 Pošalji pare drugaru")
@@ -1160,10 +1347,10 @@ async def rank(i: discord.Interaction, korisnik: discord.Member = None):
     d = get_xp(u.id)
     needed = d["level"] * 100
     filled = min(d["xp"] * 10 // needed, 10)
-    bar = "🟦" * filled + "⬛" * (10 - filled)
+    bar = "🟪" * filled + "⬛" * (10 - filled)
     pct = round(d["xp"] / needed * 100)
-    await i.response.send_message(embed=em(f"📈 {u.display_name} — Rank", f"{bar} `{pct}%`", color=COLORS["purple"], thumb=u.display_avatar.url, fields=[
-        ("🏆 Level", f"`{d['level']}`", True), ("⭐ XP", f"`{d['xp']}/{needed}`", True), ("📊 Do sledećeg", f"`{pct}%`", True),
+    await i.response.send_message(embed=em_pro(f"📈 Rank Profil", f"{bar}\n`{'▰'*filled}{'▱'*(10-filled)}` **{pct}%**", color=COLORS["purple"], thumb=u.display_avatar.url, author=u, fields=[
+        ("🏆 Level", f"```fix\n{d['level']}\n```", True), ("⭐ XP", f"```py\n{d['xp']}/{needed}\n```", True), ("📊 Progres", f"```css\n[{pct}%]\n```", True),
     ]))
 
 @bot.tree.command(name="leaderboard", description="🏅 Top lista servera")
@@ -2963,10 +3150,13 @@ async def kupi(i: discord.Interaction, predmet: str):
     items = get_items(i.user.id)
     items[predmet] = (time.time() + item["duration"]) if item["duration"] else True
     save_data()
-    await i.response.send_message(embed=em(
-        f"✅ Kupljeno! {item['name']}",
-        f"**{item['desc']}**\n`-{item['price']:,} 💶` | Balans: `{eco['balance']:,} 💶`",
-        color=COLORS["success"]
+    await i.response.send_message(embed=em_pro(
+        f"✅ Kupovina Uspješna",
+        f"🎁 Nabavio si **{item['name']}**!\n*{item['desc']}*",
+        color=COLORS["success"], author=i.user, thumb=i.user.display_avatar.url, fields=[
+            ("💸 Cijena", f"```diff\n- {item['price']:,} 💶\n```", True),
+            ("🏦 Balans", f"```yaml\n{eco['balance']:,} 💶\n```", True),
+        ]
     ))
 
 # ═══════════════════════════════════════════
