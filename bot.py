@@ -5176,21 +5176,6 @@ async def on_app_command_completion(interaction, command):
         data["cmd_uses"][n] = data["cmd_uses"].get(n, 0) + 1
     except Exception: pass
 
-# ─── 💡 SUGGEST ───
-@bot.tree.command(name="suggest", description="💡 Pošalji sugestiju (sa glasanjem)")
-async def suggest_cmd(i: discord.Interaction, sugestija: str):
-    cfg = get_config(i.guild.id)
-    ch_id = cfg.get("suggest_channel")
-    ch = i.guild.get_channel(ch_id) if ch_id else i.channel
-    data["suggest_count"] += 1; save_data()
-    e = discord.Embed(title=f"💡 Sugestija #{data['suggest_count']}", description=sugestija[:1500], color=COLORS["info"], timestamp=datetime.now(timezone.utc))
-    e.set_author(name=str(i.user), icon_url=i.user.display_avatar.url)
-    msg = await ch.send(embed=e)
-    try:
-        await msg.add_reaction("👍"); await msg.add_reaction("👎"); await msg.add_reaction("🤷")
-    except: pass
-    await i.response.send_message(embed=em("✅", "Sugestija poslana!", color=COLORS["success"]), ephemeral=True)
-
 # ─── 🚨 REPORT (anoniman) ───
 @bot.tree.command(name="report", description="🚨 Anonimno prijavi korisnika moderatorima")
 async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: str):
