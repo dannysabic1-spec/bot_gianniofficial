@@ -616,6 +616,9 @@ async def on_ready():
     if not reminder_loop.is_running(): reminder_loop.start()
     if not vanity_loop.is_running(): vanity_loop.start()
     if not auto_game_loop.is_running(): auto_game_loop.start()
+    if not active_member_week.is_running(): active_member_week.start()
+    try: await post_pvc_info()
+    except Exception as _e: print(f"[pvc-info init] {_e}")
     print(f"  🛡️ Sigurnost: Anti-Nuke ✓ • Anti-Invite ✓ • Auto-Backup ✓ • Owner whitelist: {len(OWNER_IDS)}")
     for key, panel in data.get("selfroles", {}).items():
         if not panel.get("message_id"):
@@ -686,6 +689,40 @@ async def on_member_join(member):
         data["invite_uses"][gkey] = new_uses
         save_data()
     except Exception as _e: print(f"[invite-track join] {_e}")
+
+    # ── Sumnjivi nalozi (mlađi od 7 dana) — upozorenje u log ──
+    try:
+        if is_suspicious_account(member):
+            age_days = (datetime.now(timezone.utc) - member.created_at).days
+            await audit_log(member.guild, "⚠️ Sumnjiv nalog se pridružio",
+                f"{member.mention} (`{member}`) — nalog je star samo **{age_days} dan/a**.\n"
+                f"Mogući fake/spam nalog. Provjeriti aktivnost.",
+                color=COLORS.get("warning", 0xFFA500))
+    except Exception as _e: print(f"[suspicious] {_e}")
+
+    # ── Server Milestones (50, 100, 200, 500, 1000…) ──
+    try:
+        cnt = sum(1 for m in member.guild.members if not m.bot)
+        milestones = [25, 50, 100, 150, 200, 300, 500, 750, 1000, 1500, 2000, 5000]
+        if cnt in milestones:
+            ms_ch = member.guild.get_channel(cfg.get("welcome_channel") or 1494687347558715543) or member.guild.system_channel
+            if ms_ch:
+                ms_e = discord.Embed(
+                    title=f"🎊 MILESTONE — {cnt} ČLANOVA! 🎊",
+                    description=(
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🏆 Upravo smo dostigli **{cnt}** članova!\n"
+                        f"💜 Hvala svima koji su dio **× GIANNI** porodice!\n"
+                        f"🚀 Nastavljamo dalje — sljedeća stanica još veća!\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━"
+                    ),
+                    color=0xFFD700, timestamp=datetime.now(timezone.utc)
+                )
+                ms_e.set_image(url="https://media.tenor.com/M0vSf9CGHoEAAAAC/celebration.gif")
+                ms_e.set_footer(text=f"{BOT_NAME} • Server raste! 📈")
+                await ms_ch.send(content="@everyone", embed=ms_e,
+                    allowed_mentions=discord.AllowedMentions(everyone=True))
+    except Exception as _e: print(f"[milestone] {_e}")
 
     # ── Auto-Role ──────────────────────────────────────
     if auto_role_id := cfg.get("auto_role"):
@@ -896,6 +933,13 @@ async def on_message(message):
         if await try_prefix_command(message):
             return
 
+    # ── WLCM auto-reakcije (svako ko napiše "wlcm" dobije 🇼🇱🇨🇲) ──
+    if message.content.lower().strip() in ("wlcm", "wlcm all"):
+        for emj in ["🇼", "🇱", "🇨", "🇲"]:
+            try: await message.add_reaction(emj)
+            except: pass
+        return
+
     # ── Brojanje handler (PRIJE auto-mod-a, da se uvijek reaguje) ──
     cnt_cfg = data.get("counting", {}).get(str(message.guild.id))
     if cnt_cfg and message.channel.id == cnt_cfg.get("channel_id"):
@@ -1066,27 +1110,54 @@ async def on_message(message):
     # ── Msg Counter ───────────────────────────────────
     mkey = f"{message.guild.id}:{message.author.id}"
     data["msg_count"][mkey] = data["msg_count"].get(mkey, 0) + 1
+    data.setdefault("msg_count_week", {})
+    data["msg_count_week"][mkey] = data["msg_count_week"].get(mkey, 0) + 1
 
     # ── XP ────────────────────────────────────────────
     if random.random() < 0.12:
         if add_xp(message.author.id, random.randint(5, 20)):
             save_data()
             lvl = get_xp(message.author.id)["level"]
-            # Level-up uloga
             cfg = get_guild_config(message.guild.id)
             lr = cfg.get("level_roles", {})
+            new_role = None
             if str(lvl) in lr:
                 lvl_role = message.guild.get_role(lr[str(lvl)])
                 if lvl_role:
-                    try: await message.author.add_roles(lvl_role)
+                    try:
+                        await message.author.add_roles(lvl_role)
+                        new_role = lvl_role
                     except: pass
-            lv_fields = [("🌟 Novi Level", f"```fix\n★ Level {lvl} ★\n```", True), ("👤 Igrač", message.author.mention, True)]
-            if str(lvl) in lr and message.guild.get_role(lr[str(lvl)]):
-                lv_fields.append(("🏷️ Nova Uloga", message.guild.get_role(lr[str(lvl)]).mention, True))
-            lv_em = em_pro("🎊 LEVEL UP", f"🚀 **{message.author.display_name}** je dostigao novi nivo!\n*Svaka čast, samo napred!* 🏆",
-                color=COLORS["gold"], thumb=message.author.display_avatar.url, author=message.author,
-                fields=lv_fields, footer=f"⚡ {BOT_NAME} • XP Sistem")
-            await message.channel.send(embed=lv_em, delete_after=10)
+            # Šalji u dedicated level-up kanal ako je postavljen, inače fallback
+            lvl_ch_id = cfg.get("levelup_channel") or 1494043957242495107
+            lvl_ch = message.guild.get_channel(lvl_ch_id) or message.channel
+            sep = "━━━━━━━━━━━━━━━━━━━━━━"
+            desc = (
+                f"{sep}\n"
+                f"🎉 Čestitamo {message.author.mention}!\n"
+                f"Dostigao/la si **`★ LEVEL {lvl} ★`**\n"
+                f"{sep}\n"
+                f"💬 Nastavi pisati i osvajati još više XP-a!\n"
+            )
+            if new_role:
+                desc += f"🏷️ **Otključana uloga:** {new_role.mention}\n"
+            desc += f"\n📊 Provjeri statistiku sa `/rank`"
+            lv_em = discord.Embed(
+                title="🌟 ʟᴇᴠᴇʟ ᴜᴘ! 🌟",
+                description=desc,
+                color=0xFFD700,
+                timestamp=datetime.now(timezone.utc)
+            )
+            lv_em.set_thumbnail(url=message.author.display_avatar.url)
+            lv_em.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
+            lv_em.set_footer(text=f"⚡ {BOT_NAME} • XP Sistem")
+            try:
+                if lvl_ch.id == message.channel.id:
+                    await lvl_ch.send(content=message.author.mention, embed=lv_em, delete_after=15)
+                else:
+                    await lvl_ch.send(content=message.author.mention, embed=lv_em)
+            except Exception as _e:
+                print(f"[level-up] {_e}")
     await bot.process_commands(message)
 
 @bot.event
@@ -1212,8 +1283,8 @@ NUKE_BAN_LIMIT = 3      # max banova/kickova/brisanja u prozoru
 nuke_tracker: dict = defaultdict(lambda: defaultdict(deque))
 
 # ── PAMETNI Anti-Raid (NE LOCKUJE server, samo kickuje sumnjive) ───
-RAID_WINDOW = 10            # sekundi
-RAID_JOIN_LIMIT = 5         # 5+ NOVIH naloga u 10s = raid
+RAID_WINDOW = 30            # sekundi (5+ joinova u 30s = raid lockdown 5 min)
+RAID_JOIN_LIMIT = 5         # 5+ NOVIH naloga u 30s = raid
 SUSPICIOUS_AGE_DAYS = 7     # nalozi mlađi od ovoliko dana = sumnjivi
 join_tracker: dict = defaultdict(deque)   # guild_id -> deque[(timestamp, member_id, account_age_days)]
 raid_mode: dict = {}        # guild_id -> until_timestamp (period gdje se sumnjivi auto-kickaju)
@@ -5102,6 +5173,74 @@ async def auto_game_loop():
 @auto_game_loop.before_loop
 async def _auto_game_wait(): await bot.wait_until_ready()
 
+# ═══════════════════════════════════════════
+#    🏆 ACTIVE MEMBER OF THE WEEK
+# ═══════════════════════════════════════════
+@tasks.loop(hours=24)
+async def active_member_week():
+    """Svaki ponedjeljak u 12:00 UTC objavi najaktivnijeg člana sedmice."""
+    now = datetime.now(timezone.utc)
+    if now.weekday() != 0 or now.hour != 12:
+        return
+    last = data.get("aotw_last")
+    today_str = now.strftime("%Y-%m-%d")
+    if last == today_str:
+        return
+    for guild in bot.guilds:
+        cfg = get_guild_config(guild.id)
+        weekly = data.get("msg_count_week", {})
+        gprefix = f"{guild.id}:"
+        gusers = [(k.split(":")[1], v) for k, v in weekly.items() if k.startswith(gprefix)]
+        if not gusers:
+            continue
+        gusers.sort(key=lambda x: x[1], reverse=True)
+        top_uid, top_count = gusers[0]
+        try:
+            top_member = guild.get_member(int(top_uid)) or await guild.fetch_member(int(top_uid))
+        except: continue
+        if not top_member: continue
+        ch = guild.get_channel(cfg.get("welcome_channel") or 1494687347558715543) or guild.system_channel
+        if not ch: continue
+        # Bonus: 500 coina + 100 XP
+        mkey = f"{guild.id}:{top_member.id}"
+        data["money"][mkey] = data["money"].get(mkey, 0) + 500
+        add_xp(top_member.id, 100)
+        e = discord.Embed(
+            title="🏆 ᴀᴄᴛɪᴠᴇ ᴍᴇᴍʙᴇʀ ᴏꜰ ᴛʜᴇ ᴡᴇᴇᴋ 🏆",
+            description=(
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👑 Najaktivniji član ove sedmice je:\n\n"
+                f"## {top_member.mention}\n\n"
+                f"💬 Napisao/la **{top_count:,}** poruka u zadnjih 7 dana!\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🎁 **Nagrada:** `+500 coina` 💰 + `+100 XP` ⚡\n"
+                f"💜 Hvala što si dio × GIANNI porodice!"
+            ),
+            color=0xFFD700, timestamp=now
+        )
+        e.set_thumbnail(url=top_member.display_avatar.url)
+        # Top 3
+        top3 = gusers[:3]
+        leaderboard = ""
+        medals = ["🥇", "🥈", "🥉"]
+        for i, (uid, cnt) in enumerate(top3):
+            mem = guild.get_member(int(uid))
+            if mem:
+                leaderboard += f"{medals[i]} {mem.mention} — `{cnt:,}` poruka\n"
+        if leaderboard:
+            e.add_field(name="📊 Top 3 sedmice", value=leaderboard, inline=False)
+        e.set_footer(text=f"{BOT_NAME} • Sljedeći AOTW za 7 dana 📅")
+        try:
+            await ch.send(embed=e)
+        except Exception as _e: print(f"[AOTW] {_e}")
+    # Resetuj weekly counter
+    data["msg_count_week"] = {}
+    data["aotw_last"] = today_str
+    save_data()
+
+@active_member_week.before_loop
+async def _aotw_wait(): await bot.wait_until_ready()
+
 # ─── 🎱 RUČNI BINGO ───
 @bot.tree.command(name="bingo", description="🎱 Pokreni Bingo igru u ovom kanalu (1-75)")
 async def bingo_cmd(i: discord.Interaction):
@@ -5164,6 +5303,259 @@ async def cmdstats_cmd(i: discord.Interaction):
     e.add_field(name="❌ Nikad korišćene", value=never_txt, inline=False)
     e.set_footer(text="Razmisli o brisanju komandi iz '❌ Nikad korišćene'")
     await i.response.send_message(embed=e, ephemeral=True)
+
+# ═══════════════════════════════════════════
+#    🔊 PRIVATE VOICE — Join To Create
+# ═══════════════════════════════════════════
+JTC_VOICE_ID = 1494043959213953114  # Glavni "Kreiraj svoj kanal" voice
+PVC_INFO_CHANNEL_ID = 1494043958681145570  # Kanal gdje se postavlja uputstvo
+data.setdefault("private_voices", {})  # {channel_id: owner_id}
+data.setdefault("pvc_info_posted", False)
+
+async def post_pvc_info():
+    """Jednom postavi lijep uputstvo embed u info kanal."""
+    if data.get("pvc_info_posted"): return
+    for guild in bot.guilds:
+        ch = guild.get_channel(PVC_INFO_CHANNEL_ID)
+        if not ch: continue
+        try:
+            sep = "━━━━━━━━━━━━━━━━━━━━━━"
+            e = discord.Embed(
+                title="🔊 ᴋᴀᴋᴏ ᴋᴏʀɪꜱᴛɪᴛɪ ᴘʀɪᴠᴀᴛɴɪ ᴠᴏɪᴄᴇ?",
+                description=(
+                    f"{sep}\n"
+                    f"💡 Napravi **svoj vlastiti voice kanal** koji možeš zaključati, sakriti, "
+                    f"renamati, postaviti limit i još mnogo toga!\n"
+                    f"{sep}"
+                ),
+                color=0x9B59B6
+            )
+            e.add_field(
+                name="1️⃣ Kako napraviti svoj kanal",
+                value=(
+                    f"➜ Uđi u voice kanal **🔊 Kreiraj svoj kanal** <#{JTC_VOICE_ID}>\n"
+                    f"➜ Bot će ti **automatski** napraviti privatni voice\n"
+                    f"➜ I **odmah** te prebaciti u njega\n"
+                    f"➜ Postaješ **vlasnik** 👑 i dobijaš kontrolni panel!\n{sep}"
+                ),
+                inline=False
+            )
+            e.add_field(
+                name="2️⃣ Kontrolni panel (dugmad u tvom VC-u)",
+                value=(
+                    "🔒 **Lock** — niko ne može ući u tvoj kanal\n"
+                    "🔓 **Unlock** — svi mogu ući\n"
+                    "👁️ **Hide** — sakrij kanal od svih\n"
+                    "👀 **Show** — vrati kanal vidljiv\n"
+                    "✏️ **Rename** — promijeni ime kanala\n"
+                    "👥 **Limit** — postavi max broj članova (1-99)\n"
+                    "🚫 **Kick** — izbaci nekog iz tvog kanala\n"
+                    "👑 **Owner** — prebaci vlasništvo na drugog\n"
+                    "❌ **Delete** — odmah obriši kanal\n"
+                    f"{sep}"
+                ),
+                inline=False
+            )
+            e.add_field(
+                name="3️⃣ Automatsko brisanje",
+                value=(
+                    "🗑️ Kad **svi izađu**, kanal se **automatski briše**\n"
+                    "💾 Ne brini o čišćenju — bot to radi za tebe!\n"
+                    f"{sep}"
+                ),
+                inline=False
+            )
+            e.add_field(
+                name="💡 Korisni Tip",
+                value=(
+                    "✨ Lock + Hide = potpuno privatan VC samo za tebe i prijatelje\n"
+                    "🎮 Pozovi prijatelje preko **Invite to channel** desnim klikom\n"
+                    "👑 Prebaci vlasništvo prije izlaska ako želiš da kanal ostane"
+                ),
+                inline=False
+            )
+            e.set_footer(text=f"{BOT_NAME} • Privatni Voice Sistem 🔊")
+            e.set_thumbnail(url="https://cdn.discordapp.com/emojis/963322998568083477.gif")
+            await ch.send(embed=e)
+            data["pvc_info_posted"] = True
+            save_data()
+        except Exception as _e:
+            print(f"[pvc-info] {_e}")
+
+class PrivateVCPanel(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    async def _check_owner(self, interaction):
+        ch = interaction.user.voice.channel if interaction.user.voice else None
+        if not ch or str(ch.id) not in data.get("private_voices", {}):
+            await interaction.response.send_message("❌ Nisi u privatnom voice kanalu!", ephemeral=True)
+            return None
+        if data["private_voices"][str(ch.id)] != interaction.user.id:
+            await interaction.response.send_message("❌ Nisi vlasnik ovog kanala!", ephemeral=True)
+            return None
+        return ch
+
+    @discord.ui.button(label="🔒 Lock", style=discord.ButtonStyle.danger, custom_id="pvc_lock")
+    async def lock(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        await ch.set_permissions(i.guild.default_role, connect=False)
+        await i.response.send_message("🔒 Kanal **zaključan** — niko ne može ući!", ephemeral=True)
+
+    @discord.ui.button(label="🔓 Unlock", style=discord.ButtonStyle.success, custom_id="pvc_unlock")
+    async def unlock(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        await ch.set_permissions(i.guild.default_role, connect=None)
+        await i.response.send_message("🔓 Kanal **otključan** — svi mogu ući!", ephemeral=True)
+
+    @discord.ui.button(label="👁️ Hide", style=discord.ButtonStyle.secondary, custom_id="pvc_hide")
+    async def hide(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        await ch.set_permissions(i.guild.default_role, view_channel=False)
+        await i.response.send_message("👁️ Kanal **sakriven** — niko ga ne vidi!", ephemeral=True)
+
+    @discord.ui.button(label="👀 Show", style=discord.ButtonStyle.secondary, custom_id="pvc_show")
+    async def show(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        await ch.set_permissions(i.guild.default_role, view_channel=None)
+        await i.response.send_message("👀 Kanal **vidljiv** svima!", ephemeral=True)
+
+    @discord.ui.button(label="✏️ Rename", style=discord.ButtonStyle.primary, custom_id="pvc_rename")
+    async def rename(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        modal = discord.ui.Modal(title="✏️ Promijeni ime kanala")
+        name_in = discord.ui.TextInput(label="Novo ime", placeholder="🔊 Moj kanal", max_length=50)
+        modal.add_item(name_in)
+        async def cb(m_int):
+            await ch.edit(name=name_in.value)
+            await m_int.response.send_message(f"✅ Ime promijenjeno u: **{name_in.value}**", ephemeral=True)
+        modal.on_submit = cb
+        await i.response.send_modal(modal)
+
+    @discord.ui.button(label="👥 Limit", style=discord.ButtonStyle.primary, custom_id="pvc_limit")
+    async def limit(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        modal = discord.ui.Modal(title="👥 Postavi limit članova")
+        lim_in = discord.ui.TextInput(label="Broj (0 = bez limita, max 99)", placeholder="5")
+        modal.add_item(lim_in)
+        async def cb(m_int):
+            try: n = max(0, min(99, int(lim_in.value)))
+            except: return await m_int.response.send_message("❌ Mora biti broj!", ephemeral=True)
+            await ch.edit(user_limit=n)
+            await m_int.response.send_message(f"✅ Limit postavljen na **{n}** {'(bez limita)' if n==0 else 'članova'}", ephemeral=True)
+        modal.on_submit = cb
+        await i.response.send_modal(modal)
+
+    @discord.ui.button(label="🚫 Kick", style=discord.ButtonStyle.danger, custom_id="pvc_kick", row=1)
+    async def kick(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        if not ch.members or len([m for m in ch.members if m.id != i.user.id]) == 0:
+            return await i.response.send_message("❌ Nema nikog za izbacit!", ephemeral=True)
+        opts = [discord.SelectOption(label=m.display_name, value=str(m.id))
+                for m in ch.members if m.id != i.user.id][:25]
+        sel = discord.ui.Select(placeholder="Izaberi koga da izbaciš", options=opts)
+        async def sel_cb(s_int):
+            mid = int(sel.values[0])
+            mem = ch.guild.get_member(mid)
+            if mem and mem.voice and mem.voice.channel == ch:
+                await mem.move_to(None)
+                await s_int.response.send_message(f"🚫 {mem.mention} izbačen iz kanala!", ephemeral=True)
+            else:
+                await s_int.response.send_message("❌ Već nije u kanalu.", ephemeral=True)
+        sel.callback = sel_cb
+        view = discord.ui.View(timeout=60)
+        view.add_item(sel)
+        await i.response.send_message("Izaberi člana:", view=view, ephemeral=True)
+
+    @discord.ui.button(label="👑 Owner", style=discord.ButtonStyle.secondary, custom_id="pvc_transfer", row=1)
+    async def transfer(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        opts = [discord.SelectOption(label=m.display_name, value=str(m.id))
+                for m in ch.members if m.id != i.user.id and not m.bot][:25]
+        if not opts:
+            return await i.response.send_message("❌ Nema nikog kome bi prebacio vlasništvo!", ephemeral=True)
+        sel = discord.ui.Select(placeholder="Novi vlasnik", options=opts)
+        async def sel_cb(s_int):
+            new_id = int(sel.values[0])
+            new_owner = ch.guild.get_member(new_id)
+            data["private_voices"][str(ch.id)] = new_id
+            save_data()
+            await ch.set_permissions(i.user, overwrite=None)
+            await ch.set_permissions(new_owner, manage_channels=True, move_members=True, mute_members=True, deafen_members=True)
+            await s_int.response.send_message(f"👑 Vlasništvo prebačeno na {new_owner.mention}!", ephemeral=True)
+        sel.callback = sel_cb
+        view = discord.ui.View(timeout=60)
+        view.add_item(sel)
+        await i.response.send_message("Izaberi novog vlasnika:", view=view, ephemeral=True)
+
+    @discord.ui.button(label="❌ Delete", style=discord.ButtonStyle.danger, custom_id="pvc_delete", row=1)
+    async def delete(self, i: discord.Interaction, b):
+        ch = await self._check_owner(i)
+        if not ch: return
+        await i.response.send_message("❌ Brišem kanal za 3s...", ephemeral=True)
+        await asyncio.sleep(3)
+        try:
+            data["private_voices"].pop(str(ch.id), None)
+            save_data()
+            await ch.delete(reason="Vlasnik obrisao privatni VC")
+        except: pass
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    if member.bot: return
+    # ── KREIRAJ NOVI PRIVATNI VC ──
+    if after.channel and after.channel.id == JTC_VOICE_ID:
+        try:
+            cat = after.channel.category
+            new_ch = await member.guild.create_voice_channel(
+                name=f"🔊 {member.display_name}",
+                category=cat,
+                reason=f"Privatni VC za {member}"
+            )
+            await new_ch.set_permissions(member, manage_channels=True, move_members=True,
+                mute_members=True, deafen_members=True, connect=True, view_channel=True)
+            data["private_voices"][str(new_ch.id)] = member.id
+            save_data()
+            await member.move_to(new_ch)
+            # Pošalji panel u kanal (text chat unutar VC-a, Discord 2024+ feature)
+            try:
+                e = discord.Embed(
+                    title=f"🔊 Dobrodošao u svoj kanal, {member.display_name}!",
+                    description=(
+                        "**Ti si vlasnik!** 👑 Koristi dugmad ispod:\n\n"
+                        "🔒 **Lock** — niko ne može ući\n"
+                        "🔓 **Unlock** — svi mogu ući\n"
+                        "👁️ **Hide / Show** — sakrij/pokaži kanal\n"
+                        "✏️ **Rename** — promijeni ime\n"
+                        "👥 **Limit** — postavi max članova\n"
+                        "🚫 **Kick** — izbaci nekog iz kanala\n"
+                        "👑 **Owner** — prebaci vlasništvo\n"
+                        "❌ **Delete** — obriši kanal\n\n"
+                        "*Kanal se automatski briše kad ostane prazan.*"
+                    ),
+                    color=COLORS.get("balkan", 0x9B59B6)
+                )
+                e.set_footer(text=f"{BOT_NAME} • Privatni Voice Sistem")
+                await new_ch.send(content=member.mention, embed=e, view=PrivateVCPanel())
+            except Exception as _e: print(f"[pvc panel] {_e}")
+        except Exception as _e: print(f"[pvc create] {_e}")
+
+    # ── OBRIŠI PRAZAN PRIVATNI VC ──
+    if before.channel and str(before.channel.id) in data.get("private_voices", {}):
+        if len([m for m in before.channel.members if not m.bot]) == 0:
+            try:
+                data["private_voices"].pop(str(before.channel.id), None)
+                save_data()
+                await before.channel.delete(reason="Privatni VC prazan")
+            except Exception as _e: print(f"[pvc delete] {_e}")
 
 @bot.tree.error
 async def _tree_err(interaction, error):
