@@ -176,6 +176,7 @@ VJASALA_FAZE = [
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.presences = True  # potrebno za /vanity (čitanje custom statusa)
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
 # ═══════════════════════════════════════════
@@ -323,7 +324,7 @@ CMDS_ANYWHERE = {
     "setup-log", "setup-starboard", "setup-levelrole", "setup-birthday",
     "setup-panels", "ticket-setup", "brojanje-postavi", "brojanje-info",
     "brojanje-reset", "setname", "setavatar", "setchannel", "sort-roles",
-    "server-config", "selfroles-setup",
+    "server-config", "selfroles-setup", "vanity",
 }
 
 # Kanali u kojima SVE komande rade (slobodne zone)
@@ -613,6 +614,8 @@ async def on_ready():
     if not birthday_check.is_running(): birthday_check.start()
     if not auto_backup.is_running(): auto_backup.start()
     if not reminder_loop.is_running(): reminder_loop.start()
+    if not vanity_loop.is_running(): vanity_loop.start()
+    if not auto_game_loop.is_running(): auto_game_loop.start()
     print(f"  🛡️ Sigurnost: Anti-Nuke ✓ • Anti-Invite ✓ • Auto-Backup ✓ • Owner whitelist: {len(OWNER_IDS)}")
     for key, panel in data.get("selfroles", {}).items():
         if not panel.get("message_id"):
@@ -779,7 +782,7 @@ async def on_member_join(member):
         "informacije": 1494359372531372094,
         "pravila":     1494043956965544092,
         "selfroles":   1494058515319230614,
-        "chat":        1494043957242495113,
+        "chat":        1494687347558715543,
         "public":      1494043958131556448,
     }
     def ch_link(key):
@@ -4217,14 +4220,6 @@ async def setup_levelrole(i: discord.Interaction, level: int, uloga: discord.Rol
     save_data()
     await i.response.send_message(embed=em("✅ Level uloga postavljena!", f"Level **{level}** → {uloga.mention}", color=COLORS["success"]), ephemeral=True)
 
-@bot.tree.command(name="setup-birthday", description="⚙️ Postavi kanal za rođendane [ADMIN]")
-@discord.app_commands.describe(kanal="Kanal gdje bot čestita rođendane")
-@discord.app_commands.default_permissions(manage_guild=True)
-async def setup_birthday(i: discord.Interaction, kanal: discord.TextChannel):
-    get_guild_config(i.guild.id)["birthday_channel"] = kanal.id
-    save_data()
-    await i.response.send_message(embed=em("✅ Birthday kanal postavljen!", f"Kanal: {kanal.mention}\nBot čestita svakog dana u ponoć.", color=COLORS["success"]), ephemeral=True)
-
 @bot.tree.command(name="server-config", description="⚙️ Pregled konfiguracije servera [ADMIN]")
 @discord.app_commands.default_permissions(manage_guild=True)
 async def server_config_cmd(i: discord.Interaction):
@@ -4263,18 +4258,6 @@ async def birthday_cmd(i: discord.Interaction, datum: str):
     data["birthdays"][str(i.user.id)] = datum
     save_data()
     await i.response.send_message(embed=em("🎂 Rođendan upisan!", f"Tvoj rođendan: **{datum}**\nBot će te čestitati na taj dan! 🥳", color=COLORS["fun"]))
-
-@bot.tree.command(name="birthdays", description="🎂 Pregled svih rođendana na serveru")
-async def birthdays_cmd(i: discord.Interaction):
-    members_bdays = []
-    for uid, bday in data.get("birthdays", {}).items():
-        member = i.guild.get_member(int(uid))
-        if member: members_bdays.append((bday, member.display_name))
-    if not members_bdays:
-        return await i.response.send_message(embed=em("🎂 Nema upisanih rođendana", "Upiši svoj sa `/birthday`!", color=COLORS["info"]), ephemeral=True)
-    members_bdays.sort(key=lambda x: (int(x[0].split("-")[1]), int(x[0].split("-")[0])))
-    txt = "\n".join(f"🎂 **{name}** — {bday}" for bday, name in members_bdays[:25])
-    await i.response.send_message(embed=em("🎂 Rođendani na serveru", txt, color=COLORS["fun"]))
 
 # ═══════════════════════════════════════════
 #    SELF ROLES
@@ -4751,6 +4734,7 @@ data.setdefault("reminders", [])
 data.setdefault("heist_cooldown", {})
 data.setdefault("confess_count", 0)
 data.setdefault("suggest_count", 0)
+data.setdefault("cmd_uses", {})
 
 # ─── 📊 SERVER STATS ───
 @bot.tree.command(name="serverstats", description="📊 Statistika servera")
@@ -4946,18 +4930,172 @@ async def confess_cmd(i: discord.Interaction, poruka: str):
     await ch.send(embed=e)
     await i.response.send_message(embed=em("✅", "Ispovjed poslana anonimno!", color=COLORS["success"]), ephemeral=True)
 
-@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/suggest/report kanal")
-@app_commands.describe(tip="confess | suggest | report", kanal="Kanal za taj tip")
+@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/suggest/report/birthday kanal")
+@app_commands.describe(tip="Tip kanala", kanal="Kanal za taj tip")
 @app_commands.choices(tip=[
-    app_commands.Choice(name="confess", value="confess_channel"),
-    app_commands.Choice(name="suggest", value="suggest_channel"),
-    app_commands.Choice(name="report",  value="report_channel"),
+    app_commands.Choice(name="confess",  value="confess_channel"),
+    app_commands.Choice(name="suggest",  value="suggest_channel"),
+    app_commands.Choice(name="report",   value="report_channel"),
+    app_commands.Choice(name="birthday", value="birthday_channel"),
 ])
 async def setchannel_cmd(i: discord.Interaction, tip: app_commands.Choice[str], kanal: discord.TextChannel):
     if not i.user.guild_permissions.administrator:
         return await i.response.send_message("❌ Samo admin.", ephemeral=True)
     get_config(i.guild.id)[tip.value] = kanal.id; save_data()
     await i.response.send_message(embed=em("✅", f"{tip.name.capitalize()} kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
+
+# ═══════════════════════════════════════════
+#    🦋 VANITY ROLE — .gg/gianni u statusu
+# ═══════════════════════════════════════════
+@bot.tree.command(name="vanity", description="🦋 Postavi/pogledaj Vanity ulogu (član stavi tekst u status → dobija ulogu)")
+@app_commands.describe(
+    uloga="Uloga koju bot daje članu (ostavi prazno za pregled)",
+    tekst="Tekst koji član mora imati u statusu (npr. .gg/gianni)"
+)
+async def vanity_cmd(i: discord.Interaction, uloga: discord.Role = None, tekst: str = None):
+    cfg = get_guild_config(i.guild.id)
+    if uloga is None and tekst is None:
+        rid = cfg.get("vanity_role")
+        txt = cfg.get("vanity_text", ".gg/gianni")
+        role = i.guild.get_role(rid) if rid else None
+        active = sum(1 for m in i.guild.members if rid and any(r.id == rid for r in m.roles))
+        e = em("🦋 Vanity Role status",
+            f"**Tekst:** `{txt}`\n**Uloga:** {role.mention if role else '*nije postavljena*'}\n**Trenutno aktivnih:** `{active}` članova\n\n*Kako:* član u svoj **Custom Status** (klikni avatar → Set Status) napiše `{txt}` i automatski dobija ulogu. Skine tekst → bot mu skine ulogu (provjera svake minute).",
+            color=COLORS["balkan"])
+        return await i.response.send_message(embed=e, ephemeral=True)
+    if not i.user.guild_permissions.administrator:
+        return await i.response.send_message("❌ Samo admin može mijenjati postavke.", ephemeral=True)
+    if uloga:
+        if uloga >= i.guild.me.top_role:
+            return await i.response.send_message(embed=em("❌", "Ta uloga je viša od moje! Pomjeri moju ulogu iznad nje.", color=COLORS["error"]), ephemeral=True)
+        cfg["vanity_role"] = uloga.id
+    if tekst:
+        cfg["vanity_text"] = tekst.strip()
+    save_data()
+    await i.response.send_message(embed=em("✅ Vanity postavljen!",
+        f"**Tekst:** `{cfg.get('vanity_text', '.gg/gianni')}`\n**Uloga:** <@&{cfg.get('vanity_role')}>\n\nBot provjerava svaku minutu i automatski dodjeljuje/skida ulogu.",
+        color=COLORS["success"]), ephemeral=True)
+
+@tasks.loop(minutes=1)
+async def vanity_loop():
+    for guild in bot.guilds:
+        cfg = get_guild_config(guild.id)
+        rid = cfg.get("vanity_role")
+        txt = (cfg.get("vanity_text") or "").lower().strip()
+        if not rid or not txt: continue
+        role = guild.get_role(rid)
+        if not role: continue
+        for member in guild.members:
+            if member.bot: continue
+            has_text = False
+            for act in (member.activities or []):
+                if isinstance(act, discord.CustomActivity):
+                    if act.name and txt in act.name.lower():
+                        has_text = True; break
+                # fallback: bilo koja activity sa state/name
+                state = getattr(act, "state", None) or ""
+                name  = getattr(act, "name", None)  or ""
+                if txt in state.lower() or txt in name.lower():
+                    has_text = True; break
+            try:
+                has_role = role in member.roles
+                if has_text and not has_role:
+                    await member.add_roles(role, reason="Vanity status detected")
+                elif not has_text and has_role:
+                    await member.remove_roles(role, reason="Vanity status removed")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
+@vanity_loop.before_loop
+async def _vanity_wait(): await bot.wait_until_ready()
+
+# ═══════════════════════════════════════════
+#    🎱 AUTO BINGO — svakih 50 min u chatu
+# ═══════════════════════════════════════════
+@tasks.loop(minutes=50)
+async def auto_game_loop():
+    import asyncio
+    for guild in bot.guilds:
+        cfg = get_guild_config(guild.id)
+        ch_id = cfg.get("auto_game_channel") or cfg.get("welcome_channel")
+        chan = guild.get_channel(ch_id) if ch_id else None
+        if not chan:
+            chan = discord.utils.get(guild.text_channels, name="chat") or \
+                   discord.utils.find(lambda c: "chat" in c.name.lower() or "general" in c.name.lower(), guild.text_channels)
+        if not chan: continue
+        tajni_broj = random.randint(1, 75)
+        nagrada = random.randint(200, 500)
+        e = discord.Embed(
+            title="🎱 BINGO TIME!",
+            description=(
+                f"🎯 **Pogodi tajni broj između `1` i `75`!**\n\n"
+                f"💰 Nagrada: `{nagrada}` coina\n"
+                f"⏱️ Imaš **2 minute** — ukucaj broj u chat\n"
+                f"🏆 **Prvi koji pogodi pobjeđuje!**"
+            ),
+            color=COLORS["balkan"], timestamp=datetime.now(timezone.utc))
+        e.set_footer(text="Auto svakih 50 min • GIANNI Bingo")
+        try:
+            await chan.send(embed=e)
+        except: continue
+        pokusaji = {}  # user_id -> broj pokušaja (max 5)
+        def check(m):
+            if m.channel != chan or m.author.bot: return False
+            txt = m.content.strip()
+            if not txt.isdigit(): return False
+            n = int(txt)
+            if n < 1 or n > 75: return False
+            if pokusaji.get(m.author.id, 0) >= 5: return False
+            pokusaji[m.author.id] = pokusaji.get(m.author.id, 0) + 1
+            return n == tajni_broj
+        try:
+            msg = await bot.wait_for("message", timeout=120.0, check=check)
+            data["money"][f"{guild.id}:{msg.author.id}"] = data["money"].get(f"{guild.id}:{msg.author.id}", 0) + nagrada
+            save_data()
+            await chan.send(embed=em("🏆 BINGO! Pobjednik!",
+                f"{msg.author.mention} je pogodio/la tajni broj **{tajni_broj}**!\n+`{nagrada}` coina 💰",
+                color=COLORS["success"]))
+        except asyncio.TimeoutError:
+            await chan.send(embed=em("⏰ Vrijeme isteklo!",
+                f"Niko nije pogodio! 😔\nTajni broj je bio: **`{tajni_broj}`**\nSljedeći Bingo za 50 min!",
+                color=COLORS["warning"]))
+
+@auto_game_loop.before_loop
+async def _auto_game_wait(): await bot.wait_until_ready()
+
+# ═══════════════════════════════════════════
+#    📊 USAGE TRACKING — broji koliko se koja komanda koristi
+# ═══════════════════════════════════════════
+@bot.tree.command(name="cmdstats", description="📊 [ADMIN] Statistika korišćenja komandi")
+@app_commands.default_permissions(manage_guild=True)
+async def cmdstats_cmd(i: discord.Interaction):
+    uses = data.get("cmd_uses", {})
+    if not uses:
+        return await i.response.send_message(embed=em("📊 Još nema podataka", "Bot je tek počeo da broji. Vrati se za par dana.", color=COLORS["info"]), ephemeral=True)
+    sorted_use = sorted(uses.items(), key=lambda x: x[1], reverse=True)
+    total = sum(uses.values())
+    top10  = "\n".join(f"`{n:>4}×` /{name}" for name, n in sorted_use[:10]) or "*nema*"
+    bot10  = "\n".join(f"`{n:>4}×` /{name}" for name, n in sorted_use[-10:]) or "*nema*"
+    never  = [c.name for c in bot.tree.get_commands() if c.name not in uses]
+    never_txt = ", ".join(f"`/{n}`" for n in never[:20]) or "*sve su korišćene*"
+    e = discord.Embed(title="📊 Statistika korišćenja komandi", color=COLORS["balkan"], timestamp=datetime.now(timezone.utc))
+    e.description = f"**Ukupno poziva:** `{total:,}`\n**Različitih komandi:** `{len(uses)}` od `{len(bot.tree.get_commands())}`"
+    e.add_field(name="🏆 TOP 10 najkorišćenijih", value=top10, inline=False)
+    e.add_field(name="💤 10 najmanje korišćenih", value=bot10, inline=False)
+    e.add_field(name="❌ Nikad korišćene", value=never_txt, inline=False)
+    e.set_footer(text="Razmisli o brisanju komandi iz '❌ Nikad korišćene'")
+    await i.response.send_message(embed=e, ephemeral=True)
+
+@bot.tree.error
+async def _tree_err(interaction, error):
+    print(f"[tree.error] {type(error).__name__}: {error}")
+
+@bot.event
+async def on_app_command_completion(interaction, command):
+    try:
+        n = command.qualified_name if hasattr(command, "qualified_name") else command.name
+        data["cmd_uses"][n] = data["cmd_uses"].get(n, 0) + 1
+    except Exception: pass
 
 # ─── 💡 SUGGEST ───
 @bot.tree.command(name="suggest", description="💡 Pošalji sugestiju (sa glasanjem)")
