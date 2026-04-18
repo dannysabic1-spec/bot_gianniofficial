@@ -5020,7 +5020,7 @@ async def vanity_loop():
     for guild in bot.guilds:
         cfg = get_guild_config(guild.id)
         rid = cfg.get("vanity_role")
-        txt = (cfg.get("vanity_text") or "").lower().strip()
+        txt = (cfg.get("vanity_text") or ".gg/gianni").lower().strip()
         if not rid or not txt: continue
         role = guild.get_role(rid)
         if not role: continue
