@@ -970,36 +970,29 @@ async def on_message(message):
             except: pass
             return
         if num != expected:
-            broken_at = cnt_cfg.get("current", 0)
-            best = cnt_cfg.get("high_score", 0)
-            new_best = max(best, broken_at)
-            cnt_cfg["current"] = 0
-            cnt_cfg["last_user"] = None
-            cnt_cfg["high_score"] = new_best
-            save_data()
             try: await message.add_reaction("❌")
             except Exception as e: print(f"[brojanje] reaction fail: {e}")
-            # broji greške po korisniku
+            try: await message.delete()
+            except: pass
+            # broji greške po korisniku (NE resetujemo brojanje!)
             mistakes = cnt_cfg.setdefault("mistakes", {})
             uid_str = str(message.author.id)
             mistakes[uid_str] = mistakes.get(uid_str, 0) + 1
             user_total = mistakes[uid_str]
             save_data()
             err_e = discord.Embed(
-                title="💥 OPOMENA — Pogrešan broj! Reset!",
+                title="💥 OPOMENA — Pogrešan broj!",
                 description=(
-                    f"{message.author.mention} si **pogriješio/la**!\n\n"
+                    f"{message.author.mention}, **pogriješio/la** si!\n\n"
                     f"❌ Tvoj odgovor: **{num}**\n"
                     f"✅ Trebalo je: **{expected}**\n\n"
-                    f"📉 Brojanje stiglo do: **{broken_at}**\n"
-                    f"🏆 Rekord servera: **{new_best}**\n"
-                    f"⚠️ Tvojih grešaka ukupno: **{user_total}**\n\n"
-                    f"➡️ Krenite ponovo od **1**!"
+                    f"⚠️ Tvojih grešaka ukupno: **{user_total}**\n"
+                    f"➡️ Brojanje **se nastavlja** — sljedeći broj je i dalje: **{expected}**"
                 ),
                 color=COLORS["error"], timestamp=datetime.now(timezone.utc)
             )
             err_e.set_footer(text=f"Pazi sljedeći put, {message.author.display_name}!")
-            await message.channel.send(content=message.author.mention, embed=err_e)
+            await message.channel.send(content=message.author.mention, embed=err_e, delete_after=10)
             return
         # tačan broj
         cnt_cfg["current"] = num
