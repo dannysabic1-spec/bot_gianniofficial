@@ -590,18 +590,35 @@ async def get_gif(action: str) -> str | None:
 @bot.event
 async def on_ready():
     print(f"\n{'═'*45}\n  {BOT_NAME} {VERSION} — ONLINE\n{'═'*45}")
+    # ── Persistent views (preživljavaju restart) ──
     try:
-        synced = await bot.tree.sync()
-        print(f"  ✔ Globalni sync: {len(synced)} komandi")
+        bot.add_view(GiveawayView())
+        bot.add_view(TicketOpenView())
+        bot.add_view(TicketCloseView())
+        bot.add_view(PrivateVCPanel())
+        print("  ✔ Persistent views aktivni (giveaway / ticket / privatni VC)")
     except Exception as e:
-        print(f"  ✘ Globalni sync error: {e}")
-    for guild in bot.guilds:
+        print(f"  ✘ Persistent views: {e}")
+    # ── Smart sync: samo ako je broj komandi promijenjen ──
+    cur_cmds = len(bot.tree.get_commands())
+    last_cmds = data.get("_last_synced_count", -1)
+    if cur_cmds != last_cmds:
         try:
-            bot.tree.copy_global_to(guild=guild)
-            await bot.tree.sync(guild=guild)
-            print(f"  ✔ {guild.name} ({guild.member_count} članova)")
+            synced = await bot.tree.sync()
+            data["_last_synced_count"] = len(synced)
+            save_data()
+            print(f"  ✔ Globalni sync: {len(synced)} komandi (promijenjeno)")
         except Exception as e:
-            print(f"  ✘ {guild.name}: {e}")
+            print(f"  ✘ Globalni sync error: {e}")
+        for guild in bot.guilds:
+            try:
+                bot.tree.copy_global_to(guild=guild)
+                await bot.tree.sync(guild=guild)
+                print(f"  ✔ {guild.name} ({guild.member_count} članova)")
+            except Exception as e:
+                print(f"  ✘ {guild.name}: {e}")
+    else:
+        print(f"  ⚡ Sync preskočen — komande nepromijenjene ({cur_cmds})")
     print(f"{'═'*45}\n")
     # Cache invites
     for guild in bot.guilds:
@@ -1095,6 +1112,33 @@ async def on_message(message):
             new_req = word[-letters:]
             try: await message.add_reaction("✅")
             except: pass
+            # ── POBJEDA: ako je riječ "KALADONT" ──
+            if word == "KALADONT":
+                try: await message.add_reaction("👑")
+                except: pass
+                eco = get_economy(message.author.id)
+                nagrada = 1500
+                eco["balance"] = eco.get("balance", 0) + nagrada
+                add_xp(message.author.id, 200)
+                save_data()
+                win_e = discord.Embed(
+                    title="👑 KALADONT! POBJEDA! 👑",
+                    description=(
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🏆 **{message.author.mention}** je rekao/la magičnu riječ: **KALADONT**!\n\n"
+                        f"📊 Riječi u nizu: **`{count}`**\n"
+                        f"💰 Nagrada: **+{nagrada} 💶**\n"
+                        f"⭐ XP: **+200**\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🎉 Igra je završena!"
+                    ),
+                    color=COLORS.get("gold", 0xFFD700),
+                    timestamp=datetime.now(timezone.utc)
+                )
+                win_e.set_footer(text=f"{BOT_NAME} {VERSION} • KALADONT pobjeda")
+                await message.channel.send(content=message.author.mention, embed=win_e)
+                del kaladont_games[message.channel.id]
+                return
             await message.channel.send(embed=kaladont_word_card(word, message.author.display_name, new_req, count))
             if game["msg"]:
                 try: await game["msg"].edit(embed=kaladont_active_embed(game))
@@ -5154,7 +5198,9 @@ async def auto_game_loop():
             return n == tajni_broj
         try:
             msg = await bot.wait_for("message", timeout=120.0, check=check)
-            data["money"][f"{guild.id}:{msg.author.id}"] = data["money"].get(f"{guild.id}:{msg.author.id}", 0) + nagrada
+            eco = get_economy(msg.author.id)
+            eco["balance"] = eco.get("balance", 0) + nagrada
+            add_xp(msg.author.id, 50)
             save_data()
             await chan.send(embed=em("🏆 BINGO! Pobjednik!",
                 f"{msg.author.mention} je pogodio/la tajni broj **{tajni_broj}**!\n+`{nagrada}` coina 💰",
