@@ -4397,9 +4397,48 @@ async def setup_panels_cmd(i: discord.Interaction, kanal: discord.TextChannel = 
 # ═══════════════════════════════════════════
 #    PRAVILA
 # ═══════════════════════════════════════════
-@bot.tree.command(name="pravila", description="📜 Pravila servera")
-async def pravila(i: discord.Interaction):
+@bot.tree.command(name="pravila", description="📜 Pravila servera ili Staff pravila")
+@app_commands.describe(tip="server (default) ili staff")
+@app_commands.choices(tip=[
+    app_commands.Choice(name="server", value="server"),
+    app_commands.Choice(name="staff",  value="staff"),
+])
+async def pravila(i: discord.Interaction, tip: app_commands.Choice[str] = None):
     sep = "━━━━━━━━━━━━━━━━━━━"
+    has_gianni = isinstance(i.user, discord.Member) and (
+        i.user.guild_permissions.administrator or
+        any("gianni" in r.name.lower() for r in i.user.roles)
+    )
+    if not has_gianni:
+        return await i.response.send_message(
+            embed=em("⛔", "Samo članovi sa **GIANNI** ulogom (ili Admin) mogu koristiti ovu komandu.", color=COLORS["error"]),
+            ephemeral=True
+        )
+    if tip and tip.value == "staff":
+        e = discord.Embed(
+            title="🛡️ ꜱᴛᴀꜰꜰ ᴘʀᴀᴠɪʟᴀ — × GIANNI",
+            description=f"ᴘʀᴀᴠɪʟᴀ ᴋᴏᴊᴀ ꜱᴠᴀᴋɪ čʟᴀɴ ꜱᴛᴀꜰꜰ ᴛɪᴍᴀ ᴍᴏʀᴀ ᴘᴏšᴛᴏᴠᴀᴛɪ.\n{sep}",
+            color=0xFFD700, timestamp=datetime.now(timezone.utc))
+        e.add_field(name="1. 🤝 Profesionalnost",
+            value=f"• Predstavljaj server profesionalno u svako vrijeme\n• Bez vrijeđanja članova ni drugih staff-ova\n• Privatne svađe rješavaj u DM-u, NIKAD u javnim kanalima\n{sep}", inline=False)
+        e.add_field(name="2. ⚖️ Pravičnost",
+            value=f"• Tretiraj sve članove **jednako** (i prijatelje i nepoznate)\n• Ne daj kazne iz lične frustracije — samo prema pravilima\n• Ako si lično umiješan/a u problem — pozovi drugog staff-a\n{sep}", inline=False)
+        e.add_field(name="3. 🔐 Korištenje permisija",
+            value=f"• Ne koristi ban/kick/timeout bez razloga ili za šalu\n• Sve ozbiljne akcije (ban, mass-delete) **logiraj** u staff chatu\n• Bez dijeljenja bot tokena, paswordova, secrets — niti bilo koje admin permisije\n{sep}", inline=False)
+        e.add_field(name="4. 📋 Aktivnost",
+            value=f"• Provjeravaj server **bar 1× dnevno** ako imaš vremena\n• Odgovaraj na ticket-e u razumnom roku (12-24h)\n• Ako te dugo neće biti — javi u **#staff-chat**\n{sep}", inline=False)
+        e.add_field(name="5. 🚫 Zabranjeno",
+            value=f"• **Banovanje bez razloga** ili iz osvete — instant kick iz tima\n• Mijenjanje uloga drugima bez dogovora\n• Brisanje kanala/uloga bez dogovora sa Owners-ima\n• Reklamiranje drugih servera u DM-u članovima\n{sep}", inline=False)
+        e.add_field(name="6. 🗣️ Komunikacija",
+            value=f"• Sve odluke o banovima/kazinama → diskutuj u **#staff-chat**\n• Ako nisi siguran/na — pitaj prvo, kažnjavaj poslije\n• Saslušaj obje strane prije izricanja kazne\n{sep}", inline=False)
+        e.add_field(name="7. 🔥 Anti-Nuke odgovornost",
+            value=f"• Bot ima Anti-Nuke zaštitu — ne pokušavaj zaobići\n• Ako masovno brišeš kanale/uloge → bot će te automatski kazniti\n• Za masovne akcije zatraži *whitelist* od Vlasnika\n{sep}", inline=False)
+        e.add_field(name="8. 📈 Dovođenje članova",
+            value=f"• **Svaki staff je dužan dovoditi nove članove na server**\n• Minimum **5 novih invite-ova mjesečno** (provjerava se sa `/invite`)\n• Dijeli invite link na svojim mrežama (TikTok, IG, FB, grupe...)\n• Pozivaj prijatelje, drugare, poznanike — server raste samo zajedničkim radom\n• Staff koji ne ispunjava — gubi staff ulogu\n{sep}", inline=False)
+        e.add_field(name="⚠️ Posljedice kršenja",
+            value=f"▸ Usmeno upozorenje\n▸ Pisano upozorenje\n▸ Privremeno oduzimanje uloge\n▸ **Skidanje sa staff tima** + ban\n{sep}", inline=False)
+        e.set_footer(text="Hvala što čuvaš GIANNI! Tvoj rad je cijenjen 💛")
+        return await i.response.send_message(embed=e)
     e = discord.Embed(
         title="ᴘʀᴀᴠɪʟɴɪᴋ ꜱᴇʀᴠᴇʀᴀ",
         description=(
@@ -5062,6 +5101,46 @@ async def auto_game_loop():
 
 @auto_game_loop.before_loop
 async def _auto_game_wait(): await bot.wait_until_ready()
+
+# ─── 🎱 RUČNI BINGO ───
+@bot.tree.command(name="bingo", description="🎱 Pokreni Bingo igru u ovom kanalu (1-75)")
+async def bingo_cmd(i: discord.Interaction):
+    import asyncio
+    tajni_broj = random.randint(1, 75)
+    nagrada = random.randint(200, 500)
+    await i.response.send_message(embed=discord.Embed(
+        title="🎱 BINGO TIME!",
+        description=(
+            f"🎯 **Pogodi tajni broj između `1` i `75`!**\n\n"
+            f"💰 Nagrada: `{nagrada}` coina\n"
+            f"⏱️ Imaš **2 minute** — ukucaj broj u chat\n"
+            f"🏆 **Prvi koji pogodi pobjeđuje!**\n"
+            f"⚠️ Maksimalno 5 pokušaja po članu"
+        ),
+        color=COLORS["balkan"], timestamp=datetime.now(timezone.utc)
+    ).set_footer(text=f"Pokrenuo/la: {i.user.display_name} • GIANNI Bingo"))
+    pokusaji = {}
+    chan = i.channel
+    def check(m):
+        if m.channel != chan or m.author.bot: return False
+        txt = m.content.strip()
+        if not txt.isdigit(): return False
+        n = int(txt)
+        if n < 1 or n > 75: return False
+        if pokusaji.get(m.author.id, 0) >= 5: return False
+        pokusaji[m.author.id] = pokusaji.get(m.author.id, 0) + 1
+        return n == tajni_broj
+    try:
+        msg = await bot.wait_for("message", timeout=120.0, check=check)
+        data["money"][f"{i.guild.id}:{msg.author.id}"] = data["money"].get(f"{i.guild.id}:{msg.author.id}", 0) + nagrada
+        save_data()
+        await chan.send(embed=em("🏆 BINGO! Pobjednik!",
+            f"{msg.author.mention} je pogodio/la tajni broj **{tajni_broj}**!\n+`{nagrada}` coina 💰",
+            color=COLORS["success"]))
+    except asyncio.TimeoutError:
+        await chan.send(embed=em("⏰ Vrijeme isteklo!",
+            f"Niko nije pogodio! 😔\nTajni broj je bio: **`{tajni_broj}`**",
+            color=COLORS["warning"]))
 
 # ═══════════════════════════════════════════
 #    📊 USAGE TRACKING — broji koliko se koja komanda koristi
