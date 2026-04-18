@@ -887,6 +887,7 @@ async def on_member_update(before, after):
         tier_names = {0: "Nema tiera", 1: "Tier 1 🥈", 2: "Tier 2 🥇", 3: "Tier 3 💎"}
 
         chan = (
+            guild.get_channel(1494043956965544094) or
             discord.utils.get(guild.text_channels, name="boosts") or
             discord.utils.get(guild.text_channels, name="general") or
             discord.utils.get(guild.text_channels, name="opšte") or
@@ -1277,7 +1278,7 @@ async def sync_cmd(ctx):
 # ═══════════════════════════════════════════
 #    🛡️ SIGURNOST: Anti-Nuke / Audit / Backup / Whitelist
 # ═══════════════════════════════════════════
-OWNER_IDS: set = set()  # Discord ID-evi koji su 100% sigurni. Dodaj npr. {123456789012345678}
+OWNER_IDS: set = {984906640509788180}  # Discord ID-evi koji su 100% sigurni (anti-nuke whitelist)
 NUKE_WINDOW = 30        # sekundi
 NUKE_BAN_LIMIT = 3      # max banova/kickova/brisanja u prozoru
 nuke_tracker: dict = defaultdict(lambda: defaultdict(deque))
