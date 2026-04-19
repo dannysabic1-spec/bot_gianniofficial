@@ -194,11 +194,19 @@ class _FakeResponse:
         if ephemeral and cmd_name == "help":
             try:
                 msg = await self.fake.user.send(**kwargs)
-                try: await self.fake.message.add_reaction("📬")
+                try: await self.fake.message.delete()
                 except: pass
                 self.fake._original = msg; self._sent = True
                 return msg
-            except: pass
+            except discord.Forbidden:
+                try:
+                    await self.fake.message.channel.send(
+                        f"{self.fake.user.mention} — Uključi **Direktne poruke** u podešavanjima privatnosti da bi ti bot mogao poslati `.help`! 📬",
+                        delete_after=10
+                    )
+                except: pass
+                self._sent = True
+                return None
         if ephemeral:
             kwargs["delete_after"] = 10
         msg = await self.fake.channel.send(**kwargs)
@@ -220,8 +228,16 @@ class _FakeFollowup:
         if view is not None: kwargs["view"] = view
         cmd_name = (self.fake.message.content[1:].split(maxsplit=1)[0].lower() if self.fake.message.content.startswith(".") else "")
         if ephemeral and cmd_name == "help":
-            try: return await self.fake.user.send(**kwargs)
-            except: pass
+            try:
+                return await self.fake.user.send(**kwargs)
+            except discord.Forbidden:
+                try:
+                    await self.fake.message.channel.send(
+                        f"{self.fake.user.mention} — Uključi **Direktne poruke** da bi bot mogao poslati `.help`! 📬",
+                        delete_after=10
+                    )
+                except: pass
+                return None
         if ephemeral:
             kwargs["delete_after"] = 10
         return await self.fake.channel.send(**kwargs)
@@ -317,13 +333,13 @@ CHANNEL_RULES = {
 CMDS_ANYWHERE = {
     "ping", "help", "serverinfo", "userinfo", "avatar", "invite", "spotify",
     "qr", "remind", "birthday", "birthdays", "afk", "serverstats", "topchatters",
-    "say", "poll", "suggest", "confess", "report", "pravila", "warn", "warnings",
+    "say", "poll", "confess", "report", "pravila", "warn", "warnings",
     "clearwarnings", "ban", "kick", "timeout", "clear",
     # setup
     "setup", "setup-roles", "setup-welcome", "setup-leave", "setup-autorole",
     "setup-log", "setup-starboard", "setup-levelrole", "setup-birthday",
     "setup-panels", "ticket-setup", "brojanje-postavi", "brojanje-info",
-    "brojanje-reset", "setname", "setavatar", "setchannel", "sort-roles",
+    "brojanje-reset", "setname", "setavatar", "setchannel",
     "server-config", "selfroles-setup", "vanity",
     "addcoins", "resetcoins", "cmdstats",
 }
@@ -704,6 +720,28 @@ async def on_member_join(member):
                 rec = data["invites"].setdefault(ikey, {"count": 0, "code": used_code})
                 rec["count"] += 1
                 rec["code"] = used_code
+                new_count = rec["count"]
+                # ── Invite milestone nagrade (DM korisniku) ──────────
+                INVITE_MILESTONES = {
+                    5:  ("🚀 Nitro Boost",  "Doveo/la si **5 novih članova**!\nKontaktiraj admina — zaslužuješ **Nitro Boost** nagradu! 🎁"),
+                    10: ("🎨 Dekoracija",   "Doveo/la si **10 novih članova**!\nKontaktiraj admina — zaslužuješ posebnu **Dekoraciju** nagradu! 🏅"),
+                    15: ("💎 Nitro Boost",  "Doveo/la si **15 novih članova**!\nKontaktiraj admina — zaslužuješ **Nitro Boost** nagradu! 🚀"),
+                }
+                if new_count in INVITE_MILESTONES:
+                    title, desc = INVITE_MILESTONES[new_count]
+                    milestone_embed = discord.Embed(
+                        title=f"🎉 Milestone dostignuta! {title}",
+                        description=f"{desc}\n\n*Server: **{member.guild.name}***",
+                        color=0xFFD700
+                    )
+                    milestone_embed.set_footer(text=f"Ukupno pozivnica: {new_count} • {BOT_NAME}")
+                    try:
+                        await inviter.send(embed=milestone_embed)
+                    except Exception: pass
+                    try:
+                        await audit_log(member.guild, f"🎉 Invite Milestone: {title}",
+                            f"{inviter.mention} doveo/la **{new_count}** novih članova! Nagrada: **{title}**")
+                    except Exception: pass
         data["invite_uses"][gkey] = new_uses
         save_data()
     except Exception as _e: print(f"[invite-track join] {_e}")
@@ -3465,18 +3503,6 @@ async def check_automod(message) -> bool:
             await audit_log(message.guild, "🚫 Anti-Invite", f"{message.author.mention} pokušao reklamirati drugi server u {message.channel.mention}")
         except: pass
         return True
-    content_lower = message.content.lower()
-    for word in BAD_WORDS:
-        if word in content_lower:
-            try:
-                await message.delete()
-                await message.channel.send(
-                    embed=em("🛡️ Auto-Mod", f"{message.author.mention} — zabranjene riječi!", color=COLORS["warning"]),
-                    delete_after=5
-                )
-            except Exception:
-                pass
-            return True
     uid = message.author.id
     now = time.time()
     dq  = user_msg_times[uid]
@@ -3939,11 +3965,15 @@ class GiveawayView(discord.ui.View):
 
 giveaway_group = app_commands.Group(name="giveaway", description="🎉 Nagradne igre")
 
-@giveaway_group.command(name="start", description="🎉 Pokreni nagradnu igru")
+@giveaway_group.command(name="start", description="🎉 Pokreni nagradnu igru (samo vlasnik servera)")
 @app_commands.describe(nagrada="Šta se osvaja", minuta="Koliko minuta traje", kanal="Kanal (default ovaj)")
 @app_commands.default_permissions(manage_guild=True)
-@app_commands.checks.has_permissions(manage_guild=True)
 async def giveaway_start(i: discord.Interaction, nagrada: str, minuta: int = 60, kanal: discord.TextChannel = None):
+    if i.user.id != i.guild.owner_id:
+        return await i.response.send_message(
+            embed=em("🔒 Nemaš dozvolu!", "Ovu komandu može koristiti samo **vlasnik servera**.", color=COLORS["error"]),
+            ephemeral=True
+        )
     chan = kanal or i.channel
     end  = datetime.now(timezone.utc) + timedelta(minutes=minuta)
     e = discord.Embed(
@@ -4210,39 +4240,6 @@ GIANNI_ROLES = [
     {"name": "〢 Crvena",                    "color": discord.Color.from_str("#F44336"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Crvena boja"},
     {"name": "〢 Crna",                      "color": discord.Color.from_str("#1A1B1E"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Crna boja"},
 ]
-
-@bot.tree.command(name="sort-roles", description="📋 Poredaj GIANNI uloge u pravi redoslijed [ADMIN]")
-@app_commands.default_permissions(administrator=True)
-async def sort_roles(i: discord.Interaction):
-    await i.response.defer(ephemeral=True)
-    guild = i.guild
-    desired_order = [r["name"] for r in GIANNI_ROLES]
-    role_map = {r.name: r for r in guild.roles}
-    found, missing = [], []
-    for name in desired_order:
-        if name in role_map:
-            found.append((name, role_map[name]))
-        else:
-            missing.append(name)
-    if not found:
-        return await i.followup.send(embed=em("❌", "Nema GIANNI uloga! Prvo pokreni `/setup-roles`.", color=COLORS["error"]), ephemeral=True)
-    try:
-        positions = {}
-        base = 1
-        for idx, (name, role) in enumerate(reversed(found)):
-            positions[role] = base + idx
-        await guild.edit_role_positions(positions=positions)
-        ordered_txt = "\n".join(f"`{idx+1}.` {name}" for idx, (name, _) in enumerate(found))
-        e = discord.Embed(title="✅ Uloge poređane!", color=COLORS["success"], timestamp=datetime.now(timezone.utc))
-        e.add_field(name="📋 Novi redoslijed (gore → dolje)", value=ordered_txt, inline=False)
-        if missing:
-            e.add_field(name="⚠️ Nisu pronađene na serveru", value="\n".join(missing), inline=False)
-        e.set_footer(text=f"{BOT_NAME} • GIANNI Role Sort")
-        await i.followup.send(embed=e, ephemeral=True)
-    except discord.Forbidden:
-        await i.followup.send(embed=em("❌", "Bot nema permisiju da mjenja redoslijed uloga!\nDaj botu **Administrator** permisiju.", color=COLORS["error"]), ephemeral=True)
-    except Exception as ex:
-        await i.followup.send(embed=em("❌", f"Greška: `{ex}`", color=COLORS["error"]), ephemeral=True)
 
 @bot.tree.command(name="setup-roles", description="🏷️ Kreiraj sve GIANNI uloge odjednom [ADMIN]")
 @app_commands.default_permissions(administrator=True)
@@ -4756,7 +4753,7 @@ async def help_cmd(i: discord.Interaction):
     e.add_field(name="🚀 Among Us",          value="`.amogus` `.amogus-stop`", inline=False)
     e.add_field(name="🐾 OWO — Životinje",   value="`.hunt` `.zoo` `.battle` `.sell` `.animals` `.pray` `.curse`", inline=False)
     e.add_field(name="❤️ Ljubav & Akcije",  value="`.zagrljaj` `.poljubac` `.mazi` `.tapsi` `.high5` `.srce` `.mazenje` `.brak` `.pocetkaj` `.cudan` `.pljes` `.zbunjen`", inline=False)
-    e.add_field(name="📋 Ostalo",             value="`.poll` `.suggest` `.confess` `.report`", inline=False)
+    e.add_field(name="📋 Ostalo",             value="`.poll` `.confess` `.report`", inline=False)
     # ── Samo za admine ──────────────────────────────
     if is_admin:
         e.add_field(name="⚙️ Server Setup [ADMIN]",  value="`.setup` `.setup-levelrole` `.server-config`\n*(pojedinačno: `.setup-welcome` `.setup-leave` `.setup-autorole` `.setup-log` `.setup-starboard` `.setup-birthday`)*", inline=False)
@@ -4974,7 +4971,6 @@ data.setdefault("lottery", {"pot": 0, "tickets": {}, "last_draw": 0})
 data.setdefault("reminders", [])
 data.setdefault("heist_cooldown", {})
 data.setdefault("confess_count", 0)
-data.setdefault("suggest_count", 0)
 data.setdefault("cmd_uses", {})
 
 # ─── 📊 SERVER STATS ───
@@ -5171,11 +5167,10 @@ async def confess_cmd(i: discord.Interaction, poruka: str):
     await ch.send(embed=e)
     await i.response.send_message(embed=em("✅", "Ispovjed poslana anonimno!", color=COLORS["success"]), ephemeral=True)
 
-@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/suggest/report/birthday kanal")
+@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/report/birthday kanal")
 @app_commands.describe(tip="Tip kanala", kanal="Kanal za taj tip")
 @app_commands.choices(tip=[
     app_commands.Choice(name="confess",  value="confess_channel"),
-    app_commands.Choice(name="suggest",  value="suggest_channel"),
     app_commands.Choice(name="report",   value="report_channel"),
     app_commands.Choice(name="birthday", value="birthday_channel"),
 ])
@@ -5298,9 +5293,13 @@ class BingoModal(discord.ui.Modal, title="🎱 Bingo — Unesi broj"):
                 ephemeral=True
             )
         else:
-            hint = "🔺 Veći!" if n < game["tajni_broj"] else "🔻 Manji!"
+            hint = "🔺 Pokušaj veći broj!" if n < game["tajni_broj"] else "🔻 Pokušaj manji broj!"
             await i.response.send_message(
-                f"❌ **{n}** nije tačno! {hint}\n📊 Preostalo pokušaja: **{preostalo}**",
+                embed=em(
+                    "❌ Netačan broj!",
+                    f"Unio/la si **{n}** — to nije tačno!\n\n{hint}\n\n🎯 Preostalo pokušaja: **{preostalo}/5**",
+                    color=COLORS["error"]
+                ),
                 ephemeral=True
             )
 
