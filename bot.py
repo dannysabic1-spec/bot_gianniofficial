@@ -1136,29 +1136,36 @@ async def on_message(message):
         letters = game["letters"]
         req = game["word"][-letters:]
 
-        async def reject(reason: str):
-            await message.channel.send(
-                embed=em("❌ " + reason, f"Potrebno: počinje sa **`{req}`**", color=COLORS["error"]),
-                delete_after=5
-            )
+        async def reject(reason: str, hint: str = ""):
+            desc = hint or f"Sljedeća mora početi sa **`{req}`**"
+            try:
+                await message.reply(
+                    embed=em("❌  " + reason, desc, color=COLORS["error"]),
+                    mention_author=False, delete_after=7
+                )
+            except Exception: pass
 
         if not word.isalpha():
-            pass  # ignore non-word messages silently
+            pass  # ignoriši poruke koje nisu čiste riječi
         elif len(word) < 3:
-            await reject("Prekratka! Min 3 slova.")
+            await reject("Prekratka!", "Minimalno **3 slova**.")
+        elif message.author.id == game.get("last_uid"):
+            await reject("Ne možeš igrati iza sebe!", "Čekaj da drugi odigra pa onda ti.")
         elif word[:letters] != req:
-            await reject(f"Mora početi sa **`{req}`**! Tvoja: `{word}`")
+            await reject(f"Mora početi sa `{req}`!", f"Tvoja: `{word}` — sljedeća mora početi sa **`{req}`**")
         elif word in game["used"]:
-            await reject(f"`{word}` je već bila!")
+            await reject(f"`{word}` je već bila!", "Pokušaj drugu riječ.")
         else:
-            game["word"] = word
+            game["word"]             = word
+            game["last_uid"]         = message.author.id
+            game["last_player_name"] = message.author.display_name
             game["used"].add(word)
             game["chain"].append((word, message.author.display_name))
             count   = len(game["chain"])
             new_req = word[-letters:]
             try: await message.add_reaction("✅")
             except: pass
-            # ── POBJEDA: ako je riječ "KALADONT" ──
+            # ── POBJEDA: magična riječ "KALADONT" ─────────────
             if word == "KALADONT":
                 try: await message.add_reaction("👑")
                 except: pass
@@ -1168,20 +1175,17 @@ async def on_message(message):
                 add_xp(message.author.id, 200)
                 save_data()
                 win_e = discord.Embed(
-                    title="👑 KALADONT! POBJEDA! 👑",
-                    description=(
-                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🏆 **{message.author.mention}** je rekao/la magičnu riječ: **KALADONT**!\n\n"
-                        f"📊 Riječi u nizu: **`{count}`**\n"
-                        f"💰 Nagrada: **+{nagrada} 💶**\n"
-                        f"⭐ XP: **+200**\n"
-                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🎉 Igra je završena!"
-                    ),
-                    color=COLORS.get("gold", 0xFFD700),
+                    title="👑  K A L A D O N T  —  P O B J E D A !",
+                    description=f"🎉 {message.author.mention} je izrekao/la magičnu riječ!",
+                    color=0xFFD700,
                     timestamp=datetime.now(timezone.utc)
                 )
-                win_e.set_footer(text=f"{BOT_NAME} {VERSION} • KALADONT pobjeda")
+                win_e.add_field(name="🏆  Pobjednik/ca",  value=f"**{message.author.display_name}**", inline=True)
+                win_e.add_field(name="📊  Riječi u nizu", value=f"**{count}**",                       inline=True)
+                win_e.add_field(name="💰  Nagrada",       value=f"**+{nagrada:,} 💶**",               inline=True)
+                win_e.add_field(name="⭐  XP",            value=f"**+200**",                          inline=True)
+                win_e.set_thumbnail(url=message.author.display_avatar.url)
+                win_e.set_footer(text=f"{BOT_NAME} • Kaladont pobjeda")
                 await message.channel.send(content=message.author.mention, embed=win_e)
                 del kaladont_games[message.channel.id]
                 return
@@ -1189,7 +1193,7 @@ async def on_message(message):
             if game["msg"]:
                 try: await game["msg"].edit(embed=kaladont_active_embed(game))
                 except: pass
-        return  # don't process XP for kaladont channel messages
+        return  # ne procesuj XP za kaladont poruke
 
     # ── Msg Counter ───────────────────────────────────
     mkey = f"{message.guild.id}:{message.author.id}"
@@ -2117,26 +2121,40 @@ KALADONT_START_WORDS = [
 
 kaladont_games: dict = {}  # channel_id -> {word, used, starter, letters, chain, msg}
 
-KALADONT_ICONS = ["🔵","🟣","🟤","🟠","🟡","🟢","🩵","🩶"]
+KALADONT_ICONS = ["✨","⚡","🔥","💫","🌊","🍀","🎯","💥","🌟","🎪","💎","🎭","🚀","🦋","🐉","🎶"]
+KALADONT_COLOR = 0x00BCD4   # aqua — konzistentno s ostatkom bota
 
 def kaladont_start_embed(game: dict, mention: str):
     word    = game["word"]
     letters = game["letters"]
     req     = word[-letters:]
+    tezina_map = {1: "🟢 Lako · 1 slovo", 2: "🟡 Normalno · 2 slova", 3: "🔴 Teško · 3 slova"}
+    tezina = tezina_map.get(letters, f"⚙️ {letters} slova")
     e = discord.Embed(
         title="🔤  K A L A D O N T",
         description=(
-            f"## 🟢  {word}  ·  *🤖 Bot*\n"
-            f"─────────────────────────────\n"
-            f"➡️  Sledeća mora početi sa  **` {req} `**\n\n"
-            f"*Piši direktno u chat — bez klikanja!*"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"✨ Igra je počela! Prva riječ:\n"
+            f"## 💬  **{word}**\n"
+            f"━━━━━━━━━━━━━━━━━━━━━"
         ),
-        color=0x1ABC9C,
+        color=KALADONT_COLOR,
         timestamp=datetime.now(timezone.utc)
     )
-    e.add_field(name="🔢 Težina",  value=f"`{letters}` slova", inline=True)
-    e.add_field(name="📊 Rijeci", value="`1`",                inline=True)
-    e.set_footer(text=f"Pokrenuo {mention}  •  {BOT_NAME} {VERSION}  •  Pritisni 🏁 za kraj")
+    e.add_field(name="➡️  Sljedeća počinje sa", value=f"## **`{req}`**",   inline=True)
+    e.add_field(name="⚙️  Težina",              value=tezina,              inline=True)
+    e.add_field(name="🔗  Niz",                 value="**#1**",            inline=True)
+    e.add_field(
+        name="📖  Pravila igre",
+        value=(
+            "✅  Svaka riječ počinje traženim slovima\n"
+            "🚫  Ista osoba **ne može** igrati iza sebe\n"
+            "🔁  Ponavljanje iste riječi nije dozvoljeno\n"
+            "🏆  Upiši **`KALADONT`** i osvoji **1500** 🪙 + **200** ✨ XP!"
+        ),
+        inline=False
+    )
+    e.set_footer(text=f"🔤 Pokrenuo/la: {mention}  •  🏁 Pritisni dugme za kraj")
     return e
 
 def kaladont_active_embed(game: dict):
@@ -2144,29 +2162,34 @@ def kaladont_active_embed(game: dict):
     letters = game["letters"]
     req     = word[-letters:]
     count   = len(game["chain"])
+    last_player = game.get("last_player_name", "—")
+    icon    = KALADONT_ICONS[(count - 1) % len(KALADONT_ICONS)]
     e = discord.Embed(
         title="🔤  K A L A D O N T  —  aktivna igra",
-        description=f"➡️  Sledeća mora početi sa  **` {req} `**",
-        color=0x1ABC9C,
+        description=f"━━━━━━━━━━━━━━━━━━━━━",
+        color=KALADONT_COLOR,
         timestamp=datetime.now(timezone.utc)
     )
-    e.add_field(name="🎯 Zadnja",  value=f"`{word}`",         inline=True)
-    e.add_field(name="📊 Rijeci", value=f"`{count}`",         inline=True)
-    e.set_footer(text=f"{BOT_NAME} {VERSION}  •  Pritisni 🏁 za kraj igre")
+    e.add_field(name=f"{icon}  Zadnja riječ",    value=f"**`{word}`**",     inline=True)
+    e.add_field(name="🗣️  Odigrao/la",           value=last_player,         inline=True)
+    e.add_field(name="🔗  Niz",                  value=f"**#{count}**",     inline=True)
+    e.add_field(name="➡️  Sljedeća počinje sa",  value=f"## **`{req}`**",   inline=False)
+    e.set_footer(text="🏁 Pritisni dugme za kraj igre")
     return e
 
 def kaladont_word_card(word: str, player: str, req: str, count: int):
     icon = KALADONT_ICONS[(count - 1) % len(KALADONT_ICONS)]
     e = discord.Embed(
         description=(
-            f"## {icon}  {word}  ·  *{player}*\n"
-            f"─────────────────────────────\n"
-            f"➡️  Sledeća počinje sa  **` {req} `**"
+            f"## {icon}  **{word}**\n"
+            f"*🗣️ {player}*"
         ),
-        color=0x2ECC71,
+        color=KALADONT_COLOR,
         timestamp=datetime.now(timezone.utc)
     )
-    e.set_footer(text=f"#{count}  •  {BOT_NAME} {VERSION}")
+    e.add_field(name="➡️  Sljedeća počinje sa",  value=f"## **`{req}`**",   inline=True)
+    e.add_field(name="🔗  Niz",                  value=f"**#{count}**",     inline=True)
+    e.set_footer(text=f"🔤 GIANNI Kaladont  •  #{count}")
     return e
 
 class KaladontView(discord.ui.View):
@@ -2206,12 +2229,14 @@ async def kaladont(i: discord.Interaction, slova: int = 2):
             embed=em("⚠️ Igra već teče!", "U ovom kanalu je već aktivan Kaladont. Završi prvu!", color=COLORS["warning"]), ephemeral=True)
     start_word = random.choice(KALADONT_START_WORDS)
     game = {
-        "word":    start_word,
-        "used":    {start_word},
-        "starter": i.user.id,
-        "letters": slova,
-        "chain":   [(start_word, "🤖 Bot")],
-        "msg":     None,
+        "word":             start_word,
+        "used":             {start_word},
+        "starter":          i.user.id,
+        "letters":          slova,
+        "chain":            [(start_word, "🤖 Bot")],
+        "msg":              None,
+        "last_uid":         None,        # ko je zadnji odigrao (None = bot, svi mogu)
+        "last_player_name": "🤖 Bot",
     }
     kaladont_games[i.channel.id] = game
     v = KaladontView(i.channel.id)
