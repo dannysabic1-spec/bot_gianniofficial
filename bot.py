@@ -323,7 +323,7 @@ CMDS_ANYWHERE = {
     # setup
     "setup", "setup-roles", "setup-welcome", "setup-leave", "setup-autorole",
     "setup-log", "setup-starboard", "setup-levelrole", "setup-birthday",
-    "setup-panels", "ticket-setup", "tiket", "brojanje-postavi", "brojanje-info",
+    "setup-panels", "ticket-setup", "brojanje-postavi", "brojanje-info",
     "brojanje-reset", "setname", "setavatar", "setchannel", "sort-roles",
     "server-config", "vanity",
 }
@@ -4798,7 +4798,7 @@ async def help_cmd(i: discord.Interaction):
             f"```ansi\n\u001b[1;36m{BAR}\n"
             f"  ✦ Dobrodošli u GIANNI komandni centar! ✦\n"
             f"{BAR}\u001b[0m```\n"
-            f"📌 Verzija **{VERSION}** · Ukupno komandi: **~97**\n"
+            f"📌 Verzija **{VERSION}** · Ukupno komandi: **100**\n"
             f"🔮 Sve komande se koriste sa `/`"
         ),
         color=0x00BCD4,
@@ -4836,8 +4836,8 @@ async def help_cmd(i: discord.Interaction):
         name="╠═ 🎮  IGRE & ZABAVA",
         value=(
             "> `/kpm` `/slots` `/rulet` `/flip` `/8ball`\n"
-            "> `/vjasala` `/kaladont` `/toplo-hladno` `/meme`\n"
-            "> `/blackjack` `/kviz` `/kocka` `/geografija`\n"
+            "> `/vjasala` `/kaladont` `/kaladont-stop` `/toplo-hladno`\n"
+            "> `/blackjack` `/kviz` `/kocka` `/geografija` `/meme`\n"
             "> `/amogus` `/amogus-stop`"
         ),
         inline=False,
@@ -4865,7 +4865,8 @@ async def help_cmd(i: discord.Interaction):
         name="╠═ ❤️  LJUBAV & AKCIJE",
         value=(
             "> `/zagrljaj` `/poljubac` `/mazi` `/tapsi`\n"
-            "> `/high5` `/srce` `/brak` `/pocetkaj` `/cudan`"
+            "> `/high5` `/srce` `/brak` `/pocetkaj` `/cudan`\n"
+            "> `/pozz` `/kompli` `/fora` `/muv` `/crush`"
         ),
         inline=False,
     )
@@ -4876,13 +4877,14 @@ async def help_cmd(i: discord.Interaction):
             "> `/poll` — Napravi glasanje\n"
             "> `/confess` — Anonimna ispovjed\n"
             "> `/report` — Prijavi člana\n"
+            "> `/tiket` — 🎫 Otvori tiket za podršku\n"
             "> `/tiket-staff` — 📋 Prijavi se za Staff poziciju"
         ),
         inline=False,
     )
     e.add_field(
         name="╠═ 🔢  BROJANJE",
-        value=("> `/brojanje-postavi` `/brojanje-info`"),
+        value=("> `/brojanje-postavi` `/brojanje-info` `/brojanje-reset`"),
         inline=False,
     )
 
@@ -4913,6 +4915,7 @@ async def help_cmd(i: discord.Interaction):
         e.add_field(
             name="╠═ 🎫  TICKET & BOT  〔ADMIN〕",
             value=(
+                "> `/tiket` — Otvori tiket direktno\n"
                 "> `/ticket-setup` `/say` `/setname`\n"
                 "> `/setavatar` `/sort-roles` `/setup-roles`"
             ),
@@ -4998,7 +5001,7 @@ async def on_app_error(i: discord.Interaction, error: app_commands.AppCommandErr
         e = em("🤖 Bot nema dozvole!", "Daj mi potrebne dozvole.", color=COLORS["error"])
     else:
         e = em("❌ Greška!", f"`{str(error)[:200]}`", color=COLORS["error"])
-        print(f"[ERROR] {error}")
+        print(f"[tree.error] {type(error).__name__}: {error}")
     try:
         if i.response.is_done(): await i.followup.send(embed=e, ephemeral=True)
         else: await i.response.send_message(embed=e, ephemeral=True)
@@ -6099,9 +6102,7 @@ async def on_voice_state_update(member, before, after):
                 await before.channel.delete(reason="Privatni VC prazan")
             except Exception as _e: print(f"[pvc delete] {_e}")
 
-@bot.tree.error
-async def _tree_err(interaction, error):
-    print(f"[tree.error] {type(error).__name__}: {error}")
+    # napomena: tree.error handler je gore (on_app_error)
 
 @bot.event
 async def on_app_command_completion(interaction, command):
@@ -6156,7 +6157,7 @@ class StaffApplicationModal(discord.ui.Modal, title="📋 Prijava za Staff"):
         style=discord.TextStyle.paragraph,
     )
     aktivnost = discord.ui.TextInput(
-        label="Koliko sati dnevno si aktivan/na? (+ timezone)",
+        label="Koliko sati dnevno + timezone zona?",
         placeholder="Npr: 3-5 sati, CET zona...",
         min_length=3, max_length=200,
         style=discord.TextStyle.short,
