@@ -4793,7 +4793,7 @@ async def help_cmd(i: discord.Interaction):
     e.add_field(name="🐾 OWO — Životinje",   value="`/hunt` `/zoo` `/battle` `/sell` `/animals` `/pray` `/curse`", inline=False)
     e.add_field(name="❤️ Ljubav & Akcije",  value="`/zagrljaj` `/poljubac` `/mazi` `/tapsi` `/high5` `/srce` `/brak` `/pocetkaj` `/cudan`", inline=False)
     e.add_field(name="📋 Quests & Social",   value="`/quests` `/poll` `/confess` `/report`", inline=False)
-    e.add_field(name="🎪 Misc",              value="`/vanity` `/topchatters` `/serverstats` `/cmdstats` `/brojanje-postavi` `/brojanje-info`", inline=False)
+    e.add_field(name="🎪 Misc",              value="`/vanity` `/topchatters` `/serverstats` `/brojanje-postavi` `/brojanje-info`", inline=False)
     # ── Samo za admine ──────────────────────────────
     if is_admin:
         e.add_field(name="⚙️ Server Setup [ADMIN]",  value="`/setup` `/setup-levelrole` `/server-config` `/setup-welcome` `/setup-leave` `/setup-autorole` `/setup-log` `/setup-starboard` `/setchannel`", inline=False)
@@ -5652,25 +5652,6 @@ class AutoBingoPupView(discord.ui.View):
 # ═══════════════════════════════════════════
 #    📊 USAGE TRACKING — broji koliko se koja komanda koristi
 # ═══════════════════════════════════════════
-@bot.tree.command(name="cmdstats", description="📊 [ADMIN] Statistika korišćenja komandi")
-@app_commands.default_permissions(manage_guild=True)
-async def cmdstats_cmd(i: discord.Interaction):
-    uses = data.get("cmd_uses", {})
-    if not uses:
-        return await i.response.send_message(embed=em("📊 Još nema podataka", "Bot je tek počeo da broji. Vrati se za par dana.", color=COLORS["info"]), ephemeral=True)
-    sorted_use = sorted(uses.items(), key=lambda x: x[1], reverse=True)
-    total = sum(uses.values())
-    top10  = "\n".join(f"`{n:>4}×` /{name}" for name, n in sorted_use[:10]) or "*nema*"
-    bot10  = "\n".join(f"`{n:>4}×` /{name}" for name, n in sorted_use[-10:]) or "*nema*"
-    never  = [c.name for c in bot.tree.get_commands() if c.name not in uses]
-    never_txt = ", ".join(f"`/{n}`" for n in never[:20]) or "*sve su korišćene*"
-    e = discord.Embed(title="📊 Statistika korišćenja komandi", color=COLORS["balkan"], timestamp=datetime.now(timezone.utc))
-    e.description = f"**Ukupno poziva:** `{total:,}`\n**Različitih komandi:** `{len(uses)}` od `{len(bot.tree.get_commands())}`"
-    e.add_field(name="🏆 TOP 10 najkorišćenijih", value=top10, inline=False)
-    e.add_field(name="💤 10 najmanje korišćenih", value=bot10, inline=False)
-    e.add_field(name="❌ Nikad korišćene", value=never_txt, inline=False)
-    e.set_footer(text="Razmisli o brisanju komandi iz '❌ Nikad korišćene'")
-    await i.response.send_message(embed=e, ephemeral=True)
 
 # ═══════════════════════════════════════════
 #    🔊 PRIVATE VOICE — Join To Create
