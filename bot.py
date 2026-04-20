@@ -3253,85 +3253,92 @@ SPAM_LIMIT  = 7
 BAD_WORDS: set = set()  # add bad words here: BAD_WORDS = {"rijec1", "rijec2"}
 user_msg_times: dict = defaultdict(deque)
 
-# ── Anti-NSFW (pornografija, slike) ─────────────────────
-NSFW_KEYWORDS = [
-    # Balkan — SAMO eksplicitni izrazi (kombinacije, ne sami po sebi)
-    "kurcina", "kurčina", "pička", "pizda", "pičke", "picke",
-    "jebi se", "jebem", "drkanje", "drkam", "drkati",
-    "sisuljke",
-    "porn", "porno", "pornic", "pornić", "kurva", "kurve",
-    # English
-    "nude", "nudes", "naked", "nsfw", "hentai",
-    "boobs", "tits", "pussy", "blowjob", "cumshot", "milf", "horny",
-    # NSFW sajtovi — uvijek blokiraj bez obzira na kontekst
+# ── Anti-NSFW (SAMO eksplicitne slike i pornografski sajtovi) ───
+# Psovanje u tekstu je DOZVOLJENO — blokiramo samo prave nude/porn slike
+
+# Ovi sajtovi se uvijek blokiraju (u textu ili linku)
+NSFW_SITES = [
     "pornhub", "xvideos", "xnxx", "redtube", "youporn", "onlyfans",
     "rule34", "e-hentai", "xhamster", "spankbang", "chaturbate",
+    "livejasmin", "bongacams", "stripchat", "camsoda", "cam4",
 ]
 
-# Ovi se blokiraju SAMO kad se nalaze uz sliku/attachment/embed link
-NSFW_IMAGE_TRIGGERS = [
-    "kurac", "picka", "sise", "sisa", "guzica", "guza",
-    "sex", "sexy", "xxx", "dick", "cock", "penis", "vagina",
-    "fuck", "ass", "anal",
+# Ovo se provjerava SAMO u imenima fajlova attachmenta (slika) — ne u tekstu chata
+NSFW_FILENAME_TRIGGERS = [
+    "nude", "nudes", "naked", "nsfw", "hentai", "porn", "porno",
+    "xxx", "dick_pic", "cock_pic", "pussy_pic", "boobs_pic",
+    "cumshot", "blowjob", "anal_", "milf_",
 ]
 
-def _contains_nsfw(text: str, check_image_triggers: bool = False) -> str | None:
+def _is_nsfw_site(text: str) -> str | None:
     if not text: return None
     t = text.lower()
-    for w in NSFW_KEYWORDS:
+    for site in NSFW_SITES:
+        if site in t:
+            return site
+    return None
+
+def _is_nsfw_filename(filename: str) -> str | None:
+    if not filename: return None
+    t = filename.lower()
+    for w in NSFW_FILENAME_TRIGGERS:
         if w in t:
             return w
-    if check_image_triggers:
-        for w in NSFW_IMAGE_TRIGGERS:
-            # Provjeri word boundary da ne uhvati normalne riječi
-            pattern = r'\b' + re.escape(w) + r'\b'
-            if re.search(pattern, t):
-                return w
     return None
 
 async def check_nsfw(message) -> bool:
-    """Briše NSFW sadržaj. Vraća True ako je obrisao."""
-    if message.channel.is_nsfw():  # NSFW kanal je dozvoljen
+    """Briše NSFW sadržaj. Vraća True ako je obrisao.
+    Psovanje u tekstu je dozvoljeno — samo slike i porn sajtovi se blokiraju."""
+    if message.channel.is_nsfw():
         return False
-    # 1) Tekst poruke — SAMO strogi NSFW_KEYWORDS (ne image triggers)
-    found = _contains_nsfw(message.content, check_image_triggers=False)
-    # 2) Ako ima attachment (slika/fajl) — tada i image triggers vrijede
-    has_attachment = bool(message.attachments)
-    if not found and has_attachment:
-        found = _contains_nsfw(message.content, check_image_triggers=True)
-    # 3) Imena fajlova attachmenta
-    if not found:
-        for att in message.attachments:
-            found = _contains_nsfw(att.filename, check_image_triggers=True) or _contains_nsfw(att.url, check_image_triggers=True)
-            if found: break
-    # 4) Embeds (linkovi) — samo strogi keywords
+
+    found = None
+
+    # 1) Tekst poruke — SAMO pornografski sajtovi (ne psovke!)
+    found = _is_nsfw_site(message.content)
+
+    # 2) Linkovi u embedovima
     if not found:
         for emb in message.embeds:
-            for field in [emb.title, emb.description, emb.url]:
-                if field and (found := _contains_nsfw(str(field), check_image_triggers=True)): break
+            for field in [emb.url, emb.title, emb.description]:
+                if field:
+                    found = _is_nsfw_site(str(field))
+                    if found: break
             if found: break
-    if not found: return False
-    # OBRIŠI
+
+    # 3) Attachment fajlovi — provjeri ime fajla (slike)
+    if not found:
+        for att in message.attachments:
+            found = _is_nsfw_filename(att.filename) or _is_nsfw_site(att.url)
+            if found: break
+
+    if not found:
+        return False
+
+    # OBRIŠI poruku
     try:
         await message.delete()
     except: pass
-    # Upozorenje korisniku
+
+    # Upozorenje
     try:
         await message.channel.send(
-            embed=em("🔞 NSFW Sadržaj Zabranjen",
-                     f"{message.author.mention} — pornografija/eksplicitan sadržaj nije dozvoljen!\n"
+            embed=em("🔞 Zabranjeni sadržaj",
+                     f"{message.author.mention} — eksplicitne slike i porn sajtovi nisu dozvoljeni!\n"
                      f"⚠️ Detektovano: `{found}`\n"
-                     f"💡 Za NSFW koristi posebne **age-restricted** kanale.",
+                     f"💡 Za NSFW sadržaj koristi posebne **age-restricted** kanale.",
                      color=COLORS["error"]),
             delete_after=10
         )
     except: pass
-    # Auto-warn + log
+
+    # Log
     try:
         await audit_log(message.guild, "🔞 Anti-NSFW",
                         f"{message.author.mention} pokušao slati NSFW u {message.channel.mention}\n**Trigger:** `{found}`")
     except: pass
-    # 3+ NSFW = timeout 1h
+
+    # 3+ pokušaja = timeout 1h
     nsfw_strikes = data.setdefault("nsfw_strikes", {})
     skey = f"{message.guild.id}:{message.author.id}"
     nsfw_strikes[skey] = nsfw_strikes.get(skey, 0) + 1
@@ -5188,8 +5195,149 @@ async def vanity_loop():
 async def _vanity_wait(): await bot.wait_until_ready()
 
 # ═══════════════════════════════════════════
-#    🎱 AUTO BINGO — svakih 2 sata u chatu
+#    🎱 BINGO SISTEM — Modal tiketi + Izvlačenje
 # ═══════════════════════════════════════════
+# Nagrade: 2 pogotka=10k | 3=30k | 4=75k | 5=250k (JACKPOT)
+BINGO_PRIZES = {2: 10_000, 3: 30_000, 4: 75_000, 5: 250_000}
+bingo_rounds: dict = {}  # channel_id -> {tickets, active}
+
+class BingoModal(discord.ui.Modal, title="🎱 BINGO — Unesi 5 brojeva"):
+    tiket = discord.ui.TextInput(
+        label="5 brojeva od 1-75, razdvojeni razmakom",
+        placeholder="Npr: 3 17 28 44 61",
+        min_length=5,
+        max_length=20,
+        required=True,
+    )
+    def __init__(self, channel_id: int):
+        super().__init__()
+        self.channel_id = channel_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw = self.tiket.value.strip().split()
+        if len(raw) != 5:
+            return await interaction.response.send_message(
+                embed=em("❌ Greška", "Moraš unijeti **tačno 5 brojeva** razdvojenih razmakom!\nPrimjer: `3 17 28 44 61`", color=COLORS["error"]),
+                ephemeral=True)
+        try:
+            nums = [int(x) for x in raw]
+        except ValueError:
+            return await interaction.response.send_message(
+                embed=em("❌ Greška", "Unesi samo **cijele brojeve** od 1 do 75!", color=COLORS["error"]),
+                ephemeral=True)
+        if any(n < 1 or n > 75 for n in nums):
+            return await interaction.response.send_message(
+                embed=em("❌ Greška", "Svi brojevi moraju biti između **1 i 75**!", color=COLORS["error"]),
+                ephemeral=True)
+        if len(set(nums)) != 5:
+            return await interaction.response.send_message(
+                embed=em("❌ Greška", "Brojevi se ne smiju **ponavljati**!", color=COLORS["error"]),
+                ephemeral=True)
+        round_data = bingo_rounds.get(self.channel_id)
+        if not round_data or not round_data.get("active"):
+            return await interaction.response.send_message(
+                embed=em("⏰ Kasno!", "Bingo runda je već završena.", color=COLORS["warning"]),
+                ephemeral=True)
+        round_data["tickets"][interaction.user.id] = frozenset(nums)
+        formatted = "  ".join(f"**{n}**" for n in sorted(nums))
+        await interaction.response.send_message(
+            embed=em("✅ Tiket prihvaćen!",
+                     f"🎟️ Tvoja kombinacija:\n\n{formatted}\n\n"
+                     f"⏳ Izvlačenje za manje od **2 minute** — drži palčeve! 🤞",
+                     color=COLORS["success"]),
+            ephemeral=True)
+
+class BingoView(discord.ui.View):
+    def __init__(self, channel_id: int):
+        super().__init__(timeout=120)
+        self.channel_id = channel_id
+
+    @discord.ui.button(label="🎟️ Uzmi tiket", style=discord.ButtonStyle.primary, emoji="🎱")
+    async def uzmi_tiket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        round_data = bingo_rounds.get(self.channel_id)
+        if not round_data or not round_data.get("active"):
+            button.disabled = True
+            return await interaction.response.send_message(
+                embed=em("⏰ Kasno!", "Runda je završena.", color=COLORS["warning"]), ephemeral=True)
+        if interaction.user.id in round_data["tickets"]:
+            existing = sorted(round_data["tickets"][interaction.user.id])
+            formatted = "  ".join(f"`{n}`" for n in existing)
+            return await interaction.response.send_message(
+                embed=em("ℹ️ Već imaš tiket", f"Tvoja kombinacija: {formatted}\nNe možeš mijenjati tiket!", color=COLORS["info"]),
+                ephemeral=True)
+        await interaction.response.send_modal(BingoModal(channel_id=self.channel_id))
+
+async def _run_bingo_round(chan: discord.TextChannel, pokretac: str = "Auto"):
+    import asyncio
+    cid = chan.id
+    bingo_rounds[cid] = {"tickets": {}, "active": True}
+    view = BingoView(channel_id=cid)
+    e = discord.Embed(
+        title="🎱 BINGO TIME!",
+        description=(
+            "🎟️ **Klikni dugme ispod i unesi 5 brojeva (1-75)!**\n\n"
+            "```\n"
+            "2 pogotka  →   10.000 coina 💰\n"
+            "3 pogotka  →   30.000 coina 💰💰\n"
+            "4 pogotka  →   75.000 coina 💰💰💰\n"
+            "5 pogodaka →  250.000 coina 🏆 JACKPOT!\n"
+            "```\n"
+            "⏱️ Imate **2 minute** da uzmete tiket!\n"
+            "✅ Unesi 5 različitih brojeva od 1-75"
+        ),
+        color=COLORS["balkan"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.set_footer(text=f"Pokrenuo: {pokretac} • GIANNI Bingo")
+    try:
+        bingo_msg = await chan.send(embed=e, view=view)
+    except Exception:
+        bingo_rounds.pop(cid, None)
+        return
+    await asyncio.sleep(120)
+    bingo_rounds[cid]["active"] = False
+    view.stop()
+    try:
+        v2 = BingoView(channel_id=cid)
+        for item in v2.children: item.disabled = True
+        await bingo_msg.edit(view=v2)
+    except: pass
+    izvuceni = sorted(random.sample(range(1, 76), 5))
+    izvuceni_set = set(izvuceni)
+    tickets = bingo_rounds.pop(cid, {}).get("tickets", {})
+    rezultati = {}
+    for uid, ticket in tickets.items():
+        pogoci = len(ticket & izvuceni_set)
+        nagrada = BINGO_PRIZES.get(pogoci, 0)
+        if nagrada > 0:
+            rezultati[uid] = (pogoci, nagrada)
+    izvuceni_fmt = "   ".join(f"**{n}**" for n in izvuceni)
+    res_embed = discord.Embed(
+        title="🎱 BINGO — Rezultati!",
+        description=f"🔢 **Izvučeni brojevi:**\n\n{izvuceni_fmt}\n\n",
+        color=COLORS["success"], timestamp=datetime.now(timezone.utc)
+    )
+    if rezultati:
+        winners_text = ""
+        for uid, (pogoci, nagrada) in sorted(rezultati.items(), key=lambda x: -x[1]):
+            member = chan.guild.get_member(uid)
+            if not member: continue
+            eco = get_economy(uid)
+            eco["balance"] = eco.get("balance", 0) + nagrada
+            add_xp(uid, pogoci * 50)
+            label = "🏆 **JACKPOT!**" if pogoci == 5 else f"🎯 {pogoci} pogotka"
+            winners_text += f"{label} {member.mention} — `+{nagrada:,}` coina\n"
+        save_data()
+        res_embed.add_field(name="🏅 Pobjednici", value=winners_text or "—", inline=False)
+        res_embed.add_field(name="🎟️ Ukupno tiketa", value=str(len(tickets)), inline=True)
+    else:
+        res_embed.description += "😔 Niko nije pogodio 2+ broja!\n_(Trebaju min. 2 pogotka za nagradu)_" if tickets else "😔 Niko nije uzeo tiket!"
+    res_embed.set_footer(text="GIANNI Bingo • Sljedeći za 2 sata")
+    try:
+        await chan.send(embed=res_embed)
+    except: pass
+
+# ─── AUTO BINGO — svakih 2 sata ───
 @tasks.loop(hours=2)
 async def auto_game_loop():
     import asyncio
@@ -5201,47 +5349,7 @@ async def auto_game_loop():
             chan = discord.utils.get(guild.text_channels, name="chat") or \
                    discord.utils.find(lambda c: "chat" in c.name.lower() or "general" in c.name.lower(), guild.text_channels)
         if not chan: continue
-        tajni_broj = random.randint(1, 75)
-        nagrada = 25000
-        e = discord.Embed(
-            title="🎱 BINGO TIME!",
-            description=(
-                f"🎯 **Pogodi tajni broj između `1` i `75`!**\n\n"
-                f"💰 Nagrada: **`{nagrada:,}` coina** 🏆\n"
-                f"⏱️ Imaš **2 minute** — ukucaj broj u chat!\n"
-                f"🏆 **Prvi koji pogodi pobjeđuje!**\n"
-                f"⚠️ Maksimalno **5 pokušaja** po igraču"
-            ),
-            color=COLORS["balkan"], timestamp=datetime.now(timezone.utc))
-        e.set_footer(text="Auto svakih 2 sata • GIANNI Bingo")
-        try:
-            await chan.send(embed=e)
-        except: continue
-        pokusaji = {}  # user_id -> broj pokušaja (max 5)
-        def check(m):
-            if m.channel != chan or m.author.bot: return False
-            txt = m.content.strip()
-            if not txt.isdigit(): return False
-            n = int(txt)
-            if n < 1 or n > 75: return False
-            uid = m.author.id
-            if pokusaji.get(uid, 0) >= 5: return False
-            pokusaji[uid] = pokusaji.get(uid, 0) + 1
-            return n == tajni_broj
-        try:
-            msg = await bot.wait_for("message", timeout=120.0, check=check)
-            eco = get_economy(msg.author.id)
-            eco["balance"] = eco.get("balance", 0) + nagrada
-            add_xp(msg.author.id, 200)
-            save_data()
-            await chan.send(embed=em("🏆 BINGO! Pobjednik!",
-                f"🎉 {msg.author.mention} je pogodio/la tajni broj **{tajni_broj}**!\n\n"
-                f"💰 **+{nagrada:,} coina!** Čestitamo!",
-                color=COLORS["success"]))
-        except asyncio.TimeoutError:
-            await chan.send(embed=em("⏰ Vrijeme isteklo!",
-                f"Niko nije pogodio! 😔\nTajni broj je bio: **`{tajni_broj}`**\nSljedeći Bingo za 2 sata!",
-                color=COLORS["warning"]))
+        asyncio.create_task(_run_bingo_round(chan, pokretac="Auto (svakih 2h)"))
 
 @auto_game_loop.before_loop
 async def _auto_game_wait(): await bot.wait_until_ready()
@@ -5315,49 +5423,18 @@ async def active_member_week():
 async def _aotw_wait(): await bot.wait_until_ready()
 
 # ─── 🎱 RUČNI BINGO ───
-@bot.tree.command(name="bingo", description="🎱 Pokreni Bingo igru u ovom kanalu (1-75)")
+@bot.tree.command(name="bingo", description="🎱 Pokreni Bingo — igrači biraju 5 brojeva i osvajaju nagrade!")
+@app_commands.default_permissions(manage_messages=True)
 async def bingo_cmd(i: discord.Interaction):
     import asyncio
-    tajni_broj = random.randint(1, 75)
-    nagrada = 25000
-    await i.response.send_message(embed=discord.Embed(
-        title="🎱 BINGO TIME!",
-        description=(
-            f"🎯 **Pogodi tajni broj između `1` i `75`!**\n\n"
-            f"💰 Nagrada: **`{nagrada:,}` coina** 🏆\n"
-            f"⏱️ Imaš **2 minute** — ukucaj broj u chat!\n"
-            f"🏆 **Prvi koji pogodi pobjeđuje!**\n"
-            f"⚠️ Maksimalno **5 pokušaja** po igraču"
-        ),
-        color=COLORS["balkan"], timestamp=datetime.now(timezone.utc)
-    ).set_footer(text=f"Pokrenuo/la: {i.user.display_name} • GIANNI Bingo"))
-    pokusaji = {}
-    chan = i.channel
-    def check(m):
-        if m.channel != chan or m.author.bot: return False
-        txt = m.content.strip()
-        if not txt.isdigit(): return False
-        n = int(txt)
-        if n < 1 or n > 75: return False
-        uid = m.author.id
-        cnt = pokusaji.get(uid, 0)
-        if cnt >= 5: return False
-        pokusaji[uid] = cnt + 1
-        return n == tajni_broj
-    try:
-        msg = await bot.wait_for("message", timeout=120.0, check=check)
-        eco = get_economy(msg.author.id)
-        eco["balance"] = eco.get("balance", 0) + nagrada
-        add_xp(msg.author.id, 200)
-        save_data()
-        await chan.send(embed=em("🏆 BINGO! Pobjednik!",
-            f"🎉 {msg.author.mention} je pogodio/la tajni broj **{tajni_broj}**!\n\n"
-            f"💰 **+{nagrada:,} coina!** Čestitamo!",
-            color=COLORS["success"]))
-    except asyncio.TimeoutError:
-        await chan.send(embed=em("⏰ Vrijeme isteklo!",
-            f"Niko nije pogodio! 😔\nTajni broj je bio: **`{tajni_broj}`**",
-            color=COLORS["warning"]))
+    if i.channel.id in bingo_rounds and bingo_rounds[i.channel.id].get("active"):
+        return await i.response.send_message(
+            embed=em("⚠️ Već aktivan!", "Bingo runda je već u toku u ovom kanalu!", color=COLORS["warning"]),
+            ephemeral=True)
+    await i.response.send_message(
+        embed=em("🎱 Bingo se pokreće!", "Runda počinje odmah...", color=COLORS["balkan"]),
+        ephemeral=True)
+    asyncio.create_task(_run_bingo_round(i.channel, pokretac=i.user.display_name))
 
 # ═══════════════════════════════════════════
 #    📊 USAGE TRACKING — broji koliko se koja komanda koristi
