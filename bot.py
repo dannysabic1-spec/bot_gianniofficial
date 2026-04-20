@@ -536,7 +536,7 @@ def get_xp(uid):
 def add_xp(uid, amount):
     d = get_xp(uid)
     d["xp"] += amount
-    needed = d["level"] * 100
+    needed = d["level"] * 60
     if d["xp"] >= needed:
         d["xp"] -= needed
         d["level"] += 1
@@ -646,7 +646,6 @@ async def on_ready():
     if not change_status.is_running(): change_status.start()
     if not birthday_check.is_running(): birthday_check.start()
     if not auto_backup.is_running(): auto_backup.start()
-    if not reminder_loop.is_running(): reminder_loop.start()
     if not vanity_loop.is_running(): vanity_loop.start()
     if not auto_game_loop.is_running(): auto_game_loop.start()
     if not active_member_week.is_running(): active_member_week.start()
@@ -1173,8 +1172,8 @@ async def on_message(message):
     data["msg_count_week"][mkey] = data["msg_count_week"].get(mkey, 0) + 1
 
     # ── XP ────────────────────────────────────────────
-    if random.random() < 0.30:
-        if add_xp(message.author.id, random.randint(10, 30)):
+    if random.random() < 0.90:
+        if add_xp(message.author.id, random.randint(30, 80)):
             save_data()
             lvl = get_xp(message.author.id)["level"]
             cfg = get_guild_config(message.guild.id)
@@ -1853,7 +1852,7 @@ async def kradi(i: discord.Interaction, korisnik: discord.Member):
 async def rank(i: discord.Interaction, korisnik: discord.Member = None):
     u = korisnik or i.user
     d = get_xp(u.id)
-    needed = d["level"] * 100
+    needed = d["level"] * 60
     filled = min(d["xp"] * 10 // needed, 10)
     bar = "🟪" * filled + "⬛" * (10 - filled)
     pct = round(d["xp"] / needed * 100)
@@ -4627,135 +4626,6 @@ async def setup_panels_cmd(i: discord.Interaction, kanal: discord.TextChannel = 
         desc += f"\n\n⚠️ Nisu pronađene uloge: {', '.join(set(missing))}\n*(Pokreni `/setup-uloge` ako ih nemaš)*"
     await i.followup.send(embed=em("🎉 Paneli postavljeni!", desc, color=COLORS["success"]), ephemeral=True)
 
-# ═══════════════════════════════════════════
-#    PRAVILA
-# ═══════════════════════════════════════════
-@bot.tree.command(name="pravila", description="📜 Pravila servera ili Staff pravila")
-@app_commands.describe(tip="server (default) ili staff")
-@app_commands.choices(tip=[
-    app_commands.Choice(name="server", value="server"),
-    app_commands.Choice(name="staff",  value="staff"),
-])
-async def pravila(i: discord.Interaction, tip: app_commands.Choice[str] = None):
-    sep = "━━━━━━━━━━━━━━━━━━━"
-    has_gianni = isinstance(i.user, discord.Member) and (
-        i.user.guild_permissions.administrator or
-        any("gianni" in r.name.lower() for r in i.user.roles)
-    )
-    if not has_gianni:
-        return await i.response.send_message(
-            embed=em("⛔", "Samo članovi sa **GIANNI** ulogom (ili Admin) mogu koristiti ovu komandu.", color=COLORS["error"]),
-            ephemeral=True
-        )
-    if tip and tip.value == "staff":
-        e = discord.Embed(
-            title="🛡️ ꜱᴛᴀꜰꜰ ᴘʀᴀᴠɪʟᴀ — × GIANNI",
-            description=f"ᴘʀᴀᴠɪʟᴀ ᴋᴏᴊᴀ ꜱᴠᴀᴋɪ čʟᴀɴ ꜱᴛᴀꜰꜰ ᴛɪᴍᴀ ᴍᴏʀᴀ ᴘᴏšᴛᴏᴠᴀᴛɪ.\n{sep}",
-            color=0xFFD700, timestamp=datetime.now(timezone.utc))
-        e.add_field(name="1. 🤝 Profesionalnost",
-            value=f"• Predstavljaj server profesionalno u svako vrijeme\n• Bez vrijeđanja članova ni drugih staff-ova\n• Privatne svađe rješavaj u DM-u, NIKAD u javnim kanalima\n{sep}", inline=False)
-        e.add_field(name="2. ⚖️ Pravičnost",
-            value=f"• Tretiraj sve članove **jednako** (i prijatelje i nepoznate)\n• Ne daj kazne iz lične frustracije — samo prema pravilima\n• Ako si lično umiješan/a u problem — pozovi drugog staff-a\n{sep}", inline=False)
-        e.add_field(name="3. 🔐 Korištenje permisija",
-            value=f"• Ne koristi ban/kick/timeout bez razloga ili za šalu\n• Sve ozbiljne akcije (ban, mass-delete) **logiraj** u staff chatu\n• Bez dijeljenja bot tokena, paswordova, secrets — niti bilo koje admin permisije\n{sep}", inline=False)
-        e.add_field(name="4. 📋 Aktivnost",
-            value=f"• Provjeravaj server **bar 1× dnevno** ako imaš vremena\n• Odgovaraj na ticket-e u razumnom roku (12-24h)\n• Ako te dugo neće biti — javi u **#staff-chat**\n{sep}", inline=False)
-        e.add_field(name="5. 🚫 Zabranjeno",
-            value=f"• **Banovanje bez razloga** ili iz osvete — instant kick iz tima\n• Mijenjanje uloga drugima bez dogovora\n• Brisanje kanala/uloga bez dogovora sa Owners-ima\n• Reklamiranje drugih servera u DM-u članovima\n{sep}", inline=False)
-        e.add_field(name="6. 🗣️ Komunikacija",
-            value=f"• Sve odluke o banovima/kazinama → diskutuj u **#staff-chat**\n• Ako nisi siguran/na — pitaj prvo, kažnjavaj poslije\n• Saslušaj obje strane prije izricanja kazne\n{sep}", inline=False)
-        e.add_field(name="7. 🔥 Anti-Nuke odgovornost",
-            value=f"• Bot ima Anti-Nuke zaštitu — ne pokušavaj zaobići\n• Ako masovno brišeš kanale/uloge → bot će te automatski kazniti\n• Za masovne akcije zatraži *whitelist* od Vlasnika\n{sep}", inline=False)
-        e.add_field(name="8. 📈 Dovođenje članova",
-            value=f"• **Svaki staff je dužan dovoditi nove članove na server**\n• Minimum **5 novih invite-ova mjesečno** (provjerava se sa `/invite`)\n• Dijeli invite link na svojim mrežama (TikTok, IG, FB, grupe...)\n• Pozivaj prijatelje, drugare, poznanike — server raste samo zajedničkim radom\n• Staff koji ne ispunjava — gubi staff ulogu\n{sep}", inline=False)
-        e.add_field(name="⚠️ Posljedice kršenja",
-            value=f"▸ Usmeno upozorenje\n▸ Pisano upozorenje\n▸ Privremeno oduzimanje uloge\n▸ **Skidanje sa staff tima** + ban\n{sep}", inline=False)
-        e.set_footer(text="Hvala što čuvaš GIANNI! Tvoj rad je cijenjen 💛")
-        return await i.response.send_message(embed=e)
-    e = discord.Embed(
-        title="ᴘʀᴀᴠɪʟɴɪᴋ ꜱᴇʀᴠᴇʀᴀ",
-        description=(
-            f"ᴅᴏʙʀᴏᴅᴏšʟɪ ɴᴀ  × **GIANNI**\n"
-            "ᴄɪʟᴊ ꜱᴇʀᴠᴇʀᴀ ᴊᴇ ᴅᴏʙʀᴀ ᴀᴛᴍᴏꜱꜰᴇʀᴀ, ᴢᴀʙᴀᴠᴀ ɪ ᴜᴘᴏᴢɴᴀᴠᴀɴᴊᴇ ɴᴏᴠɪʜ ʟᴊᴜᴅɪ.\n"
-            "ᴅᴀ ʙɪ ꜱᴠᴇ ꜰᴜɴᴋᴄɪᴏɴɪꜱᴀʟᴏ ᴋᴀᴋᴏ ᴛʀᴇʙᴀ, ᴍᴏʟɪᴍᴏ ᴠᴀꜱ ᴅᴀ ᴘᴏꜱᴛᴜᴊᴇᴛᴇ ꜱʟᴇᴅᴇᴄᴀ ᴘʀᴀᴠɪʟᴀ\n"
-            f"{sep}"
-        ),
-        color=0x9B59B6,
-        timestamp=datetime.now(timezone.utc)
-    )
-    e.add_field(
-        name="1. ᴘᴏšᴛᴜᴊᴛᴇ ꜱᴠᴇ čʟᴀɴᴏᴠᴇ",
-        value=(
-            "• ᴢᴀʙʀᴀɴᴊᴇɴᴏ ᴊᴇ ᴠʀᴇᴅᴊᴀɴᴊᴇ, ᴍᴀʟᴛʀᴇᴛɪʀᴀɴᴊᴇ ɪ ᴘʀᴏᴠᴏᴄɪʀᴀɴᴊᴇ ᴅʀᴜɢɪʜ čʟᴀɴᴏᴠᴀ\n"
-            "• ɴᴇᴍᴀ ʀᴀꜱɪᴢᴍᴀ, ᴅɪꜱᴋʀɪᴍɪɴᴀᴄɪᴊᴇ ɪʟɪ ɢᴏᴠᴏʀᴀ ᴍʀžɴᴊᴇ\n"
-            f"• ᴘᴏšᴛᴜᴊᴛᴇ ᴛᴜᴅᴊᴇ ᴍɪšʟᴊᴇɴᴊᴇ\n{sep}"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="2. ʙᴇᴢ ꜱᴘᴀᴍᴀ",
-        value=(
-            "• ɴᴇ šᴀʟᴊɪᴛᴇ ɪꜱᴛᴇ ᴘᴏʀᴜᴋᴇ ᴠɪšᴇ ᴘᴜᴛᴀ\n"
-            "• ɴᴇ ꜱᴘᴀᴍᴜᴊᴛᴇ ᴇᴍᴏᴊɪ-ᴊɪᴍᴀ, ɢɪꜰᴏᴠɪᴍᴀ ɪʟɪ ᴛᴀɢᴏᴠᴀɴᴊᴇᴍ ʟᴊᴜᴅɪ\n"
-            f"• ꜰʟᴏᴏᴅ ᴘᴏʀᴜᴋᴇ ɴɪꜱᴜ ᴅᴏᴢᴠᴏʟᴊᴇɴᴇ\n{sep}"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="3. ʀᴇᴋʟᴀᴍɪʀᴀɴᴊᴇ",
-        value=(
-            "• ʀᴇᴋʟᴀᴍɪʀᴀɴᴊᴇ ꜱᴇʀᴠᴇʀᴀ, ᴋᴀɴᴀʟᴀ ɪʟɪ ᴅʀᴜšᴛᴠᴇɴɪʜ ᴍʀᴇžᴀ ɴɪᴊᴇ ᴅᴏᴢᴠᴏʟᴊᴇɴᴏ ʙᴇᴢ ᴅᴏᴢᴠᴏʟᴇ ᴀᴅᴍɪɴᴀ\n"
-            f"• ᴢᴀʙʀᴀɴᴊᴇɴᴏ ᴊᴇ ꜱʟᴀɴᴊᴇ ʀᴇᴋʟᴀᴍᴀ ᴜ ᴅᴍ čʟᴀɴᴏᴠɪᴍᴀ ꜱᴇʀᴠᴇʀᴀ\n{sep}"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="4. ᴢᴀʙʀᴀɴᴊᴇɴ ɴᴇᴘʀɪᴍᴇʀᴇɴ ꜱᴀᴅʀžᴀᴊ",
-        value=(
-            "• ɴᴇᴍᴀ 18+ ꜱᴀᴅʀžᴀᴊᴀ\n"
-            "• ɴᴇᴍᴀ ɴᴀꜱɪʟɴɪʜ ɪʟɪ šᴏᴋᴀɴᴛɴɪʜ ꜱʟɪᴋᴀ\n"
-            f"• ᴘᴏšᴛᴜᴊᴛᴇ ᴘʀᴀᴠɪʟᴀ ᴅɪꜱᴄᴏʀᴅ ᴘʟᴀᴛꜰᴏʀᴍᴇ\n{sep}"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="5. ᴋᴏʀɪꜱᴛɪᴛᴇ ᴋᴀɴᴀʟᴇ ᴋᴀᴋᴏ ᴛʀᴇʙᴀ",
-        value=(
-            "• ᴘɪšɪᴛᴇ ᴜ ᴋᴀɴᴀʟɪᴍᴀ ᴋᴏᴊɪ ꜱᴜ ɴᴀᴍᴇɴᴊᴇɴɪ ᴢᴀ ᴛᴜ ᴛᴇᴍᴜ\n"
-            f"• ɴᴇ ꜱᴘᴀᴍᴜᴊᴛᴇ ᴜ ᴘᴏɢʀᴇšɴɪᴍ ᴋᴀɴᴀʟɪᴍᴀ\n{sep}"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="6. ᴘᴏšᴛᴜᴊᴛᴇ ꜱᴛᴀꜰꜰ",
-        value=(
-            "• ᴀᴅᴍɪɴɪ ɪ ᴍᴏᴅᴇʀᴀᴛᴏʀɪ ᴏᴅʀžᴀᴠᴀᴊᴜ ʀᴇᴅ\n"
-            "• ɴᴊɪʜᴏᴠᴇ ᴏᴅʟᴜᴋᴇ ᴛʀᴇʙᴀ ᴘᴏšᴛᴏᴠᴀᴛɪ\n"
-            f"• ᴀᴋᴏ ɪᴍᴀᴛᴇ ᴘʀᴏʙʟᴇᴍ — ᴊᴀᴠɪᴛᴇ ꜱᴇ ꜱᴛᴀꜰꜰᴜ\n{sep}"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="7. ʙᴇᴢ ᴅʀᴀᴍᴇ",
-        value=(
-            "• ꜱᴠᴀᴅᴊᴇ, ᴘʀᴏᴠᴏᴄɪʀᴀɴᴊᴇ ɪ ᴘʀᴀᴠʟᴊᴇɴᴊᴇ ᴅʀᴀᴍᴇ ɴɪꜱᴜ ᴅᴏᴢᴠᴏʟᴊᴇɴɪ\n"
-            f"• ᴘʀᴏʙʟᴇᴍɪ ꜱᴇ ʀᴇšᴀᴠᴀᴊᴜ ᴍɪʀɴᴏ ɪʟɪ ᴜᴢ ᴘᴏᴍᴏć ꜱᴛᴀꜰꜰᴀ\n{sep}"
-        ),
-        inline=False
-    )
-    e.add_field(
-        name="⚠️ ᴋᴀᴢɴᴇ",
-        value=(
-            "ᴋʀšᴇɴᴊᴇ ᴘʀᴀᴠɪʟᴀ ᴍᴏžᴇ ᴅᴏᴠᴇꜱᴛɪ ᴅᴏ:\n"
-            "▸ ᴜᴘᴏᴢᴏʀᴇɴᴊᴀ\n"
-            "▸ ᴍᴜᴛᴇ-ᴀ\n"
-            "▸ ᴋɪᴄᴋ-ᴀ\n"
-            f"▸ ʙᴀɴ-ᴀ ꜱᴀ ꜱᴇʀᴠᴇʀᴀ\n{sep}"
-        ),
-        inline=False
-    )
-    e.set_footer(text="ʜᴠᴀʟᴀ šᴛᴏ ꜱᴛᴇ ᴅᴇᴏ GIANNI-ᴊᴀ! ᴘᴏꜱᴛᴜᴊᴛᴇ ᴘʀᴀᴠɪʟᴀ ɪ ᴜžɪᴠᴀᴊᴛᴇ ɴᴀ ꜱᴇʀᴠᴇʀᴜ 💜")
-    await i.response.send_message(embed=e)
 
 # ═══════════════════════════════════════════
 #    HELP
@@ -5325,7 +5195,7 @@ async def qr_cmd(i: discord.Interaction, tekst: str):
 # ─── 🤫 CONFESS (anonimno) ───
 @bot.tree.command(name="confess", description="🤫 Pošalji anonimnu ispovjed u confess kanal")
 async def confess_cmd(i: discord.Interaction, poruka: str):
-    cfg = get_config(i.guild.id)
+    cfg = get_guild_config(i.guild.id)
     ch_id = cfg.get("confess_channel")
     ch = i.guild.get_channel(ch_id) if ch_id else None
     if not ch:
@@ -5347,7 +5217,7 @@ async def confess_cmd(i: discord.Interaction, poruka: str):
 async def setchannel_cmd(i: discord.Interaction, tip: app_commands.Choice[str], kanal: discord.TextChannel):
     if not i.user.guild_permissions.administrator:
         return await i.response.send_message("❌ Samo admin.", ephemeral=True)
-    get_config(i.guild.id)[tip.value] = kanal.id; save_data()
+    get_guild_config(i.guild.id)[tip.value] = kanal.id; save_data()
     await i.response.send_message(embed=em("✅", f"{tip.name.capitalize()} kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
@@ -5421,12 +5291,7 @@ async def _vanity_wait(): await bot.wait_until_ready()
 @tasks.loop(hours=3)
 async def auto_game_loop():
     for guild in bot.guilds:
-        cfg = get_guild_config(guild.id)
-        ch_id = cfg.get("auto_game_channel") or cfg.get("welcome_channel")
-        chan = guild.get_channel(ch_id) if ch_id else None
-        if not chan:
-            chan = discord.utils.get(guild.text_channels, name="chat") or \
-                   discord.utils.find(lambda c: "chat" in c.name.lower() or "general" in c.name.lower(), guild.text_channels)
+        chan = discord.utils.get(guild.text_channels, name="chat")
         if not chan: continue
 
         pool = list(range(1, 76))
@@ -5438,22 +5303,23 @@ async def auto_game_loop():
         e = discord.Embed(
             title="🎱  ✦  B  I  N  G  O  ✦  🎱",
             description=(
-                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
                 "🎯 **Klikni dugme ispod i unesi 5 brojeva (1–75)!**\n"
-                "🎫 Tiket košta samo **500 coina** 🪙\n"
-                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
-                "```\n"
-                " 🪙  2 pogotka  ─────  10.000 coina\n"
-                " 🪙🪙  3 pogotka  ────  30.000 coina\n"
-                " 🪙🪙🪙  4 pogotka  ───  75.000 coina\n"
-                " 🏆  5 pogodaka  ──  250.000 coina  ← JACKPOT!\n"
-                "```\n"
-                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
-                "⏱️  Imaš **2 minute** za tiket — brzo! 🔥\n"
-                "📢  Rezultati se objavljuju **javno** 🌍"
+                "🎫 Tiket košta samo **500 coina** 🪙\n\n"
+                "⏱️ Imaš **2 minute** za tiket — brzo! 🔥\n"
+                "📢 Rezultati se objavljuju **javno** za sve 🌍"
             ),
             color=0x00BCD4,
             timestamp=datetime.now(timezone.utc),
+        )
+        e.add_field(
+            name="🏆  Nagradna lista",
+            value=(
+                "🥉 `2 pogotka`  ──  **10.000** coina\n"
+                "🥈 `3 pogotka`  ──  **30.000** coina\n"
+                "🥇 `4 pogotka`  ──  **75.000** coina\n"
+                "👑 `5 pogodaka` ── **250.000** coina  🏆 **JACKPOT!**"
+            ),
+            inline=False,
         )
         e.set_footer(text=f"🎱 × GIANNI Auto-Bingo • svakih 3h • danas u {now_str} UTC")
 
@@ -5548,6 +5414,11 @@ async def _aotw_wait(): await bot.wait_until_ready()
 # ─── 🎱 RUČNI BINGO ───
 @bot.tree.command(name="bingo", description="🎱 Pokreni Bingo — klikni dugme, unesi 5 brojeva i osvoji nagradu!")
 async def bingo_cmd(i: discord.Interaction):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("👑 Nemaš pristup!", "Komandu `/bingo` može pokrenuti samo **Vlasnik** bota.", color=COLORS["error"]),
+            ephemeral=True,
+        )
     pool = list(range(1, 76))
     random.shuffle(pool)
     izvuceni = pool[:20]
@@ -5557,24 +5428,25 @@ async def bingo_cmd(i: discord.Interaction):
     e = discord.Embed(
         title="🎱  ✦  B  I  N  G  O  ✦  🎱",
         description=(
-            "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
             "🎯 **Klikni dugme ispod i unesi 5 brojeva (1–75)!**\n"
-            "🎫 Tiket košta samo **500 coina** 🪙\n"
-            "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
-            "```\n"
-            " 🪙  2 pogotka  ─────  10.000 coina\n"
-            " 🪙🪙  3 pogotka  ────  30.000 coina\n"
-            " 🪙🪙🪙  4 pogotka  ───  75.000 coina\n"
-            " 🏆  5 pogodaka  ──  250.000 coina  ← JACKPOT!\n"
-            "```\n"
-            "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
-            "⏱️  Imaš **2 minute** za tiket — brzo! 🔥\n"
-            "📢  Rezultati se objavljuju **javno** 🌍"
+            "🎫 Tiket košta samo **500 coina** 🪙\n\n"
+            "⏱️ Imaš **2 minute** za tiket — brzo! 🔥\n"
+            "📢 Rezultati se objavljuju **javno** za sve 🌍"
         ),
         color=0x00BCD4,
         timestamp=datetime.now(timezone.utc),
     )
     e.set_author(name=f"🎱 Pokrenuo/la: {i.user.display_name}", icon_url=i.user.display_avatar.url)
+    e.add_field(
+        name="🏆  Nagradna lista",
+        value=(
+            "🥉 `2 pogotka`  ──  **10.000** coina\n"
+            "🥈 `3 pogotka`  ──  **30.000** coina\n"
+            "🥇 `4 pogotka`  ──  **75.000** coina\n"
+            "👑 `5 pogodaka` ── **250.000** coina  🏆 **JACKPOT!**"
+        ),
+        inline=False,
+    )
     e.set_footer(text=f"🎱 × GIANNI Bingo • danas u {now_str} UTC • Cijena tiketa: 500 coina 🪙")
 
     view = AutoBingoPupView(session)
@@ -5675,16 +5547,19 @@ class PupModal(discord.ui.Modal, title="🎟️ Unesi 5 brojeva (1–75)"):
         potvrda = discord.Embed(
             title="🎟️  Tiket primljen!  ✅",
             description=(
-                "```ansi\n\u001b[1;32m✔  Tvoji brojevi su zabilježeni!\u001b[0m```\n"
-                f"🔢 **Tvoji brojevi:**\n"
-                f"> {' '.join(f'`{n:02d}`' for n in sorted(odabrani))}\n\n"
-                f"💰 Plaćeno: **{PUP_CIJENA:,} coina** 🪙\n"
-                f"⏳ Rezultati dolaze **za 2 minute** — javno za sve! 📢\n"
-                f"🤞 Drži fige!"
+                f"✔️ Tvoji brojevi su **tajno zabilježeni** i čekaju kraj runde!\n"
+                f"🤞 Drži fige i čekaj objavu!"
             ),
             color=0x00E5FF,
             timestamp=datetime.now(timezone.utc),
         )
+        potvrda.add_field(
+            name="🔢  Tvoji odabrani brojevi",
+            value=" ".join(f"`{n:02d}`" for n in sorted(odabrani)),
+            inline=False,
+        )
+        potvrda.add_field(name="💰  Plaćeno", value=f"**{PUP_CIJENA:,} coina** 🪙", inline=True)
+        potvrda.add_field(name="⏳  Rezultati", value="**za ~2 minute** — javno! 📢", inline=True)
         potvrda.set_footer(text="🎱 × GIANNI Bingo • Sreće ti! 🍀")
         await i.response.send_message(embed=potvrda, ephemeral=True)
 
@@ -5700,16 +5575,15 @@ async def _bingo_reveal(session: dict, channel: discord.TextChannel):
 
     if not players:
         e = discord.Embed(
-            title="🎱  Bingo — Runda završena  🎱",
-            description=(
-                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
-                "😔 **Niko nije uzeo tiket ovaj put.**\n\n"
-                f"🎲 **Izvučenih 20 brojeva:**\n> {drawn_display}\n\n"
-                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
-                "💡 Sljedeći auto-bingo za **~3 sata**! ⏰"
-            ),
+            title="🎱  Bingo — Runda završena",
+            description="😔 **Niko nije uzeo tiket ovaj put.**\n💡 Sljedeći auto-bingo za **~3 sata**! ⏰",
             color=0x00BCD4,
             timestamp=datetime.now(timezone.utc),
+        )
+        e.add_field(
+            name="🎲  Izvučenih 20 brojeva",
+            value=drawn_display,
+            inline=False,
         )
         e.set_footer(text="🎱 × GIANNI Bingo • Budi brži/a idući put! 🍀")
         try:
@@ -5769,19 +5643,24 @@ async def _bingo_reveal(session: dict, channel: discord.TextChannel):
 
     results_txt = "\n\n".join(rows) if rows else "*Niko nije igrao.*"
 
-    title = "🏆  ✦  J A C K P O T  ✦  🏆" if jackpot_uid else "🎱  ✦  B I N G O  —  R e z u l t a t i  ✦"
+    title = "🏆  ✦  J A C K P O T  ✦  🏆" if jackpot_uid else "🎱  ✦  B I N G O  —  Rezultati  ✦"
     color = 0xFFD700 if jackpot_uid else 0x00BCD4
 
-    e = discord.Embed(title=title, color=color, timestamp=datetime.now(timezone.utc))
-    e.description = (
-        "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
-        f"🎲 **Izvučenih 20 brojeva:**\n> {drawn_display}\n"
-        "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```"
+    e = discord.Embed(
+        title=title,
+        description="🎉 Runda je gotova! Pogledaj ko je pobijedio!" if total_prizes > 0 else "Ovaj put nema pobjednika. Sreće idući put!",
+        color=color,
+        timestamp=datetime.now(timezone.utc),
     )
-    e.add_field(name=f"📋 Rezultati  ({len(results)} igrača)", value=results_txt[:1020], inline=False)
+    e.add_field(
+        name="🎲  Izvučenih 20 brojeva",
+        value=drawn_display,
+        inline=False,
+    )
+    e.add_field(name=f"📋  Rezultati  ({len(results)} igrača)", value=results_txt[:1020], inline=False)
     if total_prizes > 0:
-        e.add_field(name="💰 Ukupno podijeljeno", value=f"**{total_prizes:,} coina** 🪙", inline=True)
-        e.add_field(name="🏅 Pobjednici", value=str(sum(1 for r in results if r["nagrada"] > 0)), inline=True)
+        e.add_field(name="💰  Ukupno podijeljeno", value=f"**{total_prizes:,} coina** 🪙", inline=True)
+        e.add_field(name="🏅  Pobjednici", value=f"**{sum(1 for r in results if r['nagrada'] > 0)}** igrača", inline=True)
     e.set_footer(text="🎱 × GIANNI Bingo • Čestitamo pobjednicima! 🎉")
     try:
         await channel.send(embed=e)
@@ -6080,7 +5959,7 @@ async def on_app_command_completion(interaction, command):
 # ─── 🚨 REPORT (anoniman) ───
 @bot.tree.command(name="report", description="🚨 Anonimno prijavi korisnika moderatorima")
 async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: str):
-    cfg = get_config(i.guild.id)
+    cfg = get_guild_config(i.guild.id)
     ch_id = cfg.get("report_channel") or cfg.get("log_channel")
     ch = i.guild.get_channel(ch_id) if ch_id else None
     if not ch:
