@@ -4463,18 +4463,6 @@ async def afk_cmd(i: discord.Interaction, razlog: str = "AFK"):
     save_data()
     await i.response.send_message(embed=em(f"😴 {i.user.display_name} je sada AFK", f"Razlog: *{razlog}*\nBiće skinut AFK kada sljedeći put pišeš.", color=COLORS["warning"]))
 
-@bot.tree.command(name="birthday", description="🎂 Upisi svoj rođendan")
-@discord.app_commands.describe(datum="Datum u formatu DD-MM (npr. 15-04)")
-async def birthday_cmd(i: discord.Interaction, datum: str):
-    import re
-    if not re.match(r"^\d{2}-\d{2}$", datum):
-        return await i.response.send_message(embed=em("❌", "Format mora biti **DD-MM** (npr. `25-12`)", color=COLORS["error"]), ephemeral=True)
-    day, month = int(datum.split("-")[0]), int(datum.split("-")[1])
-    if not (1 <= day <= 31 and 1 <= month <= 12):
-        return await i.response.send_message(embed=em("❌", "Nevažeći datum!", color=COLORS["error"]), ephemeral=True)
-    data["birthdays"][str(i.user.id)] = datum
-    save_data()
-    await i.response.send_message(embed=em("🎂 Rođendan upisan!", f"Tvoj rođendan: **{datum}**\nBot će te čestitati na taj dan! 🥳", color=COLORS["fun"]))
 
 
 @bot.tree.command(name="suggest", description="💡 Pošalji prijedlog moderatorima")
@@ -4772,40 +4760,205 @@ async def pravila(i: discord.Interaction, tip: app_commands.Choice[str] = None):
 # ═══════════════════════════════════════════
 #    HELP
 # ═══════════════════════════════════════════
-@bot.tree.command(name="help", description="📖 Sve dostupne komande")
+@bot.tree.command(name="help", description="📖 Sve dostupne komande bota")
 async def help_cmd(i: discord.Interaction):
     is_admin = False
+    is_owner = i.user.id in OWNER_IDS
     try:
         is_admin = i.user.guild_permissions.administrator or any(r.name == "〢 /GIANNI" for r in i.user.roles)
     except: pass
+
+    BAR = "═══════════════════════════════════"
+
     e = discord.Embed(
-        title=f"📖 {BOT_NAME} — {'Admin Komande' if is_admin else 'Komande'}",
-        description=f"Verzija **{VERSION}** | Prefix: `.` ili `/`",
-        color=COLORS["balkan"], timestamp=datetime.now(timezone.utc)
+        title="✦ × G I A N N I  —  K O M A N D E  ✦",
+        description=(
+            f"```ansi\n\u001b[1;36m{BAR}\n"
+            f"  ✦ Dobrodošli u GIANNI komandni centar! ✦\n"
+            f"{BAR}\u001b[0m```\n"
+            f"📌 Verzija **{VERSION}** · Ukupno komandi: **~97**\n"
+            f"🔮 Sve komande se koriste sa `/`"
+        ),
+        color=0x00BCD4,
+        timestamp=datetime.now(timezone.utc),
     )
-    # ── Komande za sve ──────────────────────────────
-    e.add_field(name="ℹ️ Info & Utiliti",   value="`/ping` `/serverinfo` `/userinfo` `/avatar` `/invite` `/pravila` `/spotify` `/qr`", inline=False)
-    e.add_field(name="😴 AFK & Socijalno",  value="`/afk` `/birthday` `/remind` `/suggest`", inline=False)
-    e.add_field(name="💰 Ekonomija",         value="`/baki` `/posao` `/daily` `/daj` `/kradi` `/rank` `/leaderboard` `/shop` `/kupi` `/bank` `/lottery` `/heist`", inline=False)
-    e.add_field(name="🎮 Igre",              value="`/kpm` `/slots` `/rulet` `/flip` `/8ball` `/vjasala` `/kaladont` `/toplo-hladno` `/meme` `/blackjack` `/kviz` `/kocka` `/geografija`", inline=False)
-    e.add_field(name="🎱 Bingo",             value="`/bingo` — Pokretanje binga! Auto-bingo svakih **3h** — pojavi se dugme **🎱 Uzmi tiket**, unesi 5 brojeva (1-75) i osvoji: 2=10k | 3=30k | 4=75k | 5=250k 🏆 JACKPOT!", inline=False)
-    e.add_field(name="🚀 Among Us",          value="`/amogus` `/amogus-stop`", inline=False)
-    e.add_field(name="🐾 OWO — Životinje",   value="`/hunt` `/zoo` `/battle` `/sell` `/animals` `/pray` `/curse`", inline=False)
-    e.add_field(name="❤️ Ljubav & Akcije",  value="`/zagrljaj` `/poljubac` `/mazi` `/tapsi` `/high5` `/srce` `/brak` `/pocetkaj` `/cudan`", inline=False)
-    e.add_field(name="📋 Quests & Social",   value="`/quests` `/poll` `/confess` `/report`", inline=False)
-    e.add_field(name="🎪 Misc",              value="`/vanity` `/topchatters` `/serverstats` `/brojanje-postavi` `/brojanje-info`", inline=False)
-    # ── Samo za admine ──────────────────────────────
-    if is_admin:
-        e.add_field(name="⚙️ Server Setup [ADMIN]",  value="`/setup` `/setup-levelrole` `/server-config` `/setup-welcome` `/setup-leave` `/setup-autorole` `/setup-log` `/setup-starboard` `/setchannel`", inline=False)
-        e.add_field(name="🏷️ Self Roles [ADMIN]",   value="`/setup-panels` — Auto-kreiraj panele za self-role dugmad", inline=False)
-        e.add_field(name="🛡️ Moderacija [ADMIN]",   value="`/ban` `/kick` `/timeout` `/warn` `/warnings` `/clearwarnings` `/clear`", inline=False)
-        e.add_field(name="🎁 Giveaway [ADMIN]",      value="`/giveaway start` `/giveaway end` `/reset-gw` — Reset+novi GW za 5 min", inline=False)
-        e.add_field(name="🎫 Ticket & Bot [ADMIN]",  value="`/ticket-setup` `/say` `/setname` `/setavatar` `/sort-roles` `/setup-roles`", inline=False)
-        e.add_field(name="💰 Owner Komande",          value="`/dodaj-novac` `/oduzmi-novac` — Samo za Vlasnika!", inline=False)
-        e.add_field(name="🛡️ Auto-Mod",             value="Anti-spam (7msg/5s → 30s timeout) • Anti-Nuke • Anti-Raid — automatski aktivno ✅", inline=False)
-    e.set_footer(text=f"{BOT_NAME} {VERSION} • {'Admin pristup ✅' if is_admin else 'Member pristup'}")
     e.set_thumbnail(url=bot.user.display_avatar.url)
+
+    e.add_field(
+        name="╔═ ℹ️  INFO & UTILITI",
+        value=(
+            "> `/ping` `/serverinfo` `/userinfo` `/avatar`\n"
+            "> `/invite` `/spotify` `/qr` `/vanity`\n"
+            "> `/topchatters` `/serverstats`"
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="╠═ 😴  AFK & SOCIJALNO",
+        value=(
+            "> `/afk` — Postavi AFK status\n"
+            "> `/suggest` — Pošalji prijedlog adminu"
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="╠═ 💰  EKONOMIJA",
+        value=(
+            "> `/baki` `/posao` `/daily` `/daj` `/kradi`\n"
+            "> `/rank` `/leaderboard` `/shop` `/kupi`\n"
+            "> `/bank` `/lottery` `/heist`"
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="╠═ 🎮  IGRE & ZABAVA",
+        value=(
+            "> `/kpm` `/slots` `/rulet` `/flip` `/8ball`\n"
+            "> `/vjasala` `/kaladont` `/toplo-hladno` `/meme`\n"
+            "> `/blackjack` `/kviz` `/kocka` `/geografija`\n"
+            "> `/amogus` `/amogus-stop`"
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="╠═ 🎱  BINGO",
+        value=(
+            "> `/bingo` — Pokreni bingo rundu\n"
+            "> 🔄 Auto-bingo svakih **3 sata** automatski!\n"
+            "> 🎫 Klikni **Uzmi tiket** → unesi 5 brojeva (1-75)\n"
+            "> 💰 Nagrade: `2✓=10k` · `3✓=30k` · `4✓=75k` · `5✓=250k 🏆`\n"
+            "> ⏱️ Rezultati se objavljuju **javno** nakon 2 minute"
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="╠═ 🐾  OWO — ŽIVOTINJE",
+        value=(
+            "> `/hunt` `/zoo` `/battle` `/sell`\n"
+            "> `/animals` `/pray` `/curse`"
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="╠═ ❤️  LJUBAV & AKCIJE",
+        value=(
+            "> `/zagrljaj` `/poljubac` `/mazi` `/tapsi`\n"
+            "> `/high5` `/srce` `/brak` `/pocetkaj` `/cudan`"
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="╠═ 📋  QUESTS, POLL & SOCIAL",
+        value=(
+            "> `/quests` — Dnevni zadaci za XP i novac\n"
+            "> `/poll` — Napravi glasanje\n"
+            "> `/confess` — Anonimna ispovjed\n"
+            "> `/report` — Prijavi člana"
+        ),
+        inline=False,
+    )
+    e.add_field(
+        name="╠═ 🔢  BROJANJE",
+        value=("> `/brojanje-postavi` `/brojanje-info`"),
+        inline=False,
+    )
+
+    if is_admin or is_owner:
+        e.add_field(
+            name="╠═ ⚙️  SERVER SETUP  〔ADMIN〕",
+            value=(
+                "> `/setup` `/setup-levelrole` `/server-config`\n"
+                "> `/setup-welcome` `/setup-leave` `/setup-autorole`\n"
+                "> `/setup-log` `/setup-starboard` `/setchannel`\n"
+                "> `/setup-panels` — Self-role paneli"
+            ),
+            inline=False,
+        )
+        e.add_field(
+            name="╠═ 🛡️  MODERACIJA  〔ADMIN〕",
+            value=(
+                "> `/ban` `/kick` `/timeout` `/warn`\n"
+                "> `/warnings` `/clearwarnings` `/clear`"
+            ),
+            inline=False,
+        )
+        e.add_field(
+            name="╠═ 🎁  GIVEAWAY  〔ADMIN〕",
+            value=("> `/giveaway start` `/giveaway end` `/reset-gw`"),
+            inline=False,
+        )
+        e.add_field(
+            name="╠═ 🎫  TICKET & BOT  〔ADMIN〕",
+            value=(
+                "> `/ticket-setup` `/say` `/setname`\n"
+                "> `/setavatar` `/sort-roles` `/setup-roles`"
+            ),
+            inline=False,
+        )
+        e.add_field(
+            name="╠═ 🤖  AUTO-MOD  〔AUTOMATSKI〕",
+            value=(
+                "> 🚫 Anti-Spam: 7 poruka/5s → 30s timeout\n"
+                "> 🛡️ Anti-Nuke: masovna zaštita kanala/uloga\n"
+                "> 🔒 Anti-Raid: zaštita od botova pri joinu\n"
+                "> ✅ Sve aktivno bez ikakve konfiguracije!"
+            ),
+            inline=False,
+        )
+
+    if is_owner:
+        e.add_field(
+            name="╠═ 👑  OWNER KOMANDE  〔VLASNIK〕",
+            value=(
+                "> `/dodaj-novac` `/oduzmi-novac`\n"
+                "> `/event` — Objavi event (naslov + opis)"
+            ),
+            inline=False,
+        )
+
+    e.add_field(
+        name="╚═ 💡  SAVJET",
+        value=(
+            "> Bingo tiket košta **500 coina** 🪙\n"
+            "> Koristi `/posao` i `/daily` za zaradu!\n"
+            "> Za pomoć: kontaktiraj staff servera 💬"
+        ),
+        inline=False,
+    )
+
+    e.set_footer(text=f"✦ {BOT_NAME} {VERSION} · {'👑 Owner pristup' if is_owner else ('🛡️ Admin pristup' if is_admin else '👤 Member pristup')} ✦")
     await i.response.send_message(embed=e, ephemeral=True)
+
+
+# ═══════════════════════════════════════════
+#    🎪 EVENT — samo vlasnik
+# ═══════════════════════════════════════════
+@bot.tree.command(name="event", description="🎪 Objavi event na serveru (samo vlasnik)")
+@discord.app_commands.describe(
+    naslov="Naslov eventa",
+    opis="Opis eventa — šta, kada, gdje, nagrade itd."
+)
+async def event_cmd(i: discord.Interaction, naslov: str, opis: str):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("👑 Nemaš pristup!", "Ova komanda je rezervisana samo za **Vlasnika** bota.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    BAR = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    e = discord.Embed(
+        title=f"🎪  {naslov}",
+        description=f"{BAR}\n\n{opis}\n\n{BAR}",
+        color=0xFF6B35,
+        timestamp=datetime.now(timezone.utc),
+    )
+    e.set_author(
+        name=f"× GIANNI — NOVI EVENT!",
+        icon_url=bot.user.display_avatar.url,
+    )
+    e.set_footer(text=f"📢 Event objavio: {i.user.display_name}  ·  {BOT_NAME}")
+    e.set_thumbnail(url=bot.user.display_avatar.url)
+    await i.response.send_message(embed=e)
+    await i.followup.send(embed=em("✅ Event objavljen!", f"**{naslov}** je uspješno objavljen! 🎪", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
 #    ERROR HANDLING
@@ -5160,40 +5313,6 @@ async def heist_cmd(i: discord.Interaction):
         save_data()
         await i.followup.send(embed=em("🚓 UHVAĆENI!", f"Policija je sve pohvatala! Svako je izgubio 200 coina.", color=COLORS["error"]))
 
-# ─── ⏰ REMINDER ───
-@bot.tree.command(name="remind", description="⏰ Postavi podsjetnik (npr: 1h, 30m, 2d)")
-async def remind_cmd(i: discord.Interaction, vrijeme: str, poruka: str):
-    m = re.match(r"^(\d+)([smhd])$", vrijeme.lower())
-    if not m:
-        return await i.response.send_message(embed=em("❌", "Format: `30s`, `15m`, `2h`, `1d`", color=COLORS["error"]), ephemeral=True)
-    n, u = int(m.group(1)), m.group(2)
-    secs = n * {"s":1, "m":60, "h":3600, "d":86400}[u]
-    if secs > 30*86400:
-        return await i.response.send_message(embed=em("❌", "Maksimalno 30 dana.", color=COLORS["error"]), ephemeral=True)
-    when = int(time.time()) + secs
-    data["reminders"].append({"uid": i.user.id, "cid": i.channel.id, "when": when, "msg": poruka[:200]})
-    save_data()
-    await i.response.send_message(embed=em("⏰ Podsjetnik postavljen", f"Podsjetiću te <t:{when}:R>:\n*{poruka[:200]}*", color=COLORS["success"]))
-
-@tasks.loop(seconds=30)
-async def reminder_loop():
-    now = int(time.time())
-    due = [r for r in data["reminders"] if r["when"] <= now]
-    for r in due:
-        try:
-            ch = bot.get_channel(r["cid"])
-            u = bot.get_user(r["uid"]) or await bot.fetch_user(r["uid"])
-            if ch:
-                await ch.send(f"⏰ {u.mention} **PODSJETNIK:** {r['msg']}")
-            else:
-                await u.send(f"⏰ **PODSJETNIK:** {r['msg']}")
-        except: pass
-        data["reminders"].remove(r)
-    if due: save_data()
-
-@reminder_loop.before_loop
-async def _rb(): await bot.wait_until_ready()
-
 # ─── 📱 QR KOD ───
 @bot.tree.command(name="qr", description="📱 Generiši QR kod iz teksta ili URL-a")
 async def qr_cmd(i: discord.Interaction, tekst: str):
@@ -5317,22 +5436,26 @@ async def auto_game_loop():
 
         now_str = datetime.now(timezone.utc).strftime("%H:%M")
         e = discord.Embed(
-            title="🎱 BINGO TIME!",
+            title="🎱  ✦  B  I  N  G  O  ✦  🎱",
             description=(
-                "🎯 **Klikni dugme ispod i unesi 5 brojeva (1-75)!**\n\n"
+                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
+                "🎯 **Klikni dugme ispod i unesi 5 brojeva (1–75)!**\n"
+                "🎫 Tiket košta samo **500 coina** 🪙\n"
+                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
                 "```\n"
-                "2 pogotka  →   10.000 coina  🪙\n"
-                "3 pogotka  →   30.000 coina  🪙🪙\n"
-                "4 pogotka  →   75.000 coina  🪙🪙🪙\n"
-                "5 pogodaka →  250.000 coina  🏆 JACKPOT!\n"
+                " 🪙  2 pogotka  ─────  10.000 coina\n"
+                " 🪙🪙  3 pogotka  ────  30.000 coina\n"
+                " 🪙🪙🪙  4 pogotka  ───  75.000 coina\n"
+                " 🏆  5 pogodaka  ──  250.000 coina  ← JACKPOT!\n"
                 "```\n"
-                "⏰ Imate **2 minute** da uzmete tiket!\n"
-                "✅ Unesi 5 različitih brojeva od 1-75"
+                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
+                "⏱️  Imaš **2 minute** za tiket — brzo! 🔥\n"
+                "📢  Rezultati se objavljuju **javno** 🌍"
             ),
             color=0x00BCD4,
             timestamp=datetime.now(timezone.utc),
         )
-        e.set_footer(text=f"Auto Bingo • svakih 3h • GIANNI • danas u {now_str}")
+        e.set_footer(text=f"🎱 × GIANNI Auto-Bingo • svakih 3h • danas u {now_str} UTC")
 
         view = AutoBingoPupView(session)
         try:
@@ -5344,25 +5467,12 @@ async def auto_game_loop():
 
         if not view.is_finished():
             view.stop()
-        expired = discord.Embed(
-            title="⏰ Tiket više nije dostupan",
-            description=(
-                "Rok za uzimanje tiketa je istekao.\n\n"
-                "```\n"
-                "2 pogotka  →   10.000 coina  🪙\n"
-                "3 pogotka  →   30.000 coina  🪙🪙\n"
-                "4 pogotka  →   75.000 coina  🪙🪙🪙\n"
-                "5 pogodaka →  250.000 coina  🏆 JACKPOT!\n"
-                "```\n"
-                f"🕐 Sljedeći bingo za ~3 sata!"
-            ),
-            color=0x555555,
-            timestamp=datetime.now(timezone.utc),
-        )
-        expired.set_footer(text="🎱 GIANNI Bingo • Sreće idući put!")
+        # Zaključaj dugme na originalnoj poruci
         try:
-            await bingo_msg.edit(embed=expired, view=None)
+            await bingo_msg.edit(view=None)
         except: pass
+        # Objavi javne rezultate
+        await _bingo_reveal(session, chan)
 
 @auto_game_loop.before_loop
 async def _auto_game_wait(): await bot.wait_until_ready()
@@ -5445,23 +5555,27 @@ async def bingo_cmd(i: discord.Interaction):
 
     now_str = datetime.now(timezone.utc).strftime("%H:%M")
     e = discord.Embed(
-        title="🎱 BINGO TIME!",
+        title="🎱  ✦  B  I  N  G  O  ✦  🎱",
         description=(
-            "🎯 **Klikni dugme ispod i unesi 5 brojeva (1-75)!**\n\n"
+            "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
+            "🎯 **Klikni dugme ispod i unesi 5 brojeva (1–75)!**\n"
+            "🎫 Tiket košta samo **500 coina** 🪙\n"
+            "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
             "```\n"
-            "2 pogotka  →   10.000 coina  🪙\n"
-            "3 pogotka  →   30.000 coina  🪙🪙\n"
-            "4 pogotka  →   75.000 coina  🪙🪙🪙\n"
-            "5 pogodaka →  250.000 coina  🏆 JACKPOT!\n"
+            " 🪙  2 pogotka  ─────  10.000 coina\n"
+            " 🪙🪙  3 pogotka  ────  30.000 coina\n"
+            " 🪙🪙🪙  4 pogotka  ───  75.000 coina\n"
+            " 🏆  5 pogodaka  ──  250.000 coina  ← JACKPOT!\n"
             "```\n"
-            "⏰ Imate **2 minute** da uzmete tiket!\n"
-            "✅ Unesi 5 različitih brojeva od 1-75"
+            "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
+            "⏱️  Imaš **2 minute** za tiket — brzo! 🔥\n"
+            "📢  Rezultati se objavljuju **javno** 🌍"
         ),
         color=0x00BCD4,
         timestamp=datetime.now(timezone.utc),
     )
     e.set_author(name=f"🎱 Pokrenuo/la: {i.user.display_name}", icon_url=i.user.display_avatar.url)
-    e.set_footer(text=f"GIANNI Bingo • danas u {now_str} • Cijena tiketa: 500 coina")
+    e.set_footer(text=f"🎱 × GIANNI Bingo • danas u {now_str} UTC • Cijena tiketa: 500 coina 🪙")
 
     view = AutoBingoPupView(session)
     await i.response.send_message(embed=e, view=view)
@@ -5471,25 +5585,12 @@ async def bingo_cmd(i: discord.Interaction):
 
     if not view.is_finished():
         view.stop()
-    expired = discord.Embed(
-        title="⏰ Tiket više nije dostupan",
-        description=(
-            "Rok za uzimanje tiketa je istekao.\n\n"
-            "```\n"
-            "2 pogotka  →   10.000 coina  🪙\n"
-            "3 pogotka  →   30.000 coina  🪙🪙\n"
-            "4 pogotka  →   75.000 coina  🪙🪙🪙\n"
-            "5 pogodaka →  250.000 coina  🏆 JACKPOT!\n"
-            "```\n"
-            "💡 Pokreni ponovo sa `/bingo`!"
-        ),
-        color=0x555555,
-        timestamp=datetime.now(timezone.utc),
-    )
-    expired.set_footer(text="🎱 GIANNI Bingo • Sreće idući put!")
+    # Zaključaj dugme na originalnoj poruci
     try:
-        await view.message.edit(embed=expired, view=None)
+        await view.message.edit(view=None)
     except: pass
+    # Objavi javne rezultate u istom kanalu
+    await _bingo_reveal(session, i.channel)
 
 
 # ═══════════════════════════════════════════
@@ -5522,7 +5623,7 @@ class PupModal(discord.ui.Modal, title="🎟️ Unesi 5 brojeva (1–75)"):
         # ── Provjera duplikata ──
         if uid in self.session["players"]:
             return await i.response.send_message(
-                embed=em("❌ Već si igrao/la", "Možeš uzeti samo jedan tiket po pupu!", color=COLORS["error"]),
+                embed=em("❌ Već si uzeo/la tiket", "Možeš uzeti samo jedan tiket po bingu!", color=COLORS["error"]),
                 ephemeral=True,
             )
 
@@ -5565,68 +5666,127 @@ class PupModal(discord.ui.Modal, title="🎟️ Unesi 5 brojeva (1–75)"):
                 ephemeral=True,
             )
 
+        # ── Oduzmi cijenu i sačuvaj tiket (bez otkrivanja rezultata!) ──
         eco["balance"] = eco.get("balance", 0) - PUP_CIJENA
-        self.session["players"][uid] = odabrani
+        self.session["players"][uid] = {"brojevi": odabrani, "user": i.user.display_name, "avatar": str(i.user.display_avatar.url)}
         save_data()
 
-        # ── Provjera pogodaka ──
-        izvuceni_set = set(self.session["drawn"])
-        odabrani_set = set(odabrani)
-        pogoci       = sorted(odabrani_set & izvuceni_set)
-        br           = len(pogoci)
-        nagrada      = PUP_NAGRADE.get(br, 0)
-        izvuceni_s   = sorted(self.session["drawn"])
-
-        # ── Prikaz izvučenih (pogoci u []) ──
-        izvuceni_prikaz = " ".join(
-            f"**[{n:02d}]**" if n in odabrani_set else f"`{n:02d}`"
-            for n in izvuceni_s
+        # ── Potvrda — rezultati se otkrivaju tek nakon 2 minute ──
+        potvrda = discord.Embed(
+            title="🎟️  Tiket primljen!  ✅",
+            description=(
+                "```ansi\n\u001b[1;32m✔  Tvoji brojevi su zabilježeni!\u001b[0m```\n"
+                f"🔢 **Tvoji brojevi:**\n"
+                f"> {' '.join(f'`{n:02d}`' for n in sorted(odabrani))}\n\n"
+                f"💰 Plaćeno: **{PUP_CIJENA:,} coina** 🪙\n"
+                f"⏳ Rezultati dolaze **za 2 minute** — javno za sve! 📢\n"
+                f"🤞 Drži fige!"
+            ),
+            color=0x00E5FF,
+            timestamp=datetime.now(timezone.utc),
         )
+        potvrda.set_footer(text="🎱 × GIANNI Bingo • Sreće ti! 🍀")
+        await i.response.send_message(embed=potvrda, ephemeral=True)
+
+
+async def _bingo_reveal(session: dict, channel: discord.TextChannel):
+    """Nakon 2 minute — javno objavi rezultate za sve igrače."""
+    drawn     = sorted(session["drawn"])
+    drawn_set = set(drawn)
+    players   = session.get("players", {})
+
+    # ── Red izvučenih 20 brojeva (vizualni prikaz) ──
+    drawn_display = " ".join(f"`{n:02d}`" for n in drawn)
+
+    if not players:
+        e = discord.Embed(
+            title="🎱  Bingo — Runda završena  🎱",
+            description=(
+                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
+                "😔 **Niko nije uzeo tiket ovaj put.**\n\n"
+                f"🎲 **Izvučenih 20 brojeva:**\n> {drawn_display}\n\n"
+                "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
+                "💡 Sljedeći auto-bingo za **~3 sata**! ⏰"
+            ),
+            color=0x00BCD4,
+            timestamp=datetime.now(timezone.utc),
+        )
+        e.set_footer(text="🎱 × GIANNI Bingo • Budi brži/a idući put! 🍀")
+        try:
+            await channel.send(embed=e)
+        except Exception:
+            pass
+        return
+
+    # ── Izračunaj rezultate za svakog igrača ──
+    results      = []
+    total_prizes = 0
+    jackpot_uid  = None
+
+    for uid_str, info in players.items():
+        uid     = int(uid_str)
+        odabrani = info["brojevi"] if isinstance(info, dict) else info
+        ime      = info["user"]    if isinstance(info, dict) else f"Igrač#{uid}"
+        pogoci   = sorted(set(odabrani) & drawn_set)
+        br       = len(pogoci)
+        nagrada  = PUP_NAGRADE.get(br, 0)
+        xp_n     = PUP_XP.get(br, 0)
 
         if nagrada > 0:
+            eco = get_economy(uid)
             eco["balance"] = eco.get("balance", 0) + nagrada
-            xp_n  = PUP_XP.get(br, 50)
-            xp_up = add_xp(uid, xp_n)
-            save_data()
+            add_xp(uid, xp_n)
+            total_prizes += nagrada
+            if br == 5:
+                jackpot_uid = uid
 
-            win_msg = {
-                2: "2 pogotka — lijepo! 🎉",
-                3: "3 pogotka — odlično! 🔥",
-                4: "4 pogotka — nevjerovatno! 💎",
-                5: "★ JACKPOT! 5 POGODAKA! ★ 🚀🎊",
-            }.get(br, "Pobjeda!")
-            w_color = 0xFFD700 if br == 5 else 0x00E5FF
-            w_title = "🎰  J A C K P O T !" if br == 5 else f"🏆  P O B J E D A !  {'⭐' * br}"
+        results.append({
+            "uid": uid, "ime": ime,
+            "odabrani": sorted(odabrani), "pogoci": pogoci,
+            "br": br, "nagrada": nagrada,
+        })
 
-            res = discord.Embed(title=w_title, color=w_color, timestamp=datetime.now(timezone.utc))
-            res.description = (
-                f"🎉 {i.user.mention} **{win_msg}**\n\n"
-                f"✏️ **Tvoji brojevi:** {' '.join(f'`{n:02d}`' for n in sorted(odabrani))}\n"
-                f"🎯 **Pogoci:** {' '.join(f'`{n:02d}`' for n in pogoci) if pogoci else '—'} **({br}/5)**\n\n"
-                f"💰 **Nagrada:** +{nagrada:,} coina\n"
-                f"⭐ **XP:** +{xp_n} XP\n"
-                f"💎 **Balans:** {eco['balance']:,} coina"
-                + ("\n\n🆙 **LEVEL UP! Čestitamo!** 🎊" if xp_up else "")
-            )
-            res.set_footer(text="🎟️ GIANNI Pup • Čestitamo! 🎉")
-        else:
-            pogoci_txt = " ".join(f"`{n:02d}`" for n in pogoci) if pogoci else "`nema`"
-            w_title = "😔 Nema pogodaka" if br == 0 else "😐 1 pogodak — nije dovoljno"
-            res = discord.Embed(title=w_title, color=0xE74C3C, timestamp=datetime.now(timezone.utc))
-            res.description = (
-                f"{i.user.mention} nažalost nije pogodio/la dovoljno.\n\n"
-                f"✏️ **Tvoji brojevi:** {' '.join(f'`{n:02d}`' for n in sorted(odabrani))}\n"
-                f"🎯 **Pogoci:** {pogoci_txt} **({br}/5)**\n\n"
-                f"💸 **Nagrada:** 0 coina *(treba min. 2 pogotka)*\n"
-                f"💎 **Balans:** {eco['balance']:,} coina\n\n"
-                f"💡 Pokušaj ponovo!"
-            )
-            res.set_footer(text="🎟️ GIANNI Pup • Sreće drugi put!")
+    save_data()
 
-        res.set_author(name=i.user.display_name, icon_url=i.user.display_avatar.url)
-        res.set_thumbnail(url=i.user.display_avatar.url)
-        res.add_field(name="🎲 Izvučenih 20 dobitnih brojeva  *(pogoci su u [ ])*", value=izvuceni_prikaz, inline=False)
-        await i.response.send_message(embed=res, ephemeral=True)
+    # ── Sortiraj po broju pogodaka (desc) ──
+    results.sort(key=lambda x: x["br"], reverse=True)
+
+    # ── Napravi listu rezultata ──
+    icon = {0: "💨", 1: "💨", 2: "🪙", 3: "🪙🪙", 4: "🪙🪙🪙", 5: "🏆"}
+    medal = {0: "▫️", 1: "▫️", 2: "🥉", 3: "🥈", 4: "🥇", 5: "👑"}
+    rows = []
+    for r in results:
+        br_icon   = icon.get(r["br"], "")
+        med       = medal.get(r["br"], "▫️")
+        odab_str  = " ".join(f"`{n:02d}`" for n in r["odabrani"])
+        pogoc_str = " ".join(f"**`{n:02d}`**" for n in r["pogoci"]) if r["pogoci"] else "`—`"
+        nagrada_str = f"**+{r['nagrada']:,} coina** 🪙" if r["nagrada"] > 0 else "_bez nagrade_"
+        rows.append(
+            f"{med} {br_icon} **{r['ime']}**  •  {r['br']}/5 ✓  •  {nagrada_str}\n"
+            f"> 🔢 {odab_str}\n"
+            f"> 🎯 Pogoci: {pogoc_str}"
+        )
+
+    results_txt = "\n\n".join(rows) if rows else "*Niko nije igrao.*"
+
+    title = "🏆  ✦  J A C K P O T  ✦  🏆" if jackpot_uid else "🎱  ✦  B I N G O  —  R e z u l t a t i  ✦"
+    color = 0xFFD700 if jackpot_uid else 0x00BCD4
+
+    e = discord.Embed(title=title, color=color, timestamp=datetime.now(timezone.utc))
+    e.description = (
+        "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```\n"
+        f"🎲 **Izvučenih 20 brojeva:**\n> {drawn_display}\n"
+        "```ansi\n\u001b[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m```"
+    )
+    e.add_field(name=f"📋 Rezultati  ({len(results)} igrača)", value=results_txt[:1020], inline=False)
+    if total_prizes > 0:
+        e.add_field(name="💰 Ukupno podijeljeno", value=f"**{total_prizes:,} coina** 🪙", inline=True)
+        e.add_field(name="🏅 Pobjednici", value=str(sum(1 for r in results if r["nagrada"] > 0)), inline=True)
+    e.set_footer(text="🎱 × GIANNI Bingo • Čestitamo pobjednicima! 🎉")
+    try:
+        await channel.send(embed=e)
+    except Exception:
+        pass
 
 
 class AutoBingoPupView(discord.ui.View):
