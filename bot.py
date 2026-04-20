@@ -342,12 +342,38 @@ def check_channel_rule(channel, cmd_name: str):
     if needed.lower() in ch_name: return None  # OK
     return needed
 
+def _extract_string_options(options: list) -> list[str]:
+    """Rekurzivno izvuci sve string vrijednosti iz slash komande opcija."""
+    result = []
+    for opt in options or []:
+        if not isinstance(opt, dict): continue
+        if opt.get("type") == 3:  # type 3 = STRING u Discord API
+            result.append(str(opt.get("value", "")))
+        result.extend(_extract_string_options(opt.get("options", [])))
+    return result
+
 async def _global_channel_check(interaction: discord.Interaction) -> bool:
     if not interaction.guild or not interaction.command: return True
-    # admini smiju svuda
+    # admini i vlasnik smiju svuda
     try:
         if interaction.user.guild_permissions.administrator: return True
     except: return True
+
+    # ── Anti-Invite u slash komandama ─────────────────────
+    # Provjeri sve string parametre koje korisnik upiše u komandu
+    try:
+        opts = _extract_string_options((interaction.data or {}).get("options", []))
+        for val in opts:
+            if INVITE_REGEX.search(val):
+                await interaction.response.send_message(
+                    embed=em("🚫 Reklama zabranjena",
+                             f"{interaction.user.mention} — invite linkovi nisu dozvoljeni ni u komandama!",
+                             color=COLORS["error"]),
+                    ephemeral=True
+                )
+                return False
+    except: pass
+
     needed = check_channel_rule(interaction.channel, interaction.command.name)
     if needed is None: return True
     target = discord.utils.find(lambda c: needed.lower() in c.name.lower(), interaction.guild.text_channels)
@@ -536,7 +562,7 @@ def get_xp(uid):
 def add_xp(uid, amount):
     d = get_xp(uid)
     d["xp"] += amount
-    needed = d["level"] * 60
+    needed = d["level"] * 75
     if d["xp"] >= needed:
         d["xp"] -= needed
         d["level"] += 1
@@ -1172,8 +1198,8 @@ async def on_message(message):
     data["msg_count_week"][mkey] = data["msg_count_week"].get(mkey, 0) + 1
 
     # ── XP ────────────────────────────────────────────
-    if random.random() < 0.90:
-        if add_xp(message.author.id, random.randint(30, 80)):
+    if random.random() < 0.55:
+        if add_xp(message.author.id, random.randint(15, 40)):
             save_data()
             lvl = get_xp(message.author.id)["level"]
             cfg = get_guild_config(message.guild.id)
@@ -1852,7 +1878,7 @@ async def kradi(i: discord.Interaction, korisnik: discord.Member):
 async def rank(i: discord.Interaction, korisnik: discord.Member = None):
     u = korisnik or i.user
     d = get_xp(u.id)
-    needed = d["level"] * 60
+    needed = d["level"] * 75
     filled = min(d["xp"] * 10 // needed, 10)
     bar = "🟪" * filled + "⬛" * (10 - filled)
     pct = round(d["xp"] / needed * 100)
@@ -3248,46 +3274,83 @@ BAD_WORDS: set = set()  # add bad words here: BAD_WORDS = {"rijec1", "rijec2"}
 user_msg_times: dict = defaultdict(deque)
 
 # ── Anti-NSFW (pornografija, slike) ─────────────────────
-NSFW_KEYWORDS = [
-    # Balkan
-    "kurac", "kurcina", "kurčina", "picka", "pička", "pizda", "pičke", "picke",
-    "jebi se", "jebem", "drkanje", "drkam", "drka", "drkati",
-    "guza", "guzica", "sise", "sisa", "sisuljke", "bradavica",
-    "porn", "porno", "pornic", "pornić", "kurva", "kurve",
-    # English
-    "nude", "nudes", "naked", "sex", "sexy", "xxx", "nsfw", "hentai",
-    "boobs", "tits", "ass", "pussy", "dick", "cock", "penis", "vagina",
-    "fuck", "blowjob", "anal", "cumshot", "milf", "horny",
-    # NSFW sajtovi
+# ⚠️  Psovke u tekstu su DOZVOLJENE — filtriramo samo NSFW linkove i slike
+
+# Pornografski sajtovi — blokirani kao linkovi/embeds
+NSFW_SITES = [
     "pornhub", "xvideos", "xnxx", "redtube", "youporn", "onlyfans",
     "rule34", "e-hentai", "xhamster", "spankbang", "chaturbate",
+    "pornpics", "porn.com", "xtube", "4tube", "tube8", "sex.com",
 ]
 
-def _contains_nsfw(text: str) -> str | None:
+# Eksplicitni nazivi fajlova (slike kurca/picke) — blokirani u uploadima
+NSFW_FILENAMES = [
+    "dick", "cock", "penis", "pussy", "vagina", "kurac", "picka", "pička",
+    "pizda", "nude", "nudes", "naked", "cumshot", "blowjob", "anal",
+    "hentai", "xxx", "porn", "nsfw", "boobs", "tits",
+]
+
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mov", ".avi", ".webm"}
+
+# Sigurni domeni — GIF-ovi s ovih servisa su uvijek OK (Discord GIF picker, Tenor, Giphy)
+SAFE_DOMAINS = (
+    "tenor.com", "media.tenor.com", "tenor.googleapis.com",
+    "giphy.com", "media.giphy.com", "media0.giphy.com",
+    "media1.giphy.com", "media2.giphy.com",
+    "cdn.discordapp.com", "media.discordapp.net",
+    "discord.com/channels",
+)
+
+def _contains_nsfw_site(text: str) -> str | None:
     if not text: return None
     t = text.lower()
-    for w in NSFW_KEYWORDS:
+    for w in NSFW_SITES:
+        if w in t:
+            return w
+    return None
+
+def _contains_nsfw_filename(text: str) -> str | None:
+    if not text: return None
+    t = text.lower()
+    for w in NSFW_FILENAMES:
         if w in t:
             return w
     return None
 
 async def check_nsfw(message) -> bool:
-    """Briše NSFW sadržaj. Vraća True ako je obrisao."""
+    """Briše NSFW sadržaj (slike/linkovi). Vraća True ako je obrisao.
+    NAPOMENA: Psovke u tekstu su DOZVOLJENE — ne filtriramo tekst poruke."""
     if message.channel.is_nsfw():  # NSFW kanal je dozvoljen
         return False
-    # 1) Tekst poruke
-    found = _contains_nsfw(message.content)
-    # 2) Imena fajlova attachmenta
+    found = None
+
+    # 1) Pornografski sajtovi u tekstu/linkovima poruke
+    found = _contains_nsfw_site(message.content)
+
+    # 2) Attachmenti (slike/videi) — provjeri naziv fajla
     if not found:
         for att in message.attachments:
-            found = _contains_nsfw(att.filename) or _contains_nsfw(att.url)
+            # Discord CDN i sigurni servisi — uvijek OK
+            if any(d in att.url.lower() for d in SAFE_DOMAINS):
+                continue
+            ext = _os.path.splitext(att.filename.lower())[1]
+            if ext in IMAGE_EXTS:
+                found = _contains_nsfw_filename(att.filename)
+                if not found:
+                    found = _contains_nsfw_site(att.url)
             if found: break
-    # 3) Embeds (linkovi)
+
+    # 3) Embeds — provjeri URL i title za NSFW sajtove
+    # GIF-ovi sa Tenor/Giphy (Discord GIF picker) su uvijek OK
     if not found:
         for emb in message.embeds:
-            for field in [emb.title, emb.description, emb.url]:
-                if field and (found := _contains_nsfw(str(field))): break
+            url = emb.url or ""
+            if any(d in url.lower() for d in SAFE_DOMAINS):
+                continue  # Tenor / Giphy GIF — preskoci
+            for field in [url, emb.title, emb.description]:
+                if field and (found := _contains_nsfw_site(str(field))): break
             if found: break
+
     if not found: return False
     # OBRIŠI
     try:
@@ -3331,6 +3394,7 @@ INVITE_REGEX = re.compile(
     r"discord\s*\.\s*(?:gg|io|me|li)\s*\/\s*[a-zA-Z0-9-]+"
     r"|discord(?:app)?\s*\.\s*com\s*\/\s*invite\s*\/\s*[a-zA-Z0-9-]+"
     r"|dsc\s*\.\s*gg\s*\/\s*[a-zA-Z0-9-]+"
+    r"|(?<![a-zA-Z0-9])\.gg\/[a-zA-Z0-9-]+"
     r")",
     re.I
 )
