@@ -309,7 +309,7 @@ CHANNEL_RULES = {
     "zagrljaj": "zagrljaji", "poljubac": "zagrljaji", "mazi": "zagrljaji",
     "srce": "zagrljaji", "high5": "zagrljaji", "tapsi": "zagrljaji",
     "cudan": "zagrljaji", "pocetkaj": "zagrljaji", "mazenje": "zagrljaji",
-    "zbunjen": "zagrljaji", "curse": "zagrljaji",
+    "curse": "zagrljaji",
     # Fun
     "meme": "zabava", "8ball": "zabava",
 }
@@ -2821,10 +2821,6 @@ async def srce(i: discord.Interaction, korisnik: discord.Member):
 async def mazenje(i: discord.Interaction, korisnik: discord.Member):
     await social_cmd(i, korisnik, "cuddle", "🐱 {from} mazi {to} kao svoju mačku! Predivno! 🌸", "pink")
 
-@bot.tree.command(name="zbunjen", description="😵 Pokaži zbunjenost prema nekome")
-async def zbunjen(i: discord.Interaction, korisnik: discord.Member):
-    await social_cmd(i, korisnik, "confused", "😵 {from} je totalno zbunjen zbog {to}! 🌀", "warning")
-
 @bot.tree.command(name="pljes", description="👏 Aplaudiraj nekome")
 async def pljes(i: discord.Interaction, korisnik: discord.Member):
     e = discord.Embed(description=f"👏 {i.user.mention} aplaudira {korisnik.mention}! Bravo, majstore! 🎊", color=COLORS["gold"], timestamp=datetime.now(timezone.utc))
@@ -4689,7 +4685,7 @@ async def help_cmd(i: discord.Interaction):
     e.add_field(name="🎮 Igre",              value="`.kpm` `.slots` `.rulet` `.flip` `.8ball` `.vjasala` `.kaladont` `.toplo-hladno` `.meme` `.blackjack` `.kviz` `.kocka`", inline=False)
     e.add_field(name="🚀 Among Us",          value="`.amogus` `.amogus-stop`", inline=False)
     e.add_field(name="🐾 OWO — Životinje",   value="`.hunt` `.zoo` `.battle` `.sell` `.animals` `.pray` `.curse`", inline=False)
-    e.add_field(name="❤️ Ljubav & Akcije",  value="`.zagrljaj` `.poljubac` `.mazi` `.tapsi` `.high5` `.srce` `.mazenje` `.brak` `.pocetkaj` `.cudan` `.pljes` `.zbunjen`", inline=False)
+    e.add_field(name="❤️ Ljubav & Akcije",  value="`.zagrljaj` `.poljubac` `.mazi` `.tapsi` `.high5` `.srce` `.mazenje` `.brak` `.pocetkaj` `.cudan` `.pljes`", inline=False)
     e.add_field(name="📋 Quests",            value="`.quests` `.poll`", inline=False)
     # ── Samo za admine ──────────────────────────────
     if is_admin:
@@ -5101,7 +5097,7 @@ async def qr_cmd(i: discord.Interaction, tekst: str):
 # ─── 🤫 CONFESS (anonimno) ───
 @bot.tree.command(name="confess", description="🤫 Pošalji anonimnu ispovjed u confess kanal")
 async def confess_cmd(i: discord.Interaction, poruka: str):
-    cfg = get_config(i.guild.id)
+    cfg = get_guild_config(i.guild.id)
     ch_id = cfg.get("confess_channel")
     ch = i.guild.get_channel(ch_id) if ch_id else None
     if not ch:
@@ -5123,7 +5119,7 @@ async def confess_cmd(i: discord.Interaction, poruka: str):
 async def setchannel_cmd(i: discord.Interaction, tip: app_commands.Choice[str], kanal: discord.TextChannel):
     if not i.user.guild_permissions.administrator:
         return await i.response.send_message("❌ Samo admin.", ephemeral=True)
-    get_config(i.guild.id)[tip.value] = kanal.id; save_data()
+    get_guild_config(i.guild.id)[tip.value] = kanal.id; save_data()
     await i.response.send_message(embed=em("✅", f"{tip.name.capitalize()} kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
@@ -5702,7 +5698,7 @@ async def setevent_cmd(
 # ─── 🚨 REPORT (anoniman) ───
 @bot.tree.command(name="report", description="🚨 Anonimno prijavi korisnika moderatorima")
 async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: str):
-    cfg = get_config(i.guild.id)
+    cfg = get_guild_config(i.guild.id)
     ch_id = cfg.get("report_channel") or cfg.get("log_channel")
     ch = i.guild.get_channel(ch_id) if ch_id else None
     if not ch:
