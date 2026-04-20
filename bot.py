@@ -318,7 +318,7 @@ CHANNEL_RULES = {
 CMDS_ANYWHERE = {
     "ping", "help", "serverinfo", "userinfo", "avatar", "invite", "spotify",
     "qr", "remind", "birthday", "afk", "serverstats", "topchatters",
-    "say", "poll", "suggest", "confess", "report", "pravila", "warn", "warnings",
+    "say", "poll", "suggest", "confess", "report", "tiket-staff", "pravila", "warn", "warnings",
     "clearwarnings", "ban", "kick", "timeout", "clear",
     # setup
     "setup", "setup-roles", "setup-welcome", "setup-leave", "setup-autorole",
@@ -532,6 +532,7 @@ def load_data():
             data["pvc_info_posted"]= loaded.get("pvc_info_posted", False)
             data["msg_count_week"] = loaded.get("msg_count_week", {})
             data["aotw_last"]      = loaded.get("aotw_last", None)
+            data["nsfw_strikes"]   = loaded.get("nsfw_strikes", {})
 
 def save_data():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -810,7 +811,7 @@ async def on_member_join(member):
                 f"💡 *Pišeš `.help` za sve dostupne komande bota!*\n"
                 f"🇷🇸 Uživaj na **{member.guild.name}** — najboljem Balkan serveru! 🍻"
             ),
-            color=COLORS["error"], timestamp=datetime.now(timezone.utc)
+            color=0xFFD700, timestamp=datetime.now(timezone.utc)
         )
         if member.guild.icon: dm_e.set_thumbnail(url=member.guild.icon.url)
         dm_e.set_footer(text=f"{BOT_NAME} • Welcome Bot")
@@ -905,31 +906,6 @@ async def on_member_join(member):
     e.set_thumbnail(url=member.display_avatar.url)
     e.set_footer(text=f"{BOT_NAME} • Dobrodošlica")
     await chan.send(content=member.mention, embed=e)
-
-@bot.event
-async def on_member_remove(member):
-    cfg = get_guild_config(member.guild.id)
-
-    # ── Log ────────────────────────────────────────────
-    if log_ch := member.guild.get_channel(cfg.get("log_channel", 0)):
-        le = discord.Embed(title="📤 Član Otišao", color=COLORS["warning"], timestamp=datetime.now(timezone.utc))
-        le.set_author(name=str(member), icon_url=member.display_avatar.url)
-        le.add_field(name="ID", value=f"`{member.id}`", inline=True)
-        le.add_field(name="Pridružio se", value=member.joined_at.strftime("%d.%m.%Y.") if member.joined_at else "?", inline=True)
-        await log_ch.send(embed=le)
-
-    # ── Leave message ──────────────────────────────────
-    ch_id = cfg.get("leave_channel") or cfg.get("welcome_channel")
-    chan = member.guild.get_channel(ch_id) if ch_id else discord.utils.get(member.guild.text_channels, name="welcome")
-    if not chan: return
-    e = discord.Embed(
-        title=f"👋 {member.display_name} je napustio/la server",
-        description=f"Žao nam je što ode **{member.display_name}**. Srećno! 🙏",
-        color=COLORS["error"], timestamp=datetime.now(timezone.utc)
-    )
-    e.set_thumbnail(url=member.display_avatar.url)
-    e.set_footer(text=f"{BOT_NAME} • Oproštaj")
-    await chan.send(embed=e)
 
 @bot.event
 async def on_member_update(before, after):
@@ -1282,16 +1258,6 @@ async def on_message_delete(message):
     await log_ch.send(embed=e)
 
 @bot.event
-async def on_member_ban(guild, user):
-    cfg = get_guild_config(guild.id)
-    log_ch = guild.get_channel(cfg.get("log_channel", 0))
-    if not log_ch: return
-    e = discord.Embed(title="🔨 Član Banovan", color=COLORS["error"], timestamp=datetime.now(timezone.utc))
-    e.set_author(name=str(user), icon_url=user.display_avatar.url)
-    e.add_field(name="ID", value=f"`{user.id}`", inline=True)
-    await log_ch.send(embed=e)
-
-@bot.event
 async def on_raw_reaction_add(payload):
     if str(payload.emoji) != "⭐" or not payload.guild_id: return
     cfg = get_guild_config(payload.guild_id)
@@ -1455,23 +1421,58 @@ async def antinuke_check(guild, mod, action: str):
 
 @bot.event
 async def on_member_ban(guild, user):
+    # ── Log u log_channel ───────────────────────────────
+    try:
+        cfg = get_guild_config(guild.id)
+        if log_ch := guild.get_channel(cfg.get("log_channel", 0)):
+            e = discord.Embed(title="🔨 Član Banovan", color=COLORS["error"], timestamp=datetime.now(timezone.utc))
+            e.set_author(name=str(user), icon_url=user.display_avatar.url)
+            e.add_field(name="ID", value=f"`{user.id}`", inline=True)
+            await log_ch.send(embed=e)
+    except Exception as _e: print(f"[on_member_ban log] {_e}")
+    # ── Anti-Nuke provjera ──────────────────────────────
     try:
         async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.ban):
             if entry.target.id == user.id:
                 await antinuke_check(guild, entry.user, f"BAN korisnika `{user}`")
                 await audit_log(guild, "🔨 BAN", f"**Moderator:** {entry.user.mention}\n**Korisnik:** `{user}` (`{user.id}`)\n**Razlog:** {entry.reason or '—'}")
                 break
-    except Exception as _e: print(f"[on_member_ban] {_e}")
+    except Exception as _e: print(f"[on_member_ban nuke] {_e}")
 
 @bot.event
 async def on_member_remove(member):
+    cfg = get_guild_config(member.guild.id)
+    # ── Log ────────────────────────────────────────────
+    try:
+        if log_ch := member.guild.get_channel(cfg.get("log_channel", 0)):
+            le = discord.Embed(title="📤 Član Otišao", color=COLORS["warning"], timestamp=datetime.now(timezone.utc))
+            le.set_author(name=str(member), icon_url=member.display_avatar.url)
+            le.add_field(name="ID", value=f"`{member.id}`", inline=True)
+            le.add_field(name="Pridružio se", value=member.joined_at.strftime("%d.%m.%Y.") if member.joined_at else "?", inline=True)
+            await log_ch.send(embed=le)
+    except Exception as _e: print(f"[on_member_remove log] {_e}")
+    # ── Leave message ───────────────────────────────────
+    try:
+        ch_id = cfg.get("leave_channel") or cfg.get("welcome_channel")
+        chan = member.guild.get_channel(ch_id) if ch_id else discord.utils.get(member.guild.text_channels, name="welcome")
+        if chan:
+            e = discord.Embed(
+                title=f"👋 {member.display_name} je napustio/la server",
+                description=f"Žao nam je što ode **{member.display_name}**. Srećno! 🙏",
+                color=COLORS["error"], timestamp=datetime.now(timezone.utc)
+            )
+            e.set_thumbnail(url=member.display_avatar.url)
+            e.set_footer(text=f"{BOT_NAME} • Oproštaj")
+            await chan.send(embed=e)
+    except Exception as _e: print(f"[on_member_remove leave] {_e}")
+    # ── Anti-Nuke kick provjera ─────────────────────────
     try:
         async for entry in member.guild.audit_logs(limit=1, action=discord.AuditLogAction.kick):
             if entry.target.id == member.id and (time.time() - entry.created_at.timestamp()) < 5:
                 await antinuke_check(member.guild, entry.user, f"KICK korisnika `{member}`")
                 await audit_log(member.guild, "👢 KICK", f"**Moderator:** {entry.user.mention}\n**Korisnik:** `{member}` (`{member.id}`)")
                 break
-    except Exception as _e: print(f"[on_member_remove] {_e}")
+    except Exception as _e: print(f"[on_member_remove nuke] {_e}")
 
 @bot.event
 async def on_guild_channel_delete(channel):
@@ -4812,7 +4813,8 @@ async def help_cmd(i: discord.Interaction):
             "> `/quests` — Dnevni zadaci za XP i novac\n"
             "> `/poll` — Napravi glasanje\n"
             "> `/confess` — Anonimna ispovjed\n"
-            "> `/report` — Prijavi člana"
+            "> `/report` — Prijavi člana\n"
+            "> `/tiket-staff` — 📋 Prijavi se za Staff poziciju"
         ),
         inline=False,
     )
@@ -5295,13 +5297,14 @@ async def confess_cmd(i: discord.Interaction, poruka: str):
     await ch.send(embed=e)
     await i.response.send_message(embed=em("✅", "Ispovjed poslana anonimno!", color=COLORS["success"]), ephemeral=True)
 
-@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/suggest/report/birthday kanal")
+@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/suggest/report/birthday/staff-apps kanal")
 @app_commands.describe(tip="Tip kanala", kanal="Kanal za taj tip")
 @app_commands.choices(tip=[
-    app_commands.Choice(name="confess",  value="confess_channel"),
-    app_commands.Choice(name="suggest",  value="suggest_channel"),
-    app_commands.Choice(name="report",   value="report_channel"),
-    app_commands.Choice(name="birthday", value="birthday_channel"),
+    app_commands.Choice(name="confess",    value="confess_channel"),
+    app_commands.Choice(name="suggest",    value="suggest_channel"),
+    app_commands.Choice(name="report",     value="report_channel"),
+    app_commands.Choice(name="birthday",   value="birthday_channel"),
+    app_commands.Choice(name="staff-apps", value="staff_apps_channel"),
 ])
 async def setchannel_cmd(i: discord.Interaction, tip: app_commands.Choice[str], kanal: discord.TextChannel):
     if not i.user.guild_permissions.administrator:
@@ -6060,6 +6063,205 @@ async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: s
     e.set_thumbnail(url=korisnik.display_avatar.url)
     await ch.send(embed=e)
     await i.response.send_message(embed=em("✅", "Report poslan anonimno moderatorima!", color=COLORS["success"]), ephemeral=True)
+
+# ═══════════════════════════════════════════
+#    📋 STAFF PRIJAVA — /tiket-staff
+# ═══════════════════════════════════════════
+
+class StaffApplicationModal(discord.ui.Modal, title="📋 Prijava za Staff"):
+    god = discord.ui.TextInput(
+        label="Koliko imaš godina?",
+        placeholder="Npr: 18",
+        min_length=1, max_length=3,
+        style=discord.TextStyle.short,
+    )
+    iskustvo = discord.ui.TextInput(
+        label="Imaš li iskustva kao mod/staff?",
+        placeholder="Opiši prethodno iskustvo na Discordu...",
+        min_length=10, max_length=500,
+        style=discord.TextStyle.paragraph,
+    )
+    zasto = discord.ui.TextInput(
+        label="Zašto želiš biti staff?",
+        placeholder="Reci nam šta te motiviše...",
+        min_length=20, max_length=600,
+        style=discord.TextStyle.paragraph,
+    )
+    igraci = discord.ui.TextInput(
+        label="Koliko igrača možeš dovesti na server?",
+        placeholder="Npr: 5-10, imam Discord/Instagram zajednicu...",
+        min_length=5, max_length=300,
+        style=discord.TextStyle.paragraph,
+    )
+    aktivnost = discord.ui.TextInput(
+        label="Koliko sati dnevno si aktivan/na? (+ timezone)",
+        placeholder="Npr: 3-5 sati, CET zona...",
+        min_length=3, max_length=200,
+        style=discord.TextStyle.short,
+    )
+
+    async def on_submit(self, i: discord.Interaction):
+        cfg  = get_guild_config(i.guild.id)
+        # Šalje u: staff_apps kanal → log kanal → prvi admin kanal
+        ch_id = cfg.get("staff_apps_channel") or cfg.get("log_channel")
+        ch = i.guild.get_channel(ch_id) if ch_id else None
+        if not ch:
+            ch = discord.utils.find(
+                lambda c: any(w in c.name.lower() for w in ("staff", "mod", "admin", "log", "prijav")),
+                i.guild.text_channels
+            )
+        if not ch:
+            return await i.response.send_message(
+                embed=em("❌ Kanal nije pronađen",
+                         "Admin mora uraditi `/setchannel staff-apps #kanal` da bi prijave mogle stizati.",
+                         color=COLORS["error"]),
+                ephemeral=True,
+            )
+
+        e = discord.Embed(
+            title="📋  Nova Staff Prijava",
+            description=(
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 **{i.user.display_name}** ({i.user.mention})\n"
+                f"🆔 ID: `{i.user.id}`\n"
+                f"📅 Nalog: <t:{int(i.user.created_at.timestamp())}:R>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━"
+            ),
+            color=0x00BCD4,
+            timestamp=datetime.now(timezone.utc),
+        )
+        e.set_thumbnail(url=i.user.display_avatar.url)
+        e.add_field(name="🎂  Godine",              value=self.god.value,      inline=True)
+        e.add_field(name="⏰  Aktivnost / Zona",    value=self.aktivnost.value, inline=True)
+        e.add_field(name="🎓  Iskustvo kao Staff",  value=self.iskustvo.value,  inline=False)
+        e.add_field(name="💬  Zašto želi biti Staff", value=self.zasto.value,   inline=False)
+        e.add_field(name="👥  Koliko igrača dovodi", value=self.igraci.value,   inline=False)
+        e.add_field(
+            name="📌  Obaveze Staffa",
+            value=(
+                "✅ Dovodiš nove igrače na server\n"
+                "✅ Redovito si aktivan/na u chatovima\n"
+                "✅ Pomažeš moderirati i primjenjuješ pravila\n"
+                "✅ Štitis server od raida, napada i spama\n"
+                "✅ Komuniciraš s timom i prijaviš probleme"
+            ),
+            inline=False,
+        )
+        e.set_footer(text=f"📋 GIANNI Staff Prijava  •  {i.guild.name}")
+
+        view = StaffVoteView(i.user.id)
+        await ch.send(embed=e, view=view)
+
+        potvrda = discord.Embed(
+            title="✅  Prijava primljena!",
+            description=(
+                "## 🎉 Uspješno si se prijavio/la za Staff!\n"
+                "Tvoja prijava je poslana timu — čekaj odgovor.\n\n"
+                "⏳ Pregled traje **1–3 dana**. Budemo te obavijestili! 📩"
+            ),
+            color=0x00BCD4,
+            timestamp=datetime.now(timezone.utc),
+        )
+        potvrda.add_field(name="📋  Šta se čeka od Staffa",
+            value=(
+                "👥 Dovodiš nove igrače i rasteš zajednicu\n"
+                "🛡️ Štitis server od raida, napada i spama\n"
+                "💬 Modiraš chatove i primjenjuješ pravila\n"
+                "⏳ Admin ručno pregleda prijavu i dodjeljuje ulogu\n"
+                "🤝 Nema automatskih permisija — sve odobrava Admin!"
+            ),
+            inline=False,
+        )
+        potvrda.set_footer(text="📋 GIANNI  •  Hvala na prijavi! 🙏")
+        await i.response.send_message(embed=potvrda, ephemeral=True)
+
+
+class StaffVoteView(discord.ui.View):
+    """Admin glasanje za staff prijavu — Prihvati / Odbij / Na čekanju."""
+    def __init__(self, applicant_id: int):
+        super().__init__(timeout=None)
+        self.applicant_id = applicant_id
+
+    @discord.ui.button(label="Prihvati", emoji="✅", style=discord.ButtonStyle.success)
+    async def prihvati(self, i: discord.Interaction, b: discord.ui.Button):
+        if not i.user.guild_permissions.manage_roles:
+            return await i.response.send_message(
+                embed=em("❌ Nemaš permisiju!", "Samo Staff/Admini mogu glasati.", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        b.disabled = True
+        for child in self.children: child.disabled = True
+        await i.message.edit(view=self)
+        # Obavijesti kandidata ako je moguće
+        try:
+            member = i.guild.get_member(self.applicant_id) or await i.guild.fetch_member(self.applicant_id)
+            dm_e = discord.Embed(
+                title="🎉  Čestitamo — Primleni si u Staff!",
+                description=(
+                    f"## ✅ Tvoja prijava na **{i.guild.name}** je **PRIHVAĆENA**!\n\n"
+                    f"Kontaktiraj administratora da dobiješ Staff ulogu.\n"
+                    f"Dobrodošao/la u tim! 🤝🛡️"
+                ),
+                color=0x57F287,
+                timestamp=datetime.now(timezone.utc),
+            )
+            dm_e.set_footer(text=f"📋 {i.guild.name}  •  GIANNI Bot")
+            await member.send(embed=dm_e)
+        except Exception: pass
+        await i.response.send_message(
+            embed=em("✅ Prijava prihvaćena!",
+                     "Kandidat je obaviješten putem DM-a.\n"
+                     "⚠️ **Ulogu dodijeli ručno** — bot ne daje nikakve permisije automatski!",
+                     color=COLORS["success"]),
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Odbij", emoji="❌", style=discord.ButtonStyle.danger)
+    async def odbij(self, i: discord.Interaction, b: discord.ui.Button):
+        if not i.user.guild_permissions.manage_roles:
+            return await i.response.send_message(
+                embed=em("❌ Nemaš permisiju!", "Samo Staff/Admini mogu glasati.", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        b.disabled = True
+        for child in self.children: child.disabled = True
+        await i.message.edit(view=self)
+        try:
+            member = i.guild.get_member(self.applicant_id) or await i.guild.fetch_member(self.applicant_id)
+            dm_e = discord.Embed(
+                title="📋  Staff Prijava — Odgovor",
+                description=(
+                    f"## ❌ Nažalost, tvoja prijava na **{i.guild.name}** je **ODBIJENA**.\n\n"
+                    f"Možeš pokušati ponovo za **30 dana**.\n"
+                    f"Ne odustaji — nastavite biti aktivni! 💪"
+                ),
+                color=0xED4245,
+                timestamp=datetime.now(timezone.utc),
+            )
+            dm_e.set_footer(text=f"📋 {i.guild.name}  •  GIANNI Bot")
+            await member.send(embed=dm_e)
+        except Exception: pass
+        await i.response.send_message(
+            embed=em("❌ Prijava odbijena.", "Kandidat je obaviješten putem DM-a.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Na čekanju", emoji="⏳", style=discord.ButtonStyle.secondary)
+    async def na_cekanju(self, i: discord.Interaction, b: discord.ui.Button):
+        if not i.user.guild_permissions.manage_roles:
+            return await i.response.send_message(
+                embed=em("❌ Nemaš permisiju!", "Samo Staff/Admini mogu glasati.", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        await i.response.send_message(
+            embed=em("⏳ Označeno!", "Prijava je stavljena na čekanje za daljnju diskusiju.", color=COLORS["warning"]),
+            ephemeral=True,
+        )
+
+
+@bot.tree.command(name="tiket-staff", description="📋 Prijavi se za Staff — otvori aplikacijski formular")
+async def tiket_staff(i: discord.Interaction):
+    await i.response.send_modal(StaffApplicationModal())
 
 # ═══════════════════════════════════════════
 #    POKRETANJE
