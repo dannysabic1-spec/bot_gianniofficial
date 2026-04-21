@@ -505,7 +505,8 @@ data = {"economy": {}, "xp": {}, "warnings": {}, "zoo": {}, "quests": {}, "selfr
 
 def load_data():
     global data
-    if os.path.exists(DATA_FILE):
+    try:
+      if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             loaded = json.load(f)
             data["economy"]        = loaded.get("economy", {})
@@ -533,10 +534,32 @@ def load_data():
             data["msg_count_week"] = loaded.get("msg_count_week", {})
             data["aotw_last"]      = loaded.get("aotw_last", None)
             data["nsfw_strikes"]   = loaded.get("nsfw_strikes", {})
+            data["vatrice"]        = loaded.get("vatrice", {})
+            data["vatrice_cd"]     = loaded.get("vatrice_cd", {})
+            for k, v in loaded.items():
+                if k not in data:
+                    data[k] = v
+    except Exception as e:
+        print(f"[load_data] WARN: {e} — koristim default")
 
 def save_data():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """Atomski save — temp fajl + rename, sa backupom. Nikad ne gubi vatrice."""
+    try:
+        tmp = DATA_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            try: os.fsync(f.fileno())
+            except Exception: pass
+        if os.path.exists(DATA_FILE):
+            try:
+                bak = DATA_FILE + ".bak"
+                if os.path.exists(bak): os.remove(bak)
+                os.replace(DATA_FILE, bak)
+            except Exception: pass
+        os.replace(tmp, DATA_FILE)
+    except Exception as e:
+        print(f"[save_data] ERROR: {e}")
 
 def get_guild_config(guild_id) -> dict:
     key = str(guild_id)
