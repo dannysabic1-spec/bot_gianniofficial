@@ -5458,43 +5458,66 @@ def _add_vatrica(guild_id: int, user_id: int, n: int = 1) -> int:
     store[key] = int(store.get(key, 0)) + n
     return store[key]
 
-vatrice_group = app_commands.Group(name="vatrice", description="🔥 Sistem vatrica — daj, top lista i postavke")
+vatrice_group = app_commands.Group(name="vatrice", description="🔥 Sistem vatrica — VLASNIK ONLY (daj, top, postavke)")
 
-@vatrice_group.command(name="ember", description="🔥 Daj vatricu članu (embed, radi za sve članove)")
+def _vatrice_owner_only(i: discord.Interaction) -> bool:
+    return i.user.id in OWNER_IDS
+
+async def _update_vatrice_nick(member: discord.Member, count: int, emoji: str):
+    """Doda/ažurira sufix kraj nicka, npr. 'Marko 🔥3'. Skida postojeći vatrice sufix."""
+    try:
+        base = member.display_name
+        # ukloni stari vatrice sufix (svaki emoji + broj na kraju)
+        base = re.sub(r"\s*[^\w\s]+\d+\s*$", "", base).strip() or member.name
+        novi_nick = f"{base} {emoji}{count}"[:32]
+        if member.nick != novi_nick:
+            await member.edit(nick=novi_nick, reason="Vatrice update")
+    except (discord.Forbidden, discord.HTTPException):
+        pass
+
+async def _post_vatrice_objava(guild: discord.Guild, davalac: discord.Member | None, primalac: discord.Member, novi: int, emoji: str):
+    """Pošalji objavu u podešen kanal kad neko zaradi vatricu."""
+    cfg = get_guild_config(guild.id)
+    cid = cfg.get("vatrice_channel")
+    if not cid: return
+    ch = guild.get_channel(int(cid))
+    if not ch: return
+    if davalac:
+        desc = f"🎉 {primalac.mention} je **zaradio vatricu** {emoji} od {davalac.mention}!\n\n{emoji} Ukupno: **{novi}**"
+    else:
+        desc = f"🎉 {primalac.mention} je **zaradio vatricu** {emoji}!\n\n{emoji} Ukupno: **{novi}**"
+    e = discord.Embed(title=f"{emoji} Nova vatrica!", description=desc, color=0xFF6A00, timestamp=datetime.now(timezone.utc))
+    e.set_thumbnail(url=primalac.display_avatar.url)
+    e.set_footer(text=f"{BOT_NAME} • Vatrice sistem")
+    try: await ch.send(embed=e)
+    except (discord.Forbidden, discord.HTTPException): pass
+
+@vatrice_group.command(name="ember", description="🔥 [VLASNIK] Daj vatricu članu — ažurira nick i šalje objavu")
 @app_commands.describe(korisnik="Kome daješ vatricu?")
 async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member):
+    if not _vatrice_owner_only(i):
+        return await i.response.send_message(
+            embed=em("❌ Samo vlasnik", "Samo vlasnik bota može davati vatrice.", color=COLORS["error"]),
+            ephemeral=True,
+        )
     if korisnik.bot:
         return await i.response.send_message(
             embed=em("🔥 Vatrice", "Botovima ne dajemo vatrice!", color=COLORS["error"]),
             ephemeral=True,
         )
-    if korisnik.id == i.user.id:
-        return await i.response.send_message(
-            embed=em("🔥 Vatrice", "Sebi ne možeš dati vatricu, brate!", color=COLORS["error"]),
-            ephemeral=True,
-        )
-    # Cooldown 60s po davaocu (da nema spam-a)
-    cd = _vatrice_cd()
-    cd_key = f"{i.guild.id}:{i.user.id}"
-    now = time.time()
-    last = float(cd.get(cd_key, 0))
-    if now - last < 60:
-        ostalo = int(60 - (now - last))
-        return await i.response.send_message(
-            embed=em("⏳ Cooldown", f"Sačekaj još **{ostalo}s** prije sljedeće vatrice.", color=COLORS["warning"]),
-            ephemeral=True,
-        )
-    cd[cd_key] = now
     cfg = get_guild_config(i.guild.id)
     emoji = cfg.get("vatrice_emoji", "🔥")
     novi = _add_vatrica(i.guild.id, korisnik.id, 1)
     save_data()
+    await _update_vatrice_nick(korisnik, novi, emoji)
+    await _post_vatrice_objava(i.guild, i.user, korisnik, novi, emoji)
     e = discord.Embed(
         title=f"{emoji} Vatrica poslana!",
         description=(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"{i.user.mention} je dao vatricu {korisnik.mention}!\n\n"
             f"{emoji} Ukupno vatrica: **{novi}**\n"
+            f"📛 Nick ažuriran: `{korisnik.display_name}`\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         ),
         color=0xFF6A00, timestamp=datetime.now(timezone.utc),
@@ -5502,6 +5525,22 @@ async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member):
     e.set_thumbnail(url=korisnik.display_avatar.url)
     e.set_footer(text=f"{BOT_NAME} • /vatrice pup za top listu")
     await i.response.send_message(embed=e)
+
+@vatrice_group.command(name="kanal", description="🔥 [VLASNIK] Postavi kanal za objave vatrica")
+@app_commands.describe(kanal="Kanal gdje će se slati objave kad neko dobije vatricu")
+async def vatrice_kanal(i: discord.Interaction, kanal: discord.TextChannel):
+    if not _vatrice_owner_only(i):
+        return await i.response.send_message(
+            embed=em("❌ Samo vlasnik", "Samo vlasnik može postaviti kanal.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    cfg = get_guild_config(i.guild.id)
+    cfg["vatrice_channel"] = kanal.id
+    save_data()
+    await i.response.send_message(
+        embed=em("✅ Kanal postavljen", f"Objave vatrica će se slati u {kanal.mention}", color=COLORS["success"]),
+        ephemeral=True,
+    )
 
 @vatrice_group.command(name="pup", description="🔥 Top lista — najpopularniji članovi po vatricama")
 async def vatrice_pup(i: discord.Interaction):
@@ -5532,7 +5571,7 @@ async def vatrice_pup(i: discord.Interaction):
     e.set_footer(text=f"Tvoje vatrice: {moja} {emoji}  •  {BOT_NAME}")
     await i.response.send_message(embed=e)
 
-@vatrice_group.command(name="oblik", description="🔥 [ADMIN] Postavi oblik (emoji) vatrice na serveru")
+@vatrice_group.command(name="oblik", description="🔥 [VLASNIK] Postavi oblik (emoji) vatrice na serveru")
 @app_commands.describe(emoji="Emoji koji predstavlja vatricu (npr. 🔥, 🌶️, ✨)")
 async def vatrice_oblik(i: discord.Interaction, emoji: str = None):
     cfg = get_guild_config(i.guild.id)
@@ -5542,9 +5581,9 @@ async def vatrice_oblik(i: discord.Interaction, emoji: str = None):
             embed=em("🔥 Trenutni oblik vatrice", f"Trenutno: {cur}\n\nKoristi `/vatrice oblik emoji:🔥` da promijeniš.", color=COLORS["info"]),
             ephemeral=True,
         )
-    if not i.user.guild_permissions.administrator:
+    if not _vatrice_owner_only(i):
         return await i.response.send_message(
-            embed=em("❌", "Samo admin može mijenjati oblik vatrice.", color=COLORS["error"]),
+            embed=em("❌ Samo vlasnik", "Samo vlasnik bota može mijenjati oblik vatrice.", color=COLORS["error"]),
             ephemeral=True,
         )
     novi = emoji.strip()[:8] or "🔥"
@@ -5555,11 +5594,11 @@ async def vatrice_oblik(i: discord.Interaction, emoji: str = None):
         ephemeral=True,
     )
 
-@vatrice_group.command(name="start", description="🔥 [ADMIN] Aktiviraj početak — svi članovi dobiju po 1 vatricu odjednom")
+@vatrice_group.command(name="start", description="🔥 [VLASNIK] Aktiviraj početak — svi članovi dobiju po 1 vatricu + nick")
 async def vatrice_start(i: discord.Interaction):
-    if not i.user.guild_permissions.administrator and i.user.id not in OWNER_IDS:
+    if not _vatrice_owner_only(i):
         return await i.response.send_message(
-            embed=em("❌ Nemaš pristup", "Samo admin/vlasnik može pokrenuti početak vatrica.", color=COLORS["error"]),
+            embed=em("❌ Samo vlasnik", "Samo vlasnik bota može pokrenuti početak vatrica.", color=COLORS["error"]),
             ephemeral=True,
         )
     await i.response.defer(ephemeral=False)
@@ -5567,11 +5606,17 @@ async def vatrice_start(i: discord.Interaction):
     emoji = cfg.get("vatrice_emoji", "🔥")
     store = _vatrice_store()
     dodano = 0
+    nick_ok = 0
     for m in i.guild.members:
         if m.bot: continue
         key = f"{i.guild.id}:{m.id}"
         store[key] = int(store.get(key, 0)) + 1
         dodano += 1
+        try:
+            await _update_vatrice_nick(m, store[key], emoji)
+            nick_ok += 1
+        except Exception:
+            pass
     save_data()
     e = discord.Embed(
         title=f"{emoji} Vatrice — START!",
@@ -5579,7 +5624,8 @@ async def vatrice_start(i: discord.Interaction):
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🎉 **Sezona vatrica je započela!**\n\n"
             f"Svi članovi servera **{i.guild.name}** dobili su po **1 vatricu** {emoji}\n"
-            f"👥 Ukupno nagrađeno: **{dodano}** članova\n\n"
+            f"👥 Ukupno nagrađeno: **{dodano}** članova\n"
+            f"📛 Nickovi ažurirani: **{nick_ok}**\n\n"
             f"📋 Sada koristite `/vatrice ember @član` da date dodatne vatrice,\n"
             f"a `/vatrice pup` za top listu!\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
