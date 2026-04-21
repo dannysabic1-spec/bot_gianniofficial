@@ -5555,6 +5555,42 @@ async def vatrice_oblik(i: discord.Interaction, emoji: str = None):
         ephemeral=True,
     )
 
+@vatrice_group.command(name="start", description="🔥 [ADMIN] Aktiviraj početak — svi članovi dobiju po 1 vatricu odjednom")
+async def vatrice_start(i: discord.Interaction):
+    if not i.user.guild_permissions.administrator and i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌ Nemaš pristup", "Samo admin/vlasnik može pokrenuti početak vatrica.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    await i.response.defer(ephemeral=False)
+    cfg = get_guild_config(i.guild.id)
+    emoji = cfg.get("vatrice_emoji", "🔥")
+    store = _vatrice_store()
+    dodano = 0
+    for m in i.guild.members:
+        if m.bot: continue
+        key = f"{i.guild.id}:{m.id}"
+        store[key] = int(store.get(key, 0)) + 1
+        dodano += 1
+    save_data()
+    e = discord.Embed(
+        title=f"{emoji} Vatrice — START!",
+        description=(
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎉 **Sezona vatrica je započela!**\n\n"
+            f"Svi članovi servera **{i.guild.name}** dobili su po **1 vatricu** {emoji}\n"
+            f"👥 Ukupno nagrađeno: **{dodano}** članova\n\n"
+            f"📋 Sada koristite `/vatrice ember @član` da date dodatne vatrice,\n"
+            f"a `/vatrice pup` za top listu!\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━"
+        ),
+        color=0xFF6A00, timestamp=datetime.now(timezone.utc),
+    )
+    if i.guild.icon:
+        e.set_thumbnail(url=i.guild.icon.url)
+    e.set_footer(text=f"{BOT_NAME} • Pokrenuo: {i.user.display_name}")
+    await i.followup.send(embed=e)
+
 bot.tree.add_command(vatrice_group)
 
 # ═══════════════════════════════════════════
