@@ -354,25 +354,33 @@ def _extract_string_options(options: list) -> list[str]:
 
 async def _global_channel_check(interaction: discord.Interaction) -> bool:
     if not interaction.guild or not interaction.command: return True
-    # admini i vlasnik smiju svuda
+
+    # ── Anti-Invite u slash komandama (PRIJE admin bypass!) ─────────────────────
+    # Niko (ni admini) ne smije preko komandi reklamirati druge servere — samo OWNER_IDS.
+    if interaction.user.id not in OWNER_IDS:
+        try:
+            opts = _extract_string_options((interaction.data or {}).get("options", []))
+            for val in opts:
+                if INVITE_REGEX.search(val):
+                    try:
+                        await interaction.response.send_message(
+                            embed=em("🚫 Reklama zabranjena",
+                                     f"{interaction.user.mention} — invite linkovi drugih servera nisu dozvoljeni ni u komandama!",
+                                     color=COLORS["error"]),
+                            ephemeral=True
+                        )
+                    except: pass
+                    try:
+                        await audit_log(interaction.guild, "🚫 Anti-Invite (komanda)",
+                                        f"{interaction.user.mention} pokušao reklamirati drugi server preko `/{interaction.command.name}`")
+                    except: pass
+                    return False
+        except: pass
+
+    # admini i vlasnik smiju svuda (kanal pravila)
     try:
         if interaction.user.guild_permissions.administrator: return True
     except: return True
-
-    # ── Anti-Invite u slash komandama ─────────────────────
-    # Provjeri sve string parametre koje korisnik upiše u komandu
-    try:
-        opts = _extract_string_options((interaction.data or {}).get("options", []))
-        for val in opts:
-            if INVITE_REGEX.search(val):
-                await interaction.response.send_message(
-                    embed=em("🚫 Reklama zabranjena",
-                             f"{interaction.user.mention} — invite linkovi nisu dozvoljeni ni u komandama!",
-                             color=COLORS["error"]),
-                    ephemeral=True
-                )
-                return False
-    except: pass
 
     needed = check_channel_rule(interaction.channel, interaction.command.name)
     if needed is None: return True
@@ -397,6 +405,24 @@ async def try_prefix_command(message):
     cmd_name = PREFIX_ALIASES.get(cmd_name, cmd_name)
     cmd = bot.tree.get_command(cmd_name)
     if cmd is None: return False
+    # ── Anti-Invite u prefix komandama (.poll, .say, itd.) ─────────────
+    # Niko (ni admini) ne smije preko komandi reklamirati druge servere — samo OWNER_IDS.
+    if message.author.id not in OWNER_IDS and args_text and INVITE_REGEX.search(args_text):
+        try:
+            await message.channel.send(
+                embed=em("🚫 Reklama zabranjena",
+                         f"{message.author.mention} — invite linkovi drugih servera nisu dozvoljeni ni u komandama!",
+                         color=COLORS["error"]),
+                delete_after=8
+            )
+        except: pass
+        try: await message.delete()
+        except: pass
+        try:
+            await audit_log(message.guild, "🚫 Anti-Invite (komanda)",
+                            f"{message.author.mention} pokušao reklamirati drugi server preko `.{cmd_name}`")
+        except: pass
+        return True
     # Kanal pravila
     if not message.author.guild_permissions.administrator:
         needed = check_channel_rule(message.channel, cmd_name)
@@ -999,13 +1025,23 @@ async def on_member_update(before, after):
 
 @bot.event
 async def on_message(message):
+    try:
+        await _on_message_inner(message)
+    except Exception as _e:
+        # Bilo šta da pukne u on_message — logujemo i nastavljamo, automod ostaje živ.
+        print(f"[on_message] {type(_e).__name__}: {_e}")
+
+async def _on_message_inner(message):
     if message.author.bot: return
     if not message.guild: return
 
     # ── Prefix bridge (.kpm radi kao /kpm) ──
     if message.content.startswith("."):
-        if await try_prefix_command(message):
-            return
+        try:
+            if await try_prefix_command(message):
+                return
+        except Exception as _e:
+            print(f"[prefix bridge fatal] {type(_e).__name__}: {_e}")
 
     # ── WLCM auto-reakcije (svako ko napiše "wlcm" dobije 🇼🇱🇨🇲) ──
     if message.content.lower().strip() in ("wlcm", "wlcm all"):
@@ -1100,10 +1136,17 @@ async def on_message(message):
         return
 
     # ── Auto-Mod ──────────────────────────────────────
-    if await check_nsfw(message):
-        return
-    if await check_automod(message):
-        return
+    # Auto-mod nikad ne smije srušiti handler — svaki check je u try/except.
+    try:
+        if await check_nsfw(message):
+            return
+    except Exception as _e:
+        print(f"[automod nsfw] {type(_e).__name__}: {_e}")
+    try:
+        if await check_automod(message):
+            return
+    except Exception as _e:
+        print(f"[automod] {type(_e).__name__}: {_e}")
 
     # ── AFK: clear if author was AFK ──────────────────
     uid_str = str(message.author.id)
@@ -5080,6 +5123,13 @@ async def event_cmd(i: discord.Interaction, naslov: str, opis: str):
 # ═══════════════════════════════════════════
 #    ERROR HANDLING
 # ═══════════════════════════════════════════
+@bot.event
+async def on_error(event_method: str, *args, **kwargs):
+    # Global event error handler — bilo šta da pukne u bilo kom event-u, samo logujemo,
+    # bot nastavlja da radi (automod, komande, sve ostalo).
+    import traceback as _tb
+    print(f"[on_error] event={event_method}\n{_tb.format_exc()}")
+
 @bot.tree.error
 async def on_app_error(i: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.CommandOnCooldown):
@@ -6833,9 +6883,29 @@ async def tiketstaff_cmd(i: discord.Interaction):
 # ═══════════════════════════════════════════
 if __name__ == "__main__":
     print(f"\n{BOT_NAME} {VERSION} STARTUJE...\n")
-    try:
-        bot.run(TOKEN)
-    except discord.LoginFailure:
-        print("POGRESAN TOKEN!")
-    except Exception as e:
-        print(f"Greška: {e}")
+    import time as _time, traceback as _tb
+    _attempt = 0
+    while True:
+        _attempt += 1
+        try:
+            # reconnect=True (default) automatski rekonektuje gateway pri
+            # gubitku konekcije. Ovaj loop hvata sve ostalo: rate-limit,
+            # neuhvaćene greške u event-u, prekid mreže itd.
+            bot.run(TOKEN, reconnect=True)
+            print("[runner] bot.run je vratio normalno — gasim petlju.")
+            break
+        except discord.LoginFailure:
+            print("POGRESAN TOKEN! Ne pokušavam ponovo.")
+            break
+        except KeyboardInterrupt:
+            print("[runner] KeyboardInterrupt — gasim bota.")
+            break
+        except Exception as e:
+            wait = min(60, 5 * _attempt)
+            print(f"[runner] CRASH #{_attempt}: {type(e).__name__}: {e}")
+            print(_tb.format_exc())
+            print(f"[runner] Auto-restart za {wait}s...")
+            try: _time.sleep(wait)
+            except KeyboardInterrupt:
+                print("[runner] Prekinut auto-restart.")
+                break
