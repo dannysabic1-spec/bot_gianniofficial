@@ -751,6 +751,16 @@ async def on_member_join(member):
             return  # Kickovan, ne radi welcome
     except Exception as _e: print(f"[anti-raid] {_e}")
 
+    # ── 🔥 AUTO VATRICA — novi član automatski dobija 1 vatricu ──
+    try:
+        if not member.bot:
+            emoji = cfg.get("vatrice_emoji", "🔥")
+            novi = _add_vatrica(member.guild.id, member.id, 1)
+            save_data()
+            await _update_vatrice_nick(member, novi, emoji)
+            await _post_vatrice_objava(member.guild, None, member, novi, emoji)
+    except Exception as _e: print(f"[auto-vatrica] {_e}")
+
     # ── Invite Tracking ────────────────────────────────
     try:
         gkey = str(member.guild.id)
