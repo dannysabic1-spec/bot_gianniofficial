@@ -355,29 +355,23 @@ def _extract_string_options(options: list) -> list[str]:
 async def _global_channel_check(interaction: discord.Interaction) -> bool:
     if not interaction.guild or not interaction.command: return True
 
-    # ── Anti-Invite u slash komandama (PRIJE admin bypass!) ─────────────────────
-    # Niko (ni admini) ne smije preko komandi reklamirati druge servere — samo OWNER_IDS.
-    if interaction.user.id not in OWNER_IDS:
-        try:
+    # ── Anti-Invite u slash komandama (PRIJE admin bypass-a — vrijedi za sve osim OWNERa) ──
+    # Provjeri sve string parametre koje korisnik upiše u komandu
+    try:
+        if interaction.user.id not in OWNER_IDS:
             opts = _extract_string_options((interaction.data or {}).get("options", []))
             for val in opts:
                 if INVITE_REGEX.search(val):
-                    try:
-                        await interaction.response.send_message(
-                            embed=em("🚫 Reklama zabranjena",
-                                     f"{interaction.user.mention} — invite linkovi drugih servera nisu dozvoljeni ni u komandama!",
-                                     color=COLORS["error"]),
-                            ephemeral=True
-                        )
-                    except: pass
-                    try:
-                        await audit_log(interaction.guild, "🚫 Anti-Invite (komanda)",
-                                        f"{interaction.user.mention} pokušao reklamirati drugi server preko `/{interaction.command.name}`")
-                    except: pass
+                    await interaction.response.send_message(
+                        embed=em("🚫 Reklama zabranjena",
+                                 f"{interaction.user.mention} — invite linkovi nisu dozvoljeni ni u komandama!",
+                                 color=COLORS["error"]),
+                        ephemeral=True
+                    )
                     return False
-        except: pass
+    except: pass
 
-    # admini i vlasnik smiju svuda (kanal pravila)
+    # admini i vlasnik smiju svuda (channel rule bypass)
     try:
         if interaction.user.guild_permissions.administrator: return True
     except: return True
@@ -405,24 +399,6 @@ async def try_prefix_command(message):
     cmd_name = PREFIX_ALIASES.get(cmd_name, cmd_name)
     cmd = bot.tree.get_command(cmd_name)
     if cmd is None: return False
-    # ── Anti-Invite u prefix komandama (.poll, .say, itd.) ─────────────
-    # Niko (ni admini) ne smije preko komandi reklamirati druge servere — samo OWNER_IDS.
-    if message.author.id not in OWNER_IDS and args_text and INVITE_REGEX.search(args_text):
-        try:
-            await message.channel.send(
-                embed=em("🚫 Reklama zabranjena",
-                         f"{message.author.mention} — invite linkovi drugih servera nisu dozvoljeni ni u komandama!",
-                         color=COLORS["error"]),
-                delete_after=8
-            )
-        except: pass
-        try: await message.delete()
-        except: pass
-        try:
-            await audit_log(message.guild, "🚫 Anti-Invite (komanda)",
-                            f"{message.author.mention} pokušao reklamirati drugi server preko `.{cmd_name}`")
-        except: pass
-        return True
     # Kanal pravila
     if not message.author.guild_permissions.administrator:
         needed = check_channel_rule(message.channel, cmd_name)
@@ -435,6 +411,19 @@ async def try_prefix_command(message):
             try: await message.delete()
             except: pass
             return True
+    # ── Anti-Invite u prefix komandama (.poll, .say, ...) ──
+    if message.author.id not in OWNER_IDS and INVITE_REGEX.search(args_text or ""):
+        try:
+            await message.delete()
+        except: pass
+        await message.channel.send(
+            embed=em("🚫 Reklama zabranjena",
+                     f"{message.author.mention} — invite linkovi nisu dozvoljeni ni u komandama!",
+                     color=COLORS["error"]),
+            delete_after=8
+        )
+        return True
+
     fake = FakeInteraction(message)
     kwargs = {}
     try:
@@ -777,15 +766,7 @@ async def on_member_join(member):
             return  # Kickovan, ne radi welcome
     except Exception as _e: print(f"[anti-raid] {_e}")
 
-    # ── 🔥 AUTO VATRICA — novi član automatski dobija 1 vatricu ──
-    try:
-        if not member.bot:
-            emoji = cfg.get("vatrice_emoji", "🔥")
-            novi = _add_vatrica(member.guild.id, member.id, 1)
-            save_data()
-            await _update_vatrice_nick(member, novi, emoji)
-            await _post_vatrice_objava(member.guild, None, member, novi, emoji)
-    except Exception as _e: print(f"[auto-vatrica] {_e}")
+    # ── 🔥 VATRICE — novi član NE dobija auto vatricu (sad ide po porukama, prag 500) ──
 
     # ── Invite Tracking ────────────────────────────────
     try:
@@ -1025,23 +1006,13 @@ async def on_member_update(before, after):
 
 @bot.event
 async def on_message(message):
-    try:
-        await _on_message_inner(message)
-    except Exception as _e:
-        # Bilo šta da pukne u on_message — logujemo i nastavljamo, automod ostaje živ.
-        print(f"[on_message] {type(_e).__name__}: {_e}")
-
-async def _on_message_inner(message):
     if message.author.bot: return
     if not message.guild: return
 
     # ── Prefix bridge (.kpm radi kao /kpm) ──
     if message.content.startswith("."):
-        try:
-            if await try_prefix_command(message):
-                return
-        except Exception as _e:
-            print(f"[prefix bridge fatal] {type(_e).__name__}: {_e}")
+        if await try_prefix_command(message):
+            return
 
     # ── WLCM auto-reakcije (svako ko napiše "wlcm" dobije 🇼🇱🇨🇲) ──
     if message.content.lower().strip() in ("wlcm", "wlcm all"):
@@ -1136,17 +1107,10 @@ async def _on_message_inner(message):
         return
 
     # ── Auto-Mod ──────────────────────────────────────
-    # Auto-mod nikad ne smije srušiti handler — svaki check je u try/except.
-    try:
-        if await check_nsfw(message):
-            return
-    except Exception as _e:
-        print(f"[automod nsfw] {type(_e).__name__}: {_e}")
-    try:
-        if await check_automod(message):
-            return
-    except Exception as _e:
-        print(f"[automod] {type(_e).__name__}: {_e}")
+    if await check_nsfw(message):
+        return
+    if await check_automod(message):
+        return
 
     # ── AFK: clear if author was AFK ──────────────────
     uid_str = str(message.author.id)
@@ -1253,6 +1217,21 @@ async def _on_message_inner(message):
     data["msg_count"][mkey] = data["msg_count"].get(mkey, 0) + 1
     data.setdefault("msg_count_week", {})
     data["msg_count_week"][mkey] = data["msg_count_week"].get(mkey, 0) + 1
+
+    # ── 🔥 VATRICE — auto +1 svakih 500 poruka ────────
+    try:
+        VATRICA_PRAG = 500
+        ukupno_msgs = data["msg_count"][mkey]
+        if ukupno_msgs > 0 and ukupno_msgs % VATRICA_PRAG == 0:
+            cfg_v = get_guild_config(message.guild.id)
+            vemoji = cfg_v.get("vatrice_emoji", "🔥")
+            novi_v = _add_vatrica(message.guild.id, message.author.id, 1)
+            save_data()
+            try: await _update_vatrice_nick(message.author, novi_v, vemoji)
+            except Exception: pass
+            try: await _post_vatrice_objava(message.guild, None, message.author, novi_v, vemoji)
+            except Exception: pass
+    except Exception as _e: print(f"[vatrica-500] {_e}")
 
     # ── XP ────────────────────────────────────────────
     if random.random() < 0.55:
@@ -1713,12 +1692,7 @@ async def avatar(i: discord.Interaction, korisnik: discord.Member = None):
         f"[PNG]({u.display_avatar.with_format('png').url}) • [JPG]({u.display_avatar.with_format('jpg').url}) • [WEBP]({u.display_avatar.with_format('webp').url})",
         color=COLORS["info"], image=u.display_avatar.url))
 
-@bot.tree.command(name="say", description="🗣️ Bot šalje poruku")
-@app_commands.checks.has_permissions(manage_messages=True)
-async def say(i: discord.Interaction, tekst: str, kanal: discord.TextChannel = None):
-    target = kanal or i.channel
-    await target.send(tekst, allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False))
-    await i.response.send_message(embed=em("✅ Poslato!", f"Kanal: {target.mention}", color=COLORS["success"]), ephemeral=True)
+# /say uklonjeno (v2.1) — rizik impersonacije/uznemiravanja kroz bota.
 
 @bot.tree.command(name="brojanje-postavi", description="🔢 Postavi kanal za brojanje [ADMIN]")
 @app_commands.describe(kanal="Kanal u kojem će se brojati", pocetak="Od kog broja krenuti (default 0 → sljedeći je 1)")
@@ -2086,9 +2060,7 @@ async def eightball(i: discord.Interaction, pitanje: str):
         ("❓ Pitanje", pitanje, False), ("💬 Odgovor", random.choice(EIGHTBALL_REPLIES), False),
     ]))
 
-@bot.tree.command(name="meme", description="🤣 Nasumični Balkan meme")
-async def meme(i: discord.Interaction):
-    await i.response.send_message(embed=em("🤣 Balkan Meme", get_next_meme(i.guild.id), color=COLORS["fun"]))
+# /meme uklonjeno (v2.1) — vanjski sadržaj može vratiti NSFW u SFW kanal.
 
 # ═══════════════════════════════════════════
 #    VJEŠALA (Hangman)
@@ -3345,24 +3317,7 @@ async def pray(i: discord.Interaction, korisnik: discord.Member):
     e.set_footer(text=f"{BOT_NAME} {VERSION}")
     await i.response.send_message(embed=e)
 
-@bot.tree.command(name="curse", description="😈 Prokuni nekoga (kao owo curse)")
-async def curse(i: discord.Interaction, korisnik: discord.Member):
-    if korisnik.id == i.user.id:
-        return await i.response.send_message(embed=em("❌", "Ne možeš prokleti sebe!", color=COLORS["error"]), ephemeral=True)
-    if korisnik.bot:
-        return await i.response.send_message(embed=em("❌", "Botovi su imuni na kletvu! 🤖", color=COLORS["error"]), ephemeral=True)
-    amount = random.randint(10, 80)
-    target_eco = get_economy(korisnik.id)
-    target_eco["balance"] = max(0, target_eco["balance"] - amount)
-    save_data()
-    msgs = [
-        f"😈 {i.user.mention} baci kletvu na {korisnik.mention}! `-{amount} 💶` nestalo!",
-        f"💀 Crna magija {i.user.mention} pogodila {korisnik.mention}! Izgubio `-{amount} 💶`!",
-        f"🔮 {i.user.mention} izgovori drevnu kletvu! {korisnik.mention} izgubi `-{amount} 💶`!",
-    ]
-    e = discord.Embed(description=random.choice(msgs), color=0x8B0000, timestamp=datetime.now(timezone.utc))
-    e.set_footer(text=f"{BOT_NAME} {VERSION}")
-    await i.response.send_message(embed=e)
+# /curse uklonjeno (v2.1) — semantika "prokletstva" rizična za content moderaciju.
 
 # ═══════════════════════════════════════════
 #    AUTO-MOD (Anti-Spam + Bad Words)
@@ -5123,13 +5078,6 @@ async def event_cmd(i: discord.Interaction, naslov: str, opis: str):
 # ═══════════════════════════════════════════
 #    ERROR HANDLING
 # ═══════════════════════════════════════════
-@bot.event
-async def on_error(event_method: str, *args, **kwargs):
-    # Global event error handler — bilo šta da pukne u bilo kom event-u, samo logujemo,
-    # bot nastavlja da radi (automod, komande, sve ostalo).
-    import traceback as _tb
-    print(f"[on_error] event={event_method}\n{_tb.format_exc()}")
-
 @bot.tree.error
 async def on_app_error(i: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.CommandOnCooldown):
@@ -5490,18 +5438,7 @@ async def qr_cmd(i: discord.Interaction, tekst: str):
     await i.response.send_message(embed=e)
 
 # ─── 🤫 CONFESS (anonimno) ───
-@bot.tree.command(name="confess", description="🤫 Pošalji anonimnu ispovjed u confess kanal")
-async def confess_cmd(i: discord.Interaction, poruka: str):
-    cfg = get_guild_config(i.guild.id)
-    ch_id = cfg.get("confess_channel")
-    ch = i.guild.get_channel(ch_id) if ch_id else None
-    if not ch:
-        return await i.response.send_message(embed=em("❌", "Confess kanal nije postavljen.\nAdmin: `/setconfess #kanal`", color=COLORS["error"]), ephemeral=True)
-    data["confess_count"] += 1; save_data()
-    e = discord.Embed(title=f"🤫 Anonimna Ispovjed #{data['confess_count']}", description=poruka[:1500], color=0x9b59b6, timestamp=datetime.now(timezone.utc))
-    e.set_footer(text=f"Šalji svoju: /confess")
-    await ch.send(embed=e)
-    await i.response.send_message(embed=em("✅", "Ispovjed poslana anonimno!", color=COLORS["success"]), ephemeral=True)
+# /confess uklonjeno (v2.1) — anonimnost se može zloupotrijebiti za uznemiravanje.
 
 @bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/suggest/report/birthday/staff-apps kanal")
 @app_commands.describe(tip="Tip kanala", kanal="Kanal za taj tip")
@@ -5547,33 +5484,109 @@ def _vatrice_owner_only(i: discord.Interaction) -> bool:
     return i.user.id in OWNER_IDS
 
 async def _update_vatrice_nick(member: discord.Member, count: int, emoji: str):
-    """Doda/ažurira sufix kraj nicka, npr. 'Marko 🔥3'. Skida postojeći vatrice sufix."""
+    """Doda/ažurira sufix kraj nicka, npr. 'Marko 🔥3'. Skida postojeći sufix sa baš tim emoji-em."""
     try:
         base = member.display_name
-        # ukloni stari vatrice sufix (svaki emoji + broj na kraju)
-        base = re.sub(r"\s*[^\w\s]+\d+\s*$", "", base).strip() or member.name
+        # Ukloni stari sufix samo ako se završava sa konkretnim 'emoji + brojevi'
+        # (preciznije od starog \W+\d+$ koji je sjekao i obične nickove poput 'Marko!2024')
+        try:
+            base = re.sub(rf"\s*{re.escape(emoji)}\d+\s*$", "", base).strip() or member.name
+        except re.error:
+            base = member.name
         novi_nick = f"{base} {emoji}{count}"[:32]
         if member.nick != novi_nick:
             await member.edit(nick=novi_nick, reason="Vatrice update")
     except (discord.Forbidden, discord.HTTPException):
         pass
 
+def _vatrice_rank(guild_id: int, user_id: int) -> tuple[int, int]:
+    """Vrati (mjesto, ukupno_korisnika) na vatrice top listi za server."""
+    store = _vatrice_store()
+    gprefix = f"{guild_id}:"
+    items = [(int(k.split(":")[1]), int(v)) for k, v in store.items() if k.startswith(gprefix) and int(v) > 0]
+    items.sort(key=lambda x: x[1], reverse=True)
+    for idx, (uid, _v) in enumerate(items, start=1):
+        if uid == user_id:
+            return idx, len(items)
+    return 0, len(items)
+
 async def _post_vatrice_objava(guild: discord.Guild, davalac: discord.Member | None, primalac: discord.Member, novi: int, emoji: str):
-    """Pošalji objavu u podešen kanal kad neko zaradi vatricu."""
+    """Pošalji LIJEPU objavu u podešen kanal kad neko zaradi vatricu (stil sličan level-up porukama)."""
     cfg = get_guild_config(guild.id)
     cid = cfg.get("vatrice_channel")
     if not cid: return
     ch = guild.get_channel(int(cid))
     if not ch: return
-    if davalac:
-        desc = f"🎉 {primalac.mention} je **zaradio vatricu** {emoji} od {davalac.mention}!\n\n{emoji} Ukupno: **{novi}**"
+
+    sep = "━━━━━━━━━━━━━━━━━━━━━━"
+    mjesto, ukupno = _vatrice_rank(guild.id, primalac.id)
+
+    # naslov sa malo "milestone" osjećaja
+    if novi == 1:
+        naslov = f"{emoji} ᴘʀᴠᴀ ᴠᴀᴛʀɪᴄᴀ! {emoji}"
+        cestit = f"🎉 Dobrodošao/la u vatreni klub, {primalac.mention}!"
+    elif novi % 10 == 0:
+        naslov = f"{emoji}{emoji}{emoji}  ᴍɪʟᴇsᴛᴏɴᴇ — {novi} ᴠᴀᴛʀɪᴄᴀ!  {emoji}{emoji}{emoji}"
+        cestit = f"🔥 Bravo {primalac.mention} — okrugla brojka **{novi}**!"
     else:
-        desc = f"🎉 {primalac.mention} je **zaradio vatricu** {emoji}!\n\n{emoji} Ukupno: **{novi}**"
-    e = discord.Embed(title=f"{emoji} Nova vatrica!", description=desc, color=0xFF6A00, timestamp=datetime.now(timezone.utc))
+        naslov = f"{emoji} ɴᴏᴠᴀ ᴠᴀᴛʀɪᴄᴀ! {emoji}"
+        cestit = f"🎉 Čestitamo {primalac.mention}!"
+
+    if davalac:
+        izvor_line = f"🎁 Vatricu poklonio: {davalac.mention}"
+    else:
+        izvor_line = f"💬 Zarađeno aktivnošću u chatu (svakih 500 poruka)"
+
+    # progres bar do sljedeće vatrice po porukama (samo informativno za primaoca)
+    msg_key = f"{guild.id}:{primalac.id}"
+    msgs_total = data.get("msg_count", {}).get(msg_key, 0)
+    do_sljedece = 500 - (msgs_total % 500) if msgs_total > 0 else 500
+    progress = max(0, min(500, 500 - do_sljedece))
+    bar_full = "█" * (progress // 50)
+    bar_empty = "░" * (10 - len(bar_full))
+    bar = f"`{bar_full}{bar_empty}`"
+
+    # podij (top 3) za kontekst
+    store = _vatrice_store()
+    gprefix = f"{guild.id}:"
+    items = [(int(k.split(":")[1]), int(v)) for k, v in store.items() if k.startswith(gprefix) and int(v) > 0]
+    items.sort(key=lambda x: x[1], reverse=True)
+    medals = ["🥇", "🥈", "🥉"]
+    top_lines = []
+    for idx, (uid, cnt) in enumerate(items[:3]):
+        m = guild.get_member(uid)
+        ime = m.display_name if m else f"ID {uid}"
+        top_lines.append(f"{medals[idx]} **{ime}** — {emoji} {cnt}")
+    top_block = "\n".join(top_lines) if top_lines else "_još niko nema vatrica_"
+
+    rank_line = f"📊 Tvoje mjesto: **#{mjesto}** od **{ukupno}**" if mjesto else ""
+
+    desc = (
+        f"{sep}\n"
+        f"{cestit}\n"
+        f"Imaš sada **`{novi}`** {emoji}\n"
+        f"{sep}\n"
+        f"{izvor_line}\n"
+        f"{rank_line}\n"
+        f"\n**Do sljedeće vatrice:** {bar}  `{progress}/500`\n"
+        f"\n**🏆 Trenutni podij:**\n{top_block}\n"
+        f"{sep}\n"
+        f"_Pogledaj kompletnu top listu sa_ `/vatrice pup`"
+    )
+
+    e = discord.Embed(
+        title=naslov,
+        description=desc,
+        color=0xFF6A00,
+        timestamp=datetime.now(timezone.utc),
+    )
     e.set_thumbnail(url=primalac.display_avatar.url)
-    e.set_footer(text=f"{BOT_NAME} • Vatrice sistem")
-    try: await ch.send(embed=e)
-    except (discord.Forbidden, discord.HTTPException): pass
+    e.set_author(name=str(primalac), icon_url=primalac.display_avatar.url)
+    e.set_footer(text=f"🔥 {BOT_NAME} • Vatrice sistem")
+    try:
+        await ch.send(content=primalac.mention, embed=e)
+    except (discord.Forbidden, discord.HTTPException):
+        pass
 
 @vatrice_group.command(name="ember", description="🔥 [VLASNIK] Daj vatricu članu — ažurira nick i šalje objavu")
 @app_commands.describe(korisnik="Kome daješ vatricu?")
@@ -5638,20 +5651,53 @@ async def vatrice_pup(i: discord.Interaction):
             embed=em(f"{emoji} Top vatrice", "Još niko nema vatrica! Pokreni `/vatrice ember @član`.", color=COLORS["warning"]),
             ephemeral=True,
         )
+    sep = "━━━━━━━━━━━━━━━━━━━━━━"
     medals = ["🥇", "🥈", "🥉"]
-    linije = []
-    for idx, (uid, cnt) in enumerate(items[:10]):
+
+    # PODIJ (top 3) — istaknuto
+    podij_lines = []
+    for idx, (uid, cnt) in enumerate(items[:3]):
         m = i.guild.get_member(uid)
         ime = m.mention if m else f"`{uid}`"
-        prefix = medals[idx] if idx < 3 else f"`#{idx+1}`"
-        linije.append(f"{prefix} {ime} — {emoji} **{cnt}**")
-    e = discord.Embed(
-        title=f"{emoji} Top vatrice — {i.guild.name}",
-        description="\n".join(linije),
-        color=0xFF6A00, timestamp=datetime.now(timezone.utc),
-    )
+        podij_lines.append(f"{medals[idx]}  {ime}\n     └─ {emoji} **{cnt}** vatrica")
+    podij_block = "\n".join(podij_lines) if podij_lines else "_još niko nije na podiju_"
+
+    # Mjesta 4–10
+    ostali_lines = []
+    for idx, (uid, cnt) in enumerate(items[3:10], start=4):
+        m = i.guild.get_member(uid)
+        ime = m.mention if m else f"`{uid}`"
+        ostali_lines.append(f"`#{idx:>2}`  {ime} — {emoji} **{cnt}**")
+
+    # Moje mjesto
     moja = _get_vatrice(i.guild.id, i.user.id)
-    e.set_footer(text=f"Tvoje vatrice: {moja} {emoji}  •  {BOT_NAME}")
+    moje_mjesto, ukupno = _vatrice_rank(i.guild.id, i.user.id)
+    moje_line = (
+        f"📊 Tvoje mjesto: **#{moje_mjesto}** od **{ukupno}**  •  {emoji} **{moja}**"
+        if moje_mjesto else f"📊 Još nemaš vatrica  •  {emoji} **0**"
+    )
+
+    desc = (
+        f"{sep}\n"
+        f"**🏆 PODIJ NAJVATRENIJIH** {emoji}\n"
+        f"{sep}\n"
+        f"{podij_block}\n"
+    )
+    if ostali_lines:
+        desc += f"\n{sep}\n**Ostali u top 10:**\n" + "\n".join(ostali_lines) + f"\n{sep}\n"
+    else:
+        desc += f"{sep}\n"
+    desc += f"\n{moje_line}"
+
+    e = discord.Embed(
+        title=f"{emoji} ᴛᴏᴘ ᴠᴀᴛʀɪᴄᴇ — {i.guild.name} {emoji}",
+        description=desc,
+        color=0xFF6A00,
+        timestamp=datetime.now(timezone.utc),
+    )
+    if i.guild.icon:
+        e.set_thumbnail(url=i.guild.icon.url)
+    e.set_footer(text=f"🔥 {BOT_NAME} • Vatrice sistem  •  Vatricu zarađuješ svakih 500 poruka")
     await i.response.send_message(embed=e)
 
 @vatrice_group.command(name="oblik", description="🔥 [VLASNIK] Postavi oblik (emoji) vatrice na serveru")
@@ -5690,27 +5736,34 @@ async def vatrice_start(i: discord.Interaction):
     store = _vatrice_store()
     dodano = 0
     nick_ok = 0
+    skipped_owner = 0
     for m in i.guild.members:
         if m.bot: continue
         key = f"{i.guild.id}:{m.id}"
-        store[key] = int(store.get(key, 0)) + 1
+        store[key] = 1  # RESET — start uvijek postavlja vatrice na 1 (ne akumulira)
         dodano += 1
+        if m.id == i.guild.owner_id:
+            skipped_owner += 1
+            continue  # bot ne može mijenjati nick ownera servera
         try:
             await _update_vatrice_nick(m, store[key], emoji)
             nick_ok += 1
         except Exception:
             pass
+        await asyncio.sleep(0.4)  # rate limit zaštita za nick edits
     save_data()
     e = discord.Embed(
         title=f"{emoji} Vatrice — START!",
         description=(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🎉 **Sezona vatrica je započela!**\n\n"
-            f"Svi članovi servera **{i.guild.name}** dobili su po **1 vatricu** {emoji}\n"
-            f"👥 Ukupno nagrađeno: **{dodano}** članova\n"
-            f"📛 Nickovi ažurirani: **{nick_ok}**\n\n"
-            f"📋 Sada koristite `/vatrice ember @član` da date dodatne vatrice,\n"
-            f"a `/vatrice pup` za top listu!\n"
+            f"Svi članovi servera **{i.guild.name}** resetovani su na **1 vatricu** {emoji}\n"
+            f"👥 Ukupno: **{dodano}** članova\n"
+            f"📛 Nickovi ažurirani: **{nick_ok}**\n"
+            f"👑 Owner servera (preskočen): **{skipped_owner}**\n\n"
+            f"📋 Sada članovi automatski dobijaju vatricu **svakih 500 poruka**.\n"
+            f"Vlasnik može i ručno dodijeliti sa `/vatrice ember @član`,\n"
+            f"a `/vatrice pup` prikazuje top listu.\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
         ),
         color=0xFF6A00, timestamp=datetime.now(timezone.utc),
@@ -6883,29 +6936,9 @@ async def tiketstaff_cmd(i: discord.Interaction):
 # ═══════════════════════════════════════════
 if __name__ == "__main__":
     print(f"\n{BOT_NAME} {VERSION} STARTUJE...\n")
-    import time as _time, traceback as _tb
-    _attempt = 0
-    while True:
-        _attempt += 1
-        try:
-            # reconnect=True (default) automatski rekonektuje gateway pri
-            # gubitku konekcije. Ovaj loop hvata sve ostalo: rate-limit,
-            # neuhvaćene greške u event-u, prekid mreže itd.
-            bot.run(TOKEN, reconnect=True)
-            print("[runner] bot.run je vratio normalno — gasim petlju.")
-            break
-        except discord.LoginFailure:
-            print("POGRESAN TOKEN! Ne pokušavam ponovo.")
-            break
-        except KeyboardInterrupt:
-            print("[runner] KeyboardInterrupt — gasim bota.")
-            break
-        except Exception as e:
-            wait = min(60, 5 * _attempt)
-            print(f"[runner] CRASH #{_attempt}: {type(e).__name__}: {e}")
-            print(_tb.format_exc())
-            print(f"[runner] Auto-restart za {wait}s...")
-            try: _time.sleep(wait)
-            except KeyboardInterrupt:
-                print("[runner] Prekinut auto-restart.")
-                break
+    try:
+        bot.run(TOKEN)
+    except discord.LoginFailure:
+        print("POGRESAN TOKEN!")
+    except Exception as e:
+        print(f"Greška: {e}")
