@@ -1,3 +1,14 @@
+# ╔══════════════════════════════════════════════════════════════╗
+# ║   GIANNI BOT — VERZIJA: v2.6  (datum: 22.04.2026)            ║
+# ║   Ako vidiš ovaj zaglavlje → ovo je NAJNOVIJA verzija.       ║
+# ║   Ako uploaduješ stariji fajl, ovaj broj će biti manji!      ║
+# ║                                                              ║
+# ║   Promjene u v2.6:                                           ║
+# ║    • Anti-invite filter na svim formama (modali)             ║
+# ║    • Per-user error poruke (ephemeral + DM)                  ║
+# ║    • Persistent view-ovi preživljavaju restart               ║
+# ║    • Popravljen Modal guard (AttributeError fix)             ║
+# ╚══════════════════════════════════════════════════════════════╝
 import discord, random, asyncio, json, os, time, aiohttp, re
 from collections import defaultdict, deque, Counter
 from discord.ext import commands, tasks
@@ -7,8 +18,9 @@ from datetime import datetime, timezone, timedelta
 # ═══════════════════════════════════════════
 #           KONFIGURACIJA
 # ═══════════════════════════════════════════
-BOT_NAME = "GIANNI (Custom Game Vanity)"
-VERSION  = "v2.0"
+BOT_NAME    = "GIANNI (Custom Game Vanity)"
+VERSION     = "v2.6"
+BUILD_DATE  = "22.04.2026"
 TOKEN    = os.environ.get("DISCORD_TOKEN")
 
 COLORS = {
@@ -670,7 +682,7 @@ async def get_gif(action: str) -> str | None:
 # ═══════════════════════════════════════════
 @bot.event
 async def on_ready():
-    print(f"\n{'═'*45}\n  {BOT_NAME} {VERSION} — ONLINE\n{'═'*45}")
+    print(f"\n{'═'*60}\n  {BOT_NAME} {VERSION}  (build: {BUILD_DATE}) — ONLINE\n{'═'*60}")
     # ── Persistent views (preživljavaju restart) ──
     try:
         bot.add_view(GiveawayView())
