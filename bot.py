@@ -7042,42 +7042,89 @@ except Exception:
     pass
 
 # ── GLOBALNI ANTI-INVITE FILTER ZA SVE MODAL FORME ──
-# Presreće SVAKI on_submit i provjerava sva TextInput polja prije nego
-# originalna logika modela vidi sadržaj. Owneri bota su izuzeti.
-_orig_modal_callback = discord.ui.Modal.callback
-
-async def _modal_invite_guard(self, interaction: discord.Interaction):
+# Omota on_submit svake Modal podklase tako da prvo provjeri sva TextInput
+# polja na invite linkove. Owneri bota su izuzeti. Vrijedi i za buduće
+# podklase preko __init_subclass__.
+async def _modal_invite_check(self, interaction: discord.Interaction) -> bool:
+    """Vrati True ako je nađen invite link i forma treba biti odbijena."""
     try:
-        # Owneri bota smiju sve
-        if interaction.user.id not in OWNER_IDS:
-            for child in self.children:
-                try:
-                    val = getattr(child, "value", None)
-                    if isinstance(val, str) and val and INVITE_REGEX.search(val):
-                        await _safe_interaction_reply(
-                            interaction,
-                            "Discord invite linkovi (`discord.gg/...`, `.gg/...`, `dsc.gg/...`) "
-                            "nisu dozvoljeni unutar formi. Forma je odbijena.",
-                            ephemeral=True,
-                            title="🚫 Reklama zabranjena",
+        if interaction.user.id in OWNER_IDS:
+            return False
+        for child in self.children:
+            try:
+                val = getattr(child, "value", None)
+                if isinstance(val, str) and val and INVITE_REGEX.search(val):
+                    await _safe_interaction_reply(
+                        interaction,
+                        "Discord invite linkovi (`discord.gg/...`, `.gg/...`, `dsc.gg/...`) "
+                        "nisu dozvoljeni unutar formi. Forma je odbijena.",
+                        ephemeral=True,
+                        title="🚫 Reklama zabranjena",
+                    )
+                    try:
+                        _log.info(
+                            "Anti-invite blok u modalu %s od %s",
+                            type(self).__name__, interaction.user,
                         )
-                        try:
-                            _log.info(
-                                "Anti-invite blok u modalu %s od %s",
-                                type(self).__name__, interaction.user,
-                            )
-                        except Exception:
-                            pass
-                        return
-                except Exception:
-                    continue
+                    except Exception:
+                        pass
+                    return True
+            except Exception:
+                continue
     except Exception:
         pass
-    # Sve čisto — pusti originalnu logiku modala
-    return await _orig_modal_callback(self, interaction)
+    return False
+
+
+def _wrap_modal_on_submit(cls):
+    """Omota on_submit jedne Modal klase anti-invite provjerom."""
+    try:
+        if getattr(cls, "_invite_guard_wrapped", False):
+            return
+        # Uzmi on_submit definisan baš na ovoj klasi (ne naslijeđen)
+        original = cls.__dict__.get("on_submit")
+        if original is None:
+            return  # klasa koristi default on_submit — preskoči
+
+        async def wrapped(self, interaction, __orig=original):
+            blocked = await _modal_invite_check(self, interaction)
+            if blocked:
+                return
+            return await __orig(self, interaction)
+
+        wrapped.__name__ = getattr(original, "__name__", "on_submit")
+        cls.on_submit = wrapped
+        cls._invite_guard_wrapped = True
+    except Exception:
+        pass
+
+
+# Omotaj sve već definisane Modal podklase
+def _wrap_all_modal_subclasses(base):
+    try:
+        for sub in list(base.__subclasses__()):
+            _wrap_modal_on_submit(sub)
+            _wrap_all_modal_subclasses(sub)
+    except Exception:
+        pass
 
 try:
-    discord.ui.Modal.callback = _modal_invite_guard
+    _wrap_all_modal_subclasses(discord.ui.Modal)
+except Exception:
+    pass
+
+# Hook za buduće Modal podklase
+try:
+    _orig_init_subclass = discord.ui.Modal.__init_subclass__
+
+    def _modal_init_subclass(cls, **kwargs):
+        try:
+            _orig_init_subclass(**kwargs)
+        except Exception:
+            pass
+        _wrap_modal_on_submit(cls)
+
+    discord.ui.Modal.__init_subclass__ = classmethod(_modal_init_subclass)
 except Exception:
     pass
 
