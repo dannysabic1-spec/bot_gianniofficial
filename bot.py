@@ -678,7 +678,8 @@ async def on_ready():
         bot.add_view(TicketCloseView())
         bot.add_view(PrivateVCPanel())
         bot.add_view(StaffVoteView())
-        print("  ✔ Persistent views aktivni (giveaway / ticket / staff-vote / privatni VC)")
+        bot.add_view(TiketStaffPanelView())
+        print("  ✔ Persistent views aktivni (giveaway / ticket / staff-vote / privatni VC / staff-prijava)")
     except Exception as e:
         print(f"  ✘ Persistent views: {e}")
     # ── Smart sync: samo ako je broj komandi promijenjen ──
@@ -6932,10 +6933,238 @@ async def tiketstaff_cmd(i: discord.Interaction):
         )
 
 # ═══════════════════════════════════════════
+#    GLOBALNI SAFETY NET — bez "Interaction failed" / "The bot did not respond"
+# ═══════════════════════════════════════════
+import logging as _logging, traceback as _traceback, sys as _sys
+
+_log = _logging.getLogger("gianni.safety")
+
+async def _safe_interaction_reply(interaction: "discord.Interaction", text: str, *, ephemeral: bool = True, title: str = "🛠️ Mali zastoj"):
+    """Pokušaj odgovoriti na interakciju bez bacanja warning-a u Discord UI.
+    Ako je response već iskorišten — koristi followup. Ako ni to ne ide — tiho ignoriši."""
+    try:
+        if interaction is None:
+            return
+        embed = em(
+            title,
+            f"{text}\n\n*— {BOT_NAME}*",
+            color=COLORS["warning"],
+            footer="Bot je i dalje online • probaj ponovo za par sekundi",
+        )
+        # 1) Probaj direktan ephemeral response (samo korisnik vidi)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+        except Exception:
+            pass
+        # 2) Followup je takođe ephemeral (samo korisnik vidi)
+        try:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        except Exception:
+            pass
+        # 3) Krajnja opcija — DM korisniku (i dalje samo on vidi, niko u kanalu)
+        try:
+            await interaction.user.send(embed=embed)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+async def _safe_ack(interaction: "discord.Interaction"):
+    """Garantuje da interakcija ima response (defer ako još nije). Sprječava 'Bot is thinking...' freeze."""
+    try:
+        if interaction is None:
+            return
+        if not interaction.response.is_done():
+            try:
+                await interaction.response.defer(ephemeral=True)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+@bot.tree.error
+async def _on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    # Filtriraj "tihe" greške — channel rule failure već je handlan
+    try:
+        cause = getattr(error, "original", error)
+        # CheckFailure (uključujući naše interaction_check vraćanje False) — već je odgovoreno
+        if isinstance(error, (app_commands.CheckFailure, app_commands.CommandOnCooldown,
+                              app_commands.MissingPermissions, app_commands.BotMissingPermissions)):
+            try:
+                msg = str(error) or "Komanda nije dostupna ovdje."
+                await _safe_interaction_reply(interaction, msg, ephemeral=True)
+            except Exception:
+                pass
+            return
+        # Bilo šta drugo — log ali ne ostavi interakciju da visi
+        _log.error("Slash komanda greška: %s", cause, exc_info=cause)
+        await _safe_interaction_reply(
+            interaction,
+            "Ova komanda se zakucala — ali bez brige, bot radi normalno. Probaj još jednom.",
+            ephemeral=True,
+            title="🛠️ Komanda nije prošla",
+        )
+    except Exception:
+        pass
+
+# Monkey-patch View / Modal default on_error → tihi handler bez Discord warninga
+async def _view_on_error(self, interaction: discord.Interaction, error: Exception, item):
+    try:
+        _log.error("View item greška (%s): %s", type(item).__name__, error, exc_info=error)
+    except Exception:
+        pass
+    await _safe_interaction_reply(
+        interaction,
+        "Dugme je preskočilo takt — klikni opet pa će proći.",
+        ephemeral=True,
+        title="🎛️ Akcija odbijena",
+    )
+
+async def _modal_on_error(self, interaction: discord.Interaction, error: Exception):
+    try:
+        _log.error("Modal greška (%s): %s", type(self).__name__, error, exc_info=error)
+    except Exception:
+        pass
+    await _safe_interaction_reply(
+        interaction,
+        "Forma nije prošla — provjeri unos i pokušaj još jednom.",
+        ephemeral=True,
+        title="📝 Forma se zakucala",
+    )
+
+try:
+    discord.ui.View.on_error = _view_on_error
+    discord.ui.Modal.on_error = _modal_on_error
+except Exception:
+    pass
+
+# ── GLOBALNI ANTI-INVITE FILTER ZA SVE MODAL FORME ──
+# Presreće SVAKI on_submit i provjerava sva TextInput polja prije nego
+# originalna logika modela vidi sadržaj. Owneri bota su izuzeti.
+_orig_modal_callback = discord.ui.Modal.callback
+
+async def _modal_invite_guard(self, interaction: discord.Interaction):
+    try:
+        # Owneri bota smiju sve
+        if interaction.user.id not in OWNER_IDS:
+            for child in self.children:
+                try:
+                    val = getattr(child, "value", None)
+                    if isinstance(val, str) and val and INVITE_REGEX.search(val):
+                        await _safe_interaction_reply(
+                            interaction,
+                            "Discord invite linkovi (`discord.gg/...`, `.gg/...`, `dsc.gg/...`) "
+                            "nisu dozvoljeni unutar formi. Forma je odbijena.",
+                            ephemeral=True,
+                            title="🚫 Reklama zabranjena",
+                        )
+                        try:
+                            _log.info(
+                                "Anti-invite blok u modalu %s od %s",
+                                type(self).__name__, interaction.user,
+                            )
+                        except Exception:
+                            pass
+                        return
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    # Sve čisto — pusti originalnu logiku modala
+    return await _orig_modal_callback(self, interaction)
+
+try:
+    discord.ui.Modal.callback = _modal_invite_guard
+except Exception:
+    pass
+
+# Wrap svaku registrovanu app command callback tako da uvijek odgovori na interakciju
+def _wrap_command_callback(cmd):
+    try:
+        original = cmd.callback
+        if getattr(original, "__gianni_wrapped__", False):
+            return
+    except Exception:
+        return
+
+    async def wrapper(*args, **kwargs):
+        # interaction je obično 1. argument (ili 2. ako je metoda)
+        interaction = None
+        for a in args:
+            if isinstance(a, discord.Interaction):
+                interaction = a
+                break
+        try:
+            return await original(*args, **kwargs)
+        except app_commands.AppCommandError:
+            raise  # neka tree error handler odradi
+        except discord.NotFound:
+            return  # interakcija istekla — nema smisla javljati
+        except discord.HTTPException as e:
+            try:
+                _log.warning("HTTPException u komandi %s: %s", getattr(cmd, "name", "?"), e)
+            except Exception:
+                pass
+            await _safe_interaction_reply(interaction, "Discord je trenutno spor — pričekaj sekundu pa probaj opet.", ephemeral=True, title="🌐 Discord usporen")
+        except Exception as e:
+            try:
+                _log.error("Komanda %s baca: %s", getattr(cmd, "name", "?"), e, exc_info=e)
+            except Exception:
+                pass
+            await _safe_interaction_reply(interaction, "Nešto je puklo u pozadini, ali bot je živ. Probaj ponovo.", ephemeral=True, title="🛠️ Mali zastoj")
+
+    try:
+        wrapper.__gianni_wrapped__ = True
+        cmd.callback = wrapper
+    except Exception:
+        pass
+
+def _install_command_wrappers():
+    try:
+        for cmd in list(bot.tree.walk_commands()):
+            try:
+                _wrap_command_callback(cmd)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+# Pozovi pre i posle setup_hook-a (sigurnosni pojas)
+_install_command_wrappers()
+
+_orig_setup_hook = getattr(bot, "setup_hook", None)
+async def _patched_setup_hook():
+    try:
+        if _orig_setup_hook is not None:
+            await _orig_setup_hook()
+    finally:
+        _install_command_wrappers()
+try:
+    bot.setup_hook = _patched_setup_hook  # type: ignore
+except Exception:
+    pass
+
+# Globalni event-error swallow (da exception u listeneru ne ruši loop)
+@bot.event
+async def on_error(event_method, *args, **kwargs):
+    try:
+        _log.error("Greška u event-u %s\n%s", event_method, _traceback.format_exc())
+    except Exception:
+        pass
+
+# ═══════════════════════════════════════════
 #    POKRETANJE
 # ═══════════════════════════════════════════
 if __name__ == "__main__":
     print(f"\n{BOT_NAME} {VERSION} STARTUJE...\n")
+    _logging.basicConfig(
+        level=_logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        stream=_sys.stdout,
+    )
     try:
         bot.run(TOKEN)
     except discord.LoginFailure:
