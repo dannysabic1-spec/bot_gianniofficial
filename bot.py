@@ -18,7 +18,7 @@ from datetime import datetime, timezone, timedelta
 # ═══════════════════════════════════════════
 #           KONFIGURACIJA
 # ═══════════════════════════════════════════
-BOT_NAME    = "GIANNI (Custom Game Vanity)"
+BOT_NAME    = "GIANNI Community"
 VERSION     = "v2.6"
 BUILD_DATE  = "22.04.2026"
 TOKEN    = os.environ.get("DISCORD_TOKEN")
@@ -189,7 +189,7 @@ VJASALA_FAZE = [
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-intents.presences = True  # potrebno za /vanity (čitanje custom statusa)
+intents.presences = True  # potrebno za čitanje statusa članova
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
 # ═══════════════════════════════════════════
@@ -725,7 +725,7 @@ async def on_ready():
     if not change_status.is_running(): change_status.start()
     if not birthday_check.is_running(): birthday_check.start()
     if not auto_backup.is_running(): auto_backup.start()
-    # vanity_loop uklonjen — zamijenjen sa /vatrice sistemom
+    # auto-loop sistem — zamijenjen sa /vatrice komandom
     if not auto_game_loop.is_running(): auto_game_loop.start()
     if not active_member_week.is_running(): active_member_week.start()
     try: await post_pvc_info()
@@ -4241,7 +4241,7 @@ async def ticket_setup(i: discord.Interaction):
     if missing:
         return await i.followup.send(
             f"❌ Botu nedostaju permisije: {', '.join(missing)}\n"
-            f"Dodaj ih u **Server Settings → Roles → GIANNI (Custom Game Vanity)** (bot) pa pokušaj ponovo.",
+            f"Dodaj ih u **Server Settings → Roles → GIANNI Community** (bot) pa pokušaj ponovo.",
             ephemeral=True
         )
 
@@ -5469,7 +5469,7 @@ async def setchannel_cmd(i: discord.Interaction, tip: app_commands.Choice[str], 
     await i.response.send_message(embed=em("✅", f"{tip.name.capitalize()} kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
-#    🔥 VATRICE — sistem vatrica (zamjena za /vanity)
+#    🔥 VATRICE — sistem vatrica
 #    /vatrice ember — daj vatricu članu (embed, radi za sve članove)
 #    /vatrice pup    — top lista (pup = popularni)
 #    /vatrice oblik  — postavke (admin: emoji/oblik vatrice)
