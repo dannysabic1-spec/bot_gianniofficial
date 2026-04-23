@@ -734,6 +734,7 @@ async def on_ready():
         bot.add_view(TicketCloseView())
         bot.add_view(PrivateVCPanel())
         bot.add_view(StaffVoteView())
+        bot.add_view(VoiceCreateButton())
         print("  ✔ Persistent views aktivni (giveaway / ticket / staff-vote / privatni VC)")
     except Exception as e:
         print(f"  ✘ Persistent views: {e}")
@@ -7478,6 +7479,92 @@ async def pravila_cmd(i: discord.Interaction):
 
 
 # ─── 🔊 PRAVILA VOICE (privatni voice kanali) ───
+class VoiceCreateButton(discord.ui.View):
+    """Dugme ispod /pravila-voice — kreira privatni VC na klik."""
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🔊 Kreiraj svoj voice", style=discord.ButtonStyle.success, custom_id="vc_create_btn")
+    async def create(self, i: discord.Interaction, b):
+        guild = i.guild
+        member = i.user
+        # Ako već ima privatni VC, javi
+        for ch_id_str, owner_id in data.get("private_voices", {}).items():
+            if owner_id == member.id:
+                ch = guild.get_channel(int(ch_id_str)) if guild else None
+                if ch:
+                    return await i.response.send_message(
+                        embed=em("⚠️ Već imaš kanal", f"Tvoj voice: {ch.mention}\nUđi i koristi panel za upravljanje.", color=COLORS["warning"]),
+                        ephemeral=True,
+                    )
+        await i.response.defer(ephemeral=True, thinking=True)
+        # Kategorija = ista kao JTC voice ili kao text kanal
+        jtc = guild.get_channel(JTC_VOICE_ID) if guild else None
+        cat = (jtc.category if jtc else None) or i.channel.category
+        me = guild.me
+        missing = []
+        if not me.guild_permissions.manage_channels: missing.append("Manage Channels")
+        if not me.guild_permissions.move_members:    missing.append("Move Members")
+        if missing:
+            return await i.followup.send(
+                embed=em("❌ Nedostaju permisije", f"Botu treba: **{', '.join(missing)}**", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        try:
+            new_ch = None
+            try:
+                new_ch = await guild.create_voice_channel(
+                    name=f"🔊 {member.display_name}",
+                    category=cat,
+                    reason=f"Privatni VC (dugme) za {member}"
+                )
+            except discord.HTTPException as he:
+                if he.code == 30013 or "Maximum number" in str(he):
+                    new_ch = await guild.create_voice_channel(
+                        name=f"🔊 {member.display_name}",
+                        reason=f"Privatni VC (dugme, bez kategorije) za {member}"
+                    )
+                else:
+                    raise
+            await new_ch.set_permissions(member, manage_channels=True, move_members=True,
+                mute_members=True, deafen_members=True, connect=True, view_channel=True)
+            data.setdefault("private_voices", {})[str(new_ch.id)] = member.id
+            save_data()
+            # Ako je već u nekom voice-u, prebaci ga
+            try:
+                if member.voice and member.voice.channel:
+                    await member.move_to(new_ch)
+            except: pass
+            # Pošalji panel u sam voice kanal
+            try:
+                ev = discord.Embed(
+                    title=f"🔊 Dobrodošao u svoj kanal, {member.display_name}!",
+                    description=(
+                        "**Ti si vlasnik!** 👑 Koristi dugmad ispod:\n\n"
+                        "🔒 **Lock / Unlock** — kontrola ulaza\n"
+                        "👁️ **Hide / Show** — sakrij/pokaži\n"
+                        "✏️ **Rename** • 👥 **Limit** • 🚫 **Kick**\n"
+                        "👑 **Owner transfer** • ❌ **Delete**\n\n"
+                        "*Kanal se automatski briše kad ostane prazan.*"
+                    ),
+                    color=COLORS.get("balkan", 0x9B59B6)
+                )
+                ev.set_footer(text=f"{BOT_NAME} • Privatni Voice Sistem")
+                await new_ch.send(content=member.mention, embed=ev, view=PrivateVCPanel())
+            except Exception as _e: print(f"[vc-btn panel] {_e}")
+            await i.followup.send(
+                embed=em("✅ Voice kreiran!", f"Tvoj kanal: {new_ch.mention}\n👉 Klikni i pridruži se!", color=COLORS["success"]),
+                ephemeral=True,
+            )
+            print(f"[vc-btn] ✓ {member} → {new_ch.name}")
+        except Exception as ex:
+            import traceback; traceback.print_exc()
+            await i.followup.send(
+                embed=em("❌ Greška", f"`{type(ex).__name__}: {ex}`", color=COLORS["error"]),
+                ephemeral=True,
+            )
+
+
 @bot.tree.command(name="pravila-voice", description="🔊 Postavi embed sa pravilima privatnih voice kanala [samo vlasnik]")
 async def pravila_voice_cmd(i: discord.Interaction):
     if i.user.id not in OWNER_IDS:
@@ -7566,9 +7653,9 @@ async def pravila_voice_cmd(i: discord.Interaction):
     e.set_footer(text="🔊 GIANNI (Custom) • Voice Pravila", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
 
     try:
-        await i.channel.send(embed=e)
+        await i.channel.send(embed=e, view=VoiceCreateButton())
         await i.followup.send(
-            embed=em("✅ Postavljeno", "Voice pravila su objavljena u kanalu.", color=COLORS["success"]),
+            embed=em("✅ Postavljeno", "Voice pravila + dugme za kreiranje voice-a su objavljeni.", color=COLORS["success"]),
             ephemeral=True,
         )
     except discord.Forbidden:
