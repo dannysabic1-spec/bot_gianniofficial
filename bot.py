@@ -11,6 +11,15 @@ BOT_NAME = "GIANNI (Custom)"
 VERSION  = "v2.0"
 TOKEN    = os.environ.get("DISCORD_TOKEN")
 
+# ═══════════════════════════════════════════
+#    🔐 LICENCA — Jedini originalni bot
+# ═══════════════════════════════════════════
+# Bot radi SAMO ako je član zvaničnog GIANNI servera (discord.gg/gian).
+# Ako je neko klonirao kod i pokrenuo svoju kopiju — bot napušta sve servere
+# i gasi se automatski.
+OFFICIAL_INVITE   = "gian"               # discord.gg/gian
+OFFICIAL_GUILD_ID = 1494043955980140754  # ID zvaničnog GIANNI servera
+
 COLORS = {
     "default": 0x00BCD4, "success": 0x00E5FF, "error":   0xE74C3C,
     "warning": 0xF39C12, "info":    0x00BCD4, "gold":    0xF1C40F,
@@ -668,9 +677,51 @@ async def get_gif(action: str) -> str | None:
 # ═══════════════════════════════════════════
 #    EVENTI
 # ═══════════════════════════════════════════
+async def _license_check_and_shutdown_if_clone():
+    """Provjerava da je bot na zvaničnom GIANNI serveru. Ako nije — gasi se."""
+    if bot.get_guild(OFFICIAL_GUILD_ID) is not None:
+        print(f"  🔐 Licenca: ✓ ovo je ZVANIČNI bot (discord.gg/{OFFICIAL_INVITE})")
+        return True
+    # Bot nije na zvaničnom serveru — ovo je klonirana kopija
+    print(f"\n{'═'*60}")
+    print(f"  ⛔ NEDOZVOLJENA KOPIJA BOTA")
+    print(f"  Ovaj bot nije član zvaničnog GIANNI servera.")
+    print(f"  Jedini originalni bot: discord.gg/{OFFICIAL_INVITE}")
+    print(f"  Napuštam sve servere i gasim se za 5s...")
+    print(f"{'═'*60}\n")
+    # Pokušaj poslati poruku u svaki guild prije izlaska
+    for g in list(bot.guilds):
+        try:
+            ch = next((c for c in g.text_channels if c.permissions_for(g.me).send_messages), None)
+            if ch:
+                e = discord.Embed(
+                    title="⛔ Nedozvoljena kopija bota",
+                    description=(
+                        f"Ovaj bot je **neovlaštena kopija** originalnog **{BOT_NAME}** bota.\n\n"
+                        f"🔗 **Jedini originalni bot:** https://discord.gg/{OFFICIAL_INVITE}\n\n"
+                        f"Bot će se sada automatski isključiti i napustiti server."
+                    ),
+                    color=0xE74C3C
+                )
+                await ch.send(embed=e)
+        except Exception:
+            pass
+        try:
+            await g.leave()
+            print(f"  ↩  Napustio: {g.name} ({g.id})")
+        except Exception as _e:
+            print(f"  ✘ Ne mogu napustiti {g.name}: {_e}")
+    await asyncio.sleep(5)
+    await bot.close()
+    return False
+
+
 @bot.event
 async def on_ready():
     print(f"\n{'═'*45}\n  {BOT_NAME} {VERSION} — ONLINE\n{'═'*45}")
+    # ── 🔐 Licencna provjera — gasi se ako je kopija ──
+    if not await _license_check_and_shutdown_if_clone():
+        return
     # ── Persistent views (preživljavaju restart) ──
     try:
         bot.add_view(GiveawayView())
@@ -730,6 +781,30 @@ async def on_ready():
 @bot.event
 async def on_guild_join(guild):
     print(f"  ➕ Pridružen server: {guild.name} ({guild.member_count} članova)")
+    # ── 🔐 Licencna provjera za novi server ──
+    if bot.get_guild(OFFICIAL_GUILD_ID) is None:
+        # Ovo je klonirani bot — ne dozvoli mu rad na novom serveru
+        try:
+            ch = next((c for c in guild.text_channels if c.permissions_for(guild.me).send_messages), None)
+            if ch:
+                e = discord.Embed(
+                    title="⛔ Nedozvoljena kopija bota",
+                    description=(
+                        f"Ovaj bot je **neovlaštena kopija** originalnog **{BOT_NAME}** bota.\n\n"
+                        f"🔗 **Jedini originalni bot:** https://discord.gg/{OFFICIAL_INVITE}\n\n"
+                        f"Bot napušta server."
+                    ),
+                    color=0xE74C3C
+                )
+                await ch.send(embed=e)
+        except Exception:
+            pass
+        try:
+            await guild.leave()
+            print(f"  🔐 Licenca: napustio nedozvoljeni server {guild.name}")
+        except Exception as _e:
+            print(f"  ✘ Ne mogu napustiti {guild.name}: {_e}")
+        return
     try:
         bot.tree.copy_global_to(guild=guild)
         await bot.tree.sync(guild=guild)
@@ -7378,6 +7453,50 @@ async def pravila_voice_cmd(i: discord.Interaction):
             embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]),
             ephemeral=True,
         )
+
+
+# ─── 🔄 SYNC — manualno ponovno učitavanje slash komandi ───
+@bot.tree.command(name="sync", description="🔄 Force-sync svih slash komandi (samo vlasnik)")
+@app_commands.describe(scope="global = svi serveri (~1h cache), guild = ovaj server (odmah)")
+@app_commands.choices(scope=[
+    app_commands.Choice(name="guild (samo ovaj server, odmah)", value="guild"),
+    app_commands.Choice(name="global (svi serveri, do 1h cache)", value="global"),
+    app_commands.Choice(name="both (oba)", value="both"),
+])
+async def sync_cmd(i: discord.Interaction, scope: app_commands.Choice[str] = None):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    await i.response.defer(ephemeral=True)
+    sc = scope.value if scope else "both"
+    results = []
+    # GUILD sync (instant)
+    if sc in ("guild", "both") and i.guild:
+        try:
+            bot.tree.copy_global_to(guild=i.guild)
+            synced = await bot.tree.sync(guild=i.guild)
+            results.append(f"✅ **Guild sync ({i.guild.name}):** {len(synced)} komandi (odmah dostupne)")
+        except Exception as e:
+            results.append(f"❌ **Guild sync error:** `{e}`")
+    # GLOBAL sync (cached)
+    if sc in ("global", "both"):
+        try:
+            synced = await bot.tree.sync()
+            data["_last_synced_count"] = len(synced)
+            save_data()
+            results.append(f"✅ **Global sync:** {len(synced)} komandi (cache do 1h)")
+        except Exception as e:
+            results.append(f"❌ **Global sync error:** `{e}`")
+    e = discord.Embed(
+        title="🔄 Sync rezultati",
+        description="\n".join(results) if results else "Ništa nije sinhronizovano.",
+        color=COLORS["success"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    e.set_footer(text=f"{BOT_NAME} • Force Sync")
+    await i.followup.send(embed=e, ephemeral=True)
 
 
 # ═══════════════════════════════════════════
