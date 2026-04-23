@@ -1,14 +1,3 @@
-# ╔══════════════════════════════════════════════════════════════╗
-# ║   GIANNI BOT — VERZIJA: v2.6  (datum: 22.04.2026)            ║
-# ║   Ako vidiš ovaj zaglavlje → ovo je NAJNOVIJA verzija.       ║
-# ║   Ako uploaduješ stariji fajl, ovaj broj će biti manji!      ║
-# ║                                                              ║
-# ║   Promjene u v2.6:                                           ║
-# ║    • Anti-invite filter na svim formama (modali)             ║
-# ║    • Per-user error poruke (ephemeral + DM)                  ║
-# ║    • Persistent view-ovi preživljavaju restart               ║
-# ║    • Popravljen Modal guard (AttributeError fix)             ║
-# ╚══════════════════════════════════════════════════════════════╝
 import discord, random, asyncio, json, os, time, aiohttp, re
 from collections import defaultdict, deque, Counter
 from discord.ext import commands, tasks
@@ -18,9 +7,8 @@ from datetime import datetime, timezone, timedelta
 # ═══════════════════════════════════════════
 #           KONFIGURACIJA
 # ═══════════════════════════════════════════
-BOT_NAME    = "GIANNI Community"
-VERSION     = "v2.6"
-BUILD_DATE  = "22.04.2026"
+BOT_NAME = "GIANNI (Custom)"
+VERSION  = "v2.0"
 TOKEN    = os.environ.get("DISCORD_TOKEN")
 
 COLORS = {
@@ -189,7 +177,7 @@ VJASALA_FAZE = [
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-intents.presences = True  # potrebno za čitanje statusa članova
+intents.presences = True  # potrebno za /vanity (čitanje custom statusa)
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
 # ═══════════════════════════════════════════
@@ -682,7 +670,7 @@ async def get_gif(action: str) -> str | None:
 # ═══════════════════════════════════════════
 @bot.event
 async def on_ready():
-    print(f"\n{'═'*60}\n  {BOT_NAME} {VERSION}  (build: {BUILD_DATE}) — ONLINE\n{'═'*60}")
+    print(f"\n{'═'*45}\n  {BOT_NAME} {VERSION} — ONLINE\n{'═'*45}")
     # ── Persistent views (preživljavaju restart) ──
     try:
         bot.add_view(GiveawayView())
@@ -690,8 +678,7 @@ async def on_ready():
         bot.add_view(TicketCloseView())
         bot.add_view(PrivateVCPanel())
         bot.add_view(StaffVoteView())
-        bot.add_view(TiketStaffPanelView())
-        print("  ✔ Persistent views aktivni (giveaway / ticket / staff-vote / privatni VC / staff-prijava)")
+        print("  ✔ Persistent views aktivni (giveaway / ticket / staff-vote / privatni VC)")
     except Exception as e:
         print(f"  ✘ Persistent views: {e}")
     # ── Smart sync: samo ako je broj komandi promijenjen ──
@@ -725,7 +712,7 @@ async def on_ready():
     if not change_status.is_running(): change_status.start()
     if not birthday_check.is_running(): birthday_check.start()
     if not auto_backup.is_running(): auto_backup.start()
-    # auto-loop sistem — zamijenjen sa /vatrice komandom
+    # vanity_loop uklonjen — zamijenjen sa /vatrice sistemom
     if not auto_game_loop.is_running(): auto_game_loop.start()
     if not active_member_week.is_running(): active_member_week.start()
     try: await post_pvc_info()
@@ -779,7 +766,27 @@ async def on_member_join(member):
             return  # Kickovan, ne radi welcome
     except Exception as _e: print(f"[anti-raid] {_e}")
 
-    # ── 🔥 VATRICE — novi član NE dobija auto vatricu (sad ide po porukama, prag 500) ──
+    # ── 🔥 VATRICE — novi član dobija 1 auto vatricu pri ulasku ──
+    try:
+        cfg_vj = get_guild_config(member.guild.id)
+        vemoji = cfg_vj.get("vatrice_emoji", "🔥")
+        novi_v = _add_vatrica(member.guild.id, member.id, 1)
+        save_data()
+        if vch_id := cfg_vj.get("vatrice_channel"):
+            if vch := member.guild.get_channel(vch_id):
+                vj_e = discord.Embed(
+                    description=(
+                        f"🎁 {member.mention} dobio/la **1 {vemoji} vatricu** kao poklon dobrodošlice!\n"
+                        f"{vemoji} Ukupno: **{novi_v}**  ·  Još vatrica zarađuješ svakih **150 poruka!**"
+                    ),
+                    color=0xFF4500,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                vj_e.set_author(name=f"{member.display_name} se pridružio/la!", icon_url=member.display_avatar.url)
+                vj_e.set_footer(text=f"GIANNI (Custom) • Vatrice sistem")
+                await vch.send(embed=vj_e)
+    except Exception as _e:
+        print(f"[vatrica-join] {_e}")
 
     # ── Invite Tracking ────────────────────────────────
     try:
@@ -858,12 +865,15 @@ async def on_member_join(member):
         dm_e = discord.Embed(
             title=f"🎉 Dobrodošao/la na {member.guild.name}!",
             description=(
-                f"Hej **{member.display_name}**! Drago nam je što si tu! 🥳\n\n"
-                f"📋 Pročitaj **#pravila** i upiši se u **#informacije**\n"
-                f"🎮 Pridruži se **#glavni-chat** i upoznaj ekipu\n"
-                f"❓ Trebaš pomoć? Otvori **ticket** ili pitaj bilo kog moderatora\n\n"
-                f"💡 *Pišeš `.help` za sve dostupne komande bota!*\n"
-                f"🇷🇸 Uživaj na **{member.guild.name}** — najboljem Balkan serveru! 🍻"
+                f"Hej **{member.display_name}**! Drago nam je što si ovdje! 🥳\n\n"
+                f"📋 Pročitaj pravila i pogledaj informacije u <#1496860023093989475>\n"
+                f"🏷️ Uzmi svoje uloge u <#1496860023480127502>\n"
+                f"💬 Kreni chatati u <#1496860023480127498>\n"
+                f"📈 Prati svoja XP i level u <#1496860023480127499>\n"
+                f"❓ Trebaš pomoć? Otvori **ticket** ili pitaj moderatora\n\n"
+                f"💡 Komande: `/help` (slash) ili `.help` (prefix)\n"
+                f"🔗 Naš invite: **discord.gg/gian**\n\n"
+                f"🇧🇦 Dobrodošao/la u **GIANNI** — gdje svaka noć ima priču! 🍻"
             ),
             color=0xFFD700, timestamp=datetime.now(timezone.utc)
         )
@@ -927,38 +937,86 @@ async def on_member_join(member):
     custom_msg = cfg.get("welcome_message",
         random.choice(WELCOME_PORUKE))
 
-    # Direktni ID-evi GIANNI kanala
+    # ── Kanali po guild_config (sa fallback na GIANNI default ID-eve) ──
     GIANNI_CHANNELS = {
-        "informacije": 1494359372531372094,
-        "pravila":     1494043956965544092,
-        "selfroles":   1494058515319230614,
-        "chat":        1494687347558715543,
-        "public":      1494043958131556448,
+        "informacije": cfg.get("info_channel",    1496860023093989475),
+        "selfroles":   cfg.get("roles_channel",   1496860023480127502),
+        "chat":        cfg.get("chat_channel",    1496860023480127498),
+        "rank":        cfg.get("levelup_channel", 1496860023480127499),
+        "aktivnost":   cfg.get("aktivnost_channel", 1496860024121852090),
     }
     def ch_link(key):
         c = member.guild.get_channel(GIANNI_CHANNELS[key])
         return c.mention if c else "#—"
 
+    # ── Podaci za embed ──
+    now_ts    = int(datetime.now(timezone.utc).timestamp())
+    acct_days = (datetime.now(timezone.utc) - member.created_at).days
+    personal  = custom_msg.replace("{user}", member.mention).replace("{server}", member.guild.name)
+
+    # ── Divider ──
+    DIV = "▬" * 28
+
     desc = (
-        f"   🏠  **GIANNI COMMUNITY**\n\n"
-        f"{custom_msg.replace('{user}', member.mention).replace('{server}', member.guild.name)}\n\n"
-        f"ℹ️  **INFORMACIJE**   →  {ch_link('informacije')}\n"
-        f"📋  **PRAVILA**       →  {ch_link('pravila')}\n"
-        f"🔰  **SELF-ROLES**    →  {ch_link('selfroles')}\n"
-        f"💬  **GLAVNI CHAT**   →  {ch_link('chat')}\n"
-        f"🗨️  **PUBLIC**        →  {ch_link('public')}"
+        f"## 🎊  Dobrodošao/la, {member.mention}!\n"
+        f"{DIV}\n"
+        f"{personal}\n\n"
+
+        f"✦  **Gdje početi?**\n\n"
+        f"ℹ️  **Informacije & Pravila**  ·  {ch_link('informacije')}\n"
+        f"🏷️  **Uzmi uloge**             ·  {ch_link('selfroles')}\n"
+        f"💬  **Kreni chatati**          ·  {ch_link('chat')}\n"
+        f"📈  **XP napredovanje**        ·  {ch_link('rank')}\n"
+        f"📊  **Aktivnost**               ·  {ch_link('aktivnost')}\n\n"
+
+        f"{DIV}\n"
+        f"🔗  **discord.gg/gian**  ·  👥 Si nam **#{member.guild.member_count}**. član!"
     )
 
+    WELCOME_GIFS = [
+        "https://media.tenor.com/M0vSf9CGHoEAAAAC/celebration.gif",
+        "https://media.tenor.com/SoQgOZMVWKoAAAAC/welcome-hi.gif",
+        "https://media.tenor.com/bTFOnAa2HTEAAAAC/welcome-neon.gif",
+        "https://media.tenor.com/Yd1G5y4OIIMAAAAC/fireworks-celebrate.gif",
+        "https://media.tenor.com/YP5R3oMtd3MAAAAC/welcome-party.gif",
+    ]
+
     e = discord.Embed(
-        title=f"🎉 Dobrodošao/la, {member.display_name}!",
+        title=None,
         description=desc,
-        color=COLORS["success"], timestamp=datetime.now(timezone.utc)
+        color=0xFFD700,
+        timestamp=datetime.now(timezone.utc)
     )
-    e.add_field(name="😄 Šala dobrodošlice", value=sala, inline=False)
-    e.add_field(name="👥 Član broj", value=f"`#{member.guild.member_count}`", inline=True)
-    e.add_field(name="⏰ Pridružio/la se", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=True)
+    e.set_author(
+        name=f"✦ GIANNI Community — Nova Akvizicija! ✦",
+        icon_url=member.guild.icon.url if member.guild.icon else None
+    )
     e.set_thumbnail(url=member.display_avatar.url)
-    e.set_footer(text=f"{BOT_NAME} • Dobrodošlica")
+    e.add_field(
+        name="😄  Šala dobrodošlice",
+        value=sala,
+        inline=False
+    )
+    e.add_field(
+        name="👥  Redni broj",
+        value=f"**#{member.guild.member_count}**",
+        inline=True
+    )
+    e.add_field(
+        name="⏰  Pridružio/la",
+        value=f"<t:{now_ts}:R>",
+        inline=True
+    )
+    e.add_field(
+        name="📅  Nalog star",
+        value=f"**{acct_days} dana**",
+        inline=True
+    )
+    e.set_image(url=random.choice(WELCOME_GIFS))
+    e.set_footer(
+        text=f"GIANNI (Custom) • Dobrodošlica  |  discord.gg/gian",
+        icon_url=member.display_avatar.url
+    )
     await chan.send(content=member.mention, embed=e)
 
 @bot.event
@@ -1231,9 +1289,9 @@ async def on_message(message):
     data.setdefault("msg_count_week", {})
     data["msg_count_week"][mkey] = data["msg_count_week"].get(mkey, 0) + 1
 
-    # ── 🔥 VATRICE — auto +1 svakih 500 poruka ────────
+    # ── 🔥 VATRICE — auto +1 svakih 150 poruka ────────
     try:
-        VATRICA_PRAG = 500
+        VATRICA_PRAG = 150
         ukupno_msgs = data["msg_count"][mkey]
         if ukupno_msgs > 0 and ukupno_msgs % VATRICA_PRAG == 0:
             cfg_v = get_guild_config(message.guild.id)
@@ -1400,7 +1458,7 @@ async def sync_cmd(ctx):
 # ═══════════════════════════════════════════
 #    🛡️ SIGURNOST: Anti-Nuke / Audit / Backup / Whitelist
 # ═══════════════════════════════════════════
-OWNER_IDS: set = {984906640509788180}  # Discord ID-evi koji su 100% sigurni (anti-nuke whitelist)
+OWNER_IDS: set = {829552737322270731}  # Discord ID-evi koji su 100% sigurni (anti-nuke whitelist)
 NUKE_WINDOW = 30        # sekundi
 NUKE_BAN_LIMIT = 3      # max banova/kickova/brisanja u prozoru
 nuke_tracker: dict = defaultdict(lambda: defaultdict(deque))
@@ -1510,6 +1568,14 @@ async def on_member_ban(guild, user):
 
 @bot.event
 async def on_member_remove(member):
+    # ── Sanity guards ───────────────────────────────────
+    # Ako je guild nedostupan (bot je izbačen/napustio server) — izlaz
+    if member.guild is None or bot.get_guild(member.guild.id) is None:
+        return
+    # Ako je član koji odlazi sam bot — izlaz
+    if bot.user is not None and member.id == bot.user.id:
+        return
+
     cfg = get_guild_config(member.guild.id)
     # ── Log ────────────────────────────────────────────
     try:
@@ -1519,6 +1585,8 @@ async def on_member_remove(member):
             le.add_field(name="ID", value=f"`{member.id}`", inline=True)
             le.add_field(name="Pridružio se", value=member.joined_at.strftime("%d.%m.%Y.") if member.joined_at else "?", inline=True)
             await log_ch.send(embed=le)
+    except (discord.NotFound, discord.Forbidden):
+        pass
     except Exception as _e: print(f"[on_member_remove log] {_e}")
     # ── Leave message ───────────────────────────────────
     try:
@@ -1533,14 +1601,22 @@ async def on_member_remove(member):
             e.set_thumbnail(url=member.display_avatar.url)
             e.set_footer(text=f"{BOT_NAME} • Oproštaj")
             await chan.send(embed=e)
+    except (discord.NotFound, discord.Forbidden):
+        pass
     except Exception as _e: print(f"[on_member_remove leave] {_e}")
     # ── Anti-Nuke kick provjera ─────────────────────────
     try:
+        # Provjeri ponovo prije API poziva (guild je možda nestao u međuvremenu)
+        if bot.get_guild(member.guild.id) is None:
+            return
         async for entry in member.guild.audit_logs(limit=1, action=discord.AuditLogAction.kick):
             if entry.target.id == member.id and (time.time() - entry.created_at.timestamp()) < 5:
                 await antinuke_check(member.guild, entry.user, f"KICK korisnika `{member}`")
                 await audit_log(member.guild, "👢 KICK", f"**Moderator:** {entry.user.mention}\n**Korisnik:** `{member}` (`{member.id}`)")
                 break
+    except (discord.NotFound, discord.Forbidden):
+        # Guild ne postoji više ili nemamo View Audit Log permisiju — tiho ignoriši
+        pass
     except Exception as _e: print(f"[on_member_remove nuke] {_e}")
 
 @bot.event
@@ -4241,7 +4317,7 @@ async def ticket_setup(i: discord.Interaction):
     if missing:
         return await i.followup.send(
             f"❌ Botu nedostaju permisije: {', '.join(missing)}\n"
-            f"Dodaj ih u **Server Settings → Roles → GIANNI Community** (bot) pa pokušaj ponovo.",
+            f"Dodaj ih u **Server Settings → Roles → GIANNI (Custom)** (bot) pa pokušaj ponovo.",
             ephemeral=True
         )
 
@@ -4642,6 +4718,41 @@ async def setup_welcome(i: discord.Interaction, kanal: discord.TextChannel, poru
     save_data()
     preview = poruka.replace("{user}", i.user.mention).replace("{server}", i.guild.name) if poruka else f"Hej {i.user.mention}! Drago nam je što si stigao! 🇷🇸"
     await i.response.send_message(embed=em("✅ Welcome kanal postavljen!", f"Kanal: {kanal.mention}\nPoruka: *{preview}*", color=COLORS["success"]), ephemeral=True)
+
+@bot.tree.command(name="aktivnost-setup", description="⚙️ Postavi kanal za XP level-up i aktivnost [ADMIN]")
+@discord.app_commands.describe(
+    levelup_kanal="Kanal gdje bot objavljuje level-up notifikacije",
+    xp_kanal="Kanal za XP/rank prikaz (/rank, /leaderboard komande)"
+)
+@discord.app_commands.default_permissions(manage_guild=True)
+async def aktivnost_setup(
+    i: discord.Interaction,
+    levelup_kanal: discord.TextChannel = None,
+    xp_kanal: discord.TextChannel = None
+):
+    cfg = get_guild_config(i.guild.id)
+    linije = []
+    if levelup_kanal:
+        cfg["levelup_channel"]   = levelup_kanal.id
+        cfg["aktivnost_channel"] = levelup_kanal.id
+        linije.append(f"📊 **Level-up / Aktivnost:** {levelup_kanal.mention}")
+    if xp_kanal:
+        cfg["xp_kanal"] = xp_kanal.id
+        linije.append(f"📈 **XP / Rank prikaz:** {xp_kanal.mention}")
+    if not linije:
+        return await i.response.send_message(
+            embed=em("⚠️ Ništa nije postavljeno", "Proslijedi barem jedan kanal:\n`/aktivnost-setup levelup_kanal:#aktivnost xp_kanal:#rank`", color=COLORS["warning"]),
+            ephemeral=True
+        )
+    save_data()
+    e_out = discord.Embed(
+        title="✅ Aktivnost Setup — Sačuvano!",
+        description="\n".join(linije),
+        color=0xFFD700,
+        timestamp=datetime.now(timezone.utc)
+    )
+    e_out.set_footer(text="GIANNI (Custom) • Aktivnost Setup")
+    await i.response.send_message(embed=e_out, ephemeral=True)
 
 @bot.tree.command(name="setup-leave", description="⚙️ Postavi leave kanal [ADMIN]")
 @discord.app_commands.describe(kanal="Leave kanal")
@@ -5469,7 +5580,7 @@ async def setchannel_cmd(i: discord.Interaction, tip: app_commands.Choice[str], 
     await i.response.send_message(embed=em("✅", f"{tip.name.capitalize()} kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
-#    🔥 VATRICE — sistem vatrica
+#    🔥 VATRICE — sistem vatrica (zamjena za /vanity)
 #    /vatrice ember — daj vatricu članu (embed, radi za sve članove)
 #    /vatrice pup    — top lista (pup = popularni)
 #    /vatrice oblik  — postavke (admin: emoji/oblik vatrice)
@@ -6945,285 +7056,335 @@ async def tiketstaff_cmd(i: discord.Interaction):
         )
 
 # ═══════════════════════════════════════════
-#    GLOBALNI SAFETY NET — bez "Interaction failed" / "The bot did not respond"
+#    /INFO — Server info embed (owner only)
 # ═══════════════════════════════════════════
-import logging as _logging, traceback as _traceback, sys as _sys
-
-_log = _logging.getLogger("gianni.safety")
-
-async def _safe_interaction_reply(interaction: "discord.Interaction", text: str, *, ephemeral: bool = True, title: str = "🛠️ Mali zastoj"):
-    """Pokušaj odgovoriti na interakciju bez bacanja warning-a u Discord UI.
-    Ako je response već iskorišten — koristi followup. Ako ni to ne ide — tiho ignoriši."""
-    try:
-        if interaction is None:
-            return
-        embed = em(
-            title,
-            f"{text}\n\n*— {BOT_NAME}*",
-            color=COLORS["warning"],
-            footer="Bot je i dalje online • probaj ponovo za par sekundi",
-        )
-        # 1) Probaj direktan ephemeral response (samo korisnik vidi)
-        try:
-            if not interaction.response.is_done():
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-                return
-        except Exception:
-            pass
-        # 2) Followup je takođe ephemeral (samo korisnik vidi)
-        try:
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            return
-        except Exception:
-            pass
-        # 3) Krajnja opcija — DM korisniku (i dalje samo on vidi, niko u kanalu)
-        try:
-            await interaction.user.send(embed=embed)
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-async def _safe_ack(interaction: "discord.Interaction"):
-    """Garantuje da interakcija ima response (defer ako još nije). Sprječava 'Bot is thinking...' freeze."""
-    try:
-        if interaction is None:
-            return
-        if not interaction.response.is_done():
-            try:
-                await interaction.response.defer(ephemeral=True)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-@bot.tree.error
-async def _on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    # Filtriraj "tihe" greške — channel rule failure već je handlan
-    try:
-        cause = getattr(error, "original", error)
-        # CheckFailure (uključujući naše interaction_check vraćanje False) — već je odgovoreno
-        if isinstance(error, (app_commands.CheckFailure, app_commands.CommandOnCooldown,
-                              app_commands.MissingPermissions, app_commands.BotMissingPermissions)):
-            try:
-                msg = str(error) or "Komanda nije dostupna ovdje."
-                await _safe_interaction_reply(interaction, msg, ephemeral=True)
-            except Exception:
-                pass
-            return
-        # Bilo šta drugo — log ali ne ostavi interakciju da visi
-        _log.error("Slash komanda greška: %s", cause, exc_info=cause)
-        await _safe_interaction_reply(
-            interaction,
-            "Ova komanda se zakucala — ali bez brige, bot radi normalno. Probaj još jednom.",
+@bot.tree.command(name="info", description="📋 Postavi embed sa svim komandama servera [samo vlasnik]")
+async def info_cmd(i: discord.Interaction):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]),
             ephemeral=True,
-            title="🛠️ Komanda nije prošla",
         )
-    except Exception:
-        pass
+    await i.response.defer(ephemeral=True)
 
-# Monkey-patch View / Modal default on_error → tihi handler bez Discord warninga
-async def _view_on_error(self, interaction: discord.Interaction, error: Exception, item):
-    try:
-        _log.error("View item greška (%s): %s", type(item).__name__, error, exc_info=error)
-    except Exception:
-        pass
-    await _safe_interaction_reply(
-        interaction,
-        "Dugme je preskočilo takt — klikni opet pa će proći.",
-        ephemeral=True,
-        title="🎛️ Akcija odbijena",
+    BAR  = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    LINE = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    e = discord.Embed(
+        title="🎮 ✦ GIANNI (Custom) — Komande ✦ 🎮",
+        description=(
+            f"```fix\n💻 Kompjuter: /komanda   📱 Mobitel: .komanda```\n"
+            f"{LINE}"
+        ),
+        color=COLORS["default"],
+        timestamp=datetime.now(timezone.utc),
     )
 
-async def _modal_on_error(self, interaction: discord.Interaction, error: Exception):
+    e.add_field(name="🌍 ═╡ B A L K A N  D U H ╞═ 🌍", value=(
+        "> *Ovde nije važno odakle si, već kakav si.*\n"
+        "> *Donesi smijeh, donesi kafu, donesi sebe.*\n"
+        "> 🏠 *Dobrodošao u GIANNI — gdje svaka noć ima priču.*"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🕹️ ═╡ K L A S I Č N E  I G R E ╞═ 🕹️", value=(
+        "🪨 `/kpm` `.kpm` — Kamen, Papir, Makaze\n"
+        "🎰 `/slots` `.slots` — Slot mašina\n"
+        "🔫 `/rulet` `.rulet` — Ruski rulet, za hrabre!\n"
+        "🪙 `/flip` `.flip` — Bacanje novčića, sa opcijom oklade\n"
+        "🃏 `/blackjack` `.blackjack` — Blackjack protiv dilera\n"
+        "🎲 `/kocka` `.kocka` — Baci kocku protiv nekog igrača"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🧠 ═╡ T R I V I A  &  Z N A N J E ╞═ 🧠", value=(
+        "❓ `/kviz` `.kviz` — Balkan kviz, sa combo multiplierom!\n"
+        "🌐 `/geografija` `.geografija` — Geografski kviz sa combo sistemom\n"
+        "🎱 `/8ball` `.8ball` — Postavi pitanje magičnoj kugli"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n📝 ═╡ R I J E Č I  &  L O G I K A ╞═ 📝", value=(
+        "🪢 `/vjasala` `.vjasala` — Vješala, pogodi skrivenu riječ\n"
+        "🔗 `/kaladont` `.kaladont` — Ulančavanje riječi (kao Activity)\n"
+        "🛑 `/kaladont-stop` `.kaladont-stop` — Zaustavi Kaladont igru\n"
+        "🌡️ `/toplo-hladno` `.toplo-hladno` — Pogodi tajni broj"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n👥 ═╡ M U L T I P L A Y E R ╞═ 👥", value=(
+        "📯 `/amogus` `.amogus` — Pokreni Among Us igru u kanalu\n"
+        "🚫 `/amogus-stop` `.amogus-stop` — Zaustavi Among Us igru"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🔢 ═╡ B R O J A N J E ╞═ 🔢", value=(
+        "⚙️ `/brojanje-postavi` `.brojanje-postavi` — Postavi kanal *(ADMIN)*\n"
+        "📊 `/brojanje-info` `.brojanje-info` — Pokaži trenutno stanje\n"
+        "🔄 `/brojanje-reset` `.brojanje-reset` — Resetuj brojanje *(ADMIN)*"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n💞 ═╡ S O C I J A L N E  &  L J U B A V N E ╞═ 💞", value=(
+        "🤗 `/zagrljaj` `.zagrljaj` — Zagrli nekog\n"
+        "💋 `/poljubac` `.poljubac` — Pošalji poljubac\n"
+        "🥰 `/mazi` `.mazi` — Pomazi nekog nježno\n"
+        "👋 `/tapsi` `.tapsi` — Tapši nekog prijateljski\n"
+        "🙏 `/high5` `.high5` — Daj peticu\n"
+        "❤️ `/srce` `.srce` — Pošalji srce nekome\n"
+        "💍 `/brak` `.brak` — Zaprosi nekog *(za fun)*\n"
+        "🌸 `/kompli` `.kompli` — Slatki kompliment\n"
+        "😳 `/crush` `.crush` — Otkrij ko je tvoj tajni crush\n"
+        "😵 `/cudan` `.cudan` — Razne reakcije"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🇧🇦 ═╡ B A L K A N  S T I L ╞═ 🇧🇦", value=(
+        "👋 `/pozz` `.pozz` — Pozdrav sa humorom\n"
+        "😄 `/fora` `.fora` — Ubaci foru na nečiji račun\n"
+        "😏 `/muv` `.muv` — Muvaj nekog Balkan stilom"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🦁 ═╡ O W O  H U N T I N G ╞═ 🦁", value=(
+        "🏹 `/hunt` `.hunt` — Lovi divlje životinje\n"
+        "🦒 `/zoo` `.zoo` — Pogledaj svoju zbirku\n"
+        "⚔️ `/battle` `.battle` — Bori se sa drugim igračem\n"
+        "💰 `/sell` `.sell` — Prodaj životinje za pare\n"
+        "📋 `/animals` `.animals` — Lista svih životinja i raritet\n"
+        "🙏 `/pray` `.pray` — Pomoli se za nekog *(boost sreće)*"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n💵 ═╡ E K O N O M I J A  &  X P ╞═ 💵", value=(
+        "👛 `/baki` `.baki` — Provjeri stanje novca\n"
+        "🔨 `/posao` `.posao` — Radi i zaradi *(svaki sat)*\n"
+        "🎁 `/daily` `.daily` — Dnevna nagrada\n"
+        "📤 `/daj` `.daj` — Pošalji pare drugaru\n"
+        "🥷 `/kradi` `.kradi` — Pokušaj ukrasti pare *(rizično!)*\n"
+        "📈 `/rank` `.rank` — Tvoj level i XP profil\n"
+        "🏆 `/leaderboard` `.leaderboard` — Top lista servera\n"
+        "🛒 `/shop` `.shop` — Pogledaj šta možeš kupiti\n"
+        "💳 `/kupi` `.kupi` — Kupi predmet iz shopa\n"
+        "📜 `/quests` `.quests` — Tvoji dnevni zadaci"
+    ), inline=False)
+
+    e.add_field(name=LINE, value="✨ *Uživaj i budi dio ekipe!* ✨", inline=False)
+
+    if i.guild and i.guild.icon:
+        e.set_thumbnail(url=i.guild.icon.url)
+    e.set_footer(text="🎮 GIANNI (Custom) • Komande", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
+
     try:
-        _log.error("Modal greška (%s): %s", type(self).__name__, error, exc_info=error)
-    except Exception:
-        pass
-    await _safe_interaction_reply(
-        interaction,
-        "Forma nije prošla — provjeri unos i pokušaj još jednom.",
-        ephemeral=True,
-        title="📝 Forma se zakucala",
+        await i.channel.send(embed=e)
+        await i.followup.send(
+            embed=em("✅ Postavljeno", "Info embed je objavljen u kanalu.", color=COLORS["success"]),
+            ephemeral=True,
+        )
+    except discord.Forbidden:
+        await i.followup.send(
+            embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]),
+            ephemeral=True,
+        )
+
+
+# ═══════════════════════════════════════════
+#    /PRAVILA — Pravilnik servera (owner only)
+# ═══════════════════════════════════════════
+@bot.tree.command(name="pravila", description="📜 Postavi embed sa pravilnikom servera [samo vlasnik]")
+async def pravila_cmd(i: discord.Interaction):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    await i.response.defer(ephemeral=True)
+
+    BAR  = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+
+    e = discord.Embed(
+        title="📜 ═╡ ＰＲＡＶＩＬＮＩＫ  ＳＥＲＶＥＲＡ  ＧＩＡＮＮＩ ╞═ 📜",
+        description=(
+            "╔══════════════════════════════╗\n"
+            "║  Dobrodošli na **GIANNI (Custom)**!  ║\n"
+            "╚══════════════════════════════╝\n\n"
+            "🌟 Cilj servera je dobra atmosfera, zabava i upoznavanje novih ljudi.\n"
+            "📌 Molimo vas da poštujete sljedeća pravila:"
+        ),
+        color=COLORS["default"],
+        timestamp=datetime.now(timezone.utc),
     )
 
-try:
-    discord.ui.View.on_error = _view_on_error
-    discord.ui.Modal.on_error = _modal_on_error
-except Exception:
-    pass
+    e.add_field(name=f"{BAR}\n🤝 ═╡ POŠTUJTE SVE ČLANOVE ╞═ 🤝", value=(
+        "🚫 Zabranjeno je vrijeđanje, maltretiranje i provociranje\n"
+        "❌ Nema rasizma, diskriminacije i govora mržnje\n"
+        "💬 Poštujte tuđe mišljenje, čak i kad se ne slažete"
+    ), inline=False)
 
-# ── GLOBALNI ANTI-INVITE FILTER ZA SVE MODAL FORME ──
-# Omota on_submit svake Modal podklase tako da prvo provjeri sva TextInput
-# polja na invite linkove. Owneri bota su izuzeti. Vrijedi i za buduće
-# podklase preko __init_subclass__.
-async def _modal_invite_check(self, interaction: discord.Interaction) -> bool:
-    """Vrati True ako je nađen invite link i forma treba biti odbijena."""
-    try:
-        if interaction.user.id in OWNER_IDS:
-            return False
-        for child in self.children:
-            try:
-                val = getattr(child, "value", None)
-                if isinstance(val, str) and val and INVITE_REGEX.search(val):
-                    await _safe_interaction_reply(
-                        interaction,
-                        "Discord invite linkovi (`discord.gg/...`, `.gg/...`, `dsc.gg/...`) "
-                        "nisu dozvoljeni unutar formi. Forma je odbijena.",
-                        ephemeral=True,
-                        title="🚫 Reklama zabranjena",
-                    )
-                    try:
-                        _log.info(
-                            "Anti-invite blok u modalu %s od %s",
-                            type(self).__name__, interaction.user,
-                        )
-                    except Exception:
-                        pass
-                    return True
-            except Exception:
-                continue
-    except Exception:
-        pass
-    return False
+    e.add_field(name=f"{BAR}\n🔇 ═╡ BEZ SPAMA ╞═ 🔇", value=(
+        "🔁 Ne šaljite iste poruke više puta\n"
+        "😶 Ne spamujte emojima, gifovima ili tagovanjem ljudi\n"
+        "🌊 Flood poruke nisu dozvoljene"
+    ), inline=False)
 
+    e.add_field(name=f"{BAR}\n📢 ═╡ REKLAMIRANJE ╞═ 📢", value=(
+        "🔗 Reklamiranje servera, kanala ili društvenih mreža nije dozvoljeno bez odobrenja admina\n"
+        "📩 Zabranjeno je slanje reklama u DM porukama članovima"
+    ), inline=False)
 
-def _wrap_modal_on_submit(cls):
-    """Omota on_submit jedne Modal klase anti-invite provjerom."""
-    try:
-        if getattr(cls, "_invite_guard_wrapped", False):
-            return
-        # Uzmi on_submit definisan baš na ovoj klasi (ne naslijeđen)
-        original = cls.__dict__.get("on_submit")
-        if original is None:
-            return  # klasa koristi default on_submit — preskoči
+    e.add_field(name=f"{BAR}\n🔞 ═╡ NEPRIKLADAN SADRŽAJ ╞═ 🔞", value=(
+        "🩸 Nema nasilnih, šokantnih ili uznemirujućih slika\n"
+        "🚫 Zabranjen NSFW sadržaj na cijelom serveru\n"
+        "📋 Poštujte pravila Discord platforme i TOS"
+    ), inline=False)
 
-        async def wrapped(self, interaction, __orig=original):
-            blocked = await _modal_invite_check(self, interaction)
-            if blocked:
-                return
-            return await __orig(self, interaction)
+    e.add_field(name=f"{BAR}\n📁 ═╡ KANALI ╞═ 📁", value=(
+        "🎯 Koristite kanale za njihovu predviđenu temu\n"
+        "💬 Ne spamujte i ne off-topic chatujte u pogrešnim kanalima\n"
+        "🤖 Komande za bota koristite u za to određenim kanalima"
+    ), inline=False)
 
-        wrapped.__name__ = getattr(original, "__name__", "on_submit")
-        cls.on_submit = wrapped
-        cls._invite_guard_wrapped = True
-    except Exception:
-        pass
+    e.add_field(name=f"{BAR}\n🛡️ ═╡ POŠTUJTE STAFF ╞═ 🛡️", value=(
+        "👮 Admini i moderatori održavaju red na serveru\n"
+        "⚖️ Njihove odluke su konačne i treba ih poštovati\n"
+        "🎫 Za probleme i prijave koristite ticket sistem"
+    ), inline=False)
 
+    e.add_field(name=f"{BAR}\n😤 ═╡ BEZ DRAME ╞═ 😤", value=(
+        "🥊 Svađe, provociranje i pokretanje drama nisu dozvoljeni\n"
+        "🕊️ Sporove rješavajte mirno ili uz pomoć staffa\n"
+        "🔒 Lične razmirice ostavite van javnih kanala"
+    ), inline=False)
 
-# Omotaj sve već definisane Modal podklase
-def _wrap_all_modal_subclasses(base):
-    try:
-        for sub in list(base.__subclasses__()):
-            _wrap_modal_on_submit(sub)
-            _wrap_all_modal_subclasses(sub)
-    except Exception:
-        pass
+    e.add_field(name=f"{BAR}\n⚠️ ═╡ KAZNE ╞═ ⚠️", value=(
+        "Kršenje pravila može dovesti do sljedećih sankcija:\n\n"
+        "📌 `1.` ⚠️ Upozorenje *(warn)*\n"
+        "📌 `2.` 🔇 Mute na određeno vrijeme\n"
+        "📌 `3.` 👢 Kick sa servera\n"
+        "📌 `4.` 🔨 Permanentni ban — bez prava povratka"
+    ), inline=False)
 
-try:
-    _wrap_all_modal_subclasses(discord.ui.Modal)
-except Exception:
-    pass
+    e.add_field(name=f"{BAR}\n💫 ═╡ ZAVRŠNA RIJEČ ╞═ 💫", value=(
+        "📖 Pravila postoje da bi se svi osjećali dobrodošlo.\n"
+        "🤜🤛 Poštuj druge, čuvaj atmosferu i uživaj u GIANNI ekipi.\n"
+        "🏠 Dobrodošao kući.\n\n"
+        "**✨ Uživaj i budi dio ekipe! ✨**"
+    ), inline=False)
 
-# Hook za buduće Modal podklase
-try:
-    _orig_init_subclass = discord.ui.Modal.__init_subclass__
-
-    def _modal_init_subclass(cls, **kwargs):
-        try:
-            _orig_init_subclass(**kwargs)
-        except Exception:
-            pass
-        _wrap_modal_on_submit(cls)
-
-    discord.ui.Modal.__init_subclass__ = classmethod(_modal_init_subclass)
-except Exception:
-    pass
-
-# Wrap svaku registrovanu app command callback tako da uvijek odgovori na interakciju
-def _wrap_command_callback(cmd):
-    try:
-        original = cmd.callback
-        if getattr(original, "__gianni_wrapped__", False):
-            return
-    except Exception:
-        return
-
-    async def wrapper(*args, **kwargs):
-        # interaction je obično 1. argument (ili 2. ako je metoda)
-        interaction = None
-        for a in args:
-            if isinstance(a, discord.Interaction):
-                interaction = a
-                break
-        try:
-            return await original(*args, **kwargs)
-        except app_commands.AppCommandError:
-            raise  # neka tree error handler odradi
-        except discord.NotFound:
-            return  # interakcija istekla — nema smisla javljati
-        except discord.HTTPException as e:
-            try:
-                _log.warning("HTTPException u komandi %s: %s", getattr(cmd, "name", "?"), e)
-            except Exception:
-                pass
-            await _safe_interaction_reply(interaction, "Discord je trenutno spor — pričekaj sekundu pa probaj opet.", ephemeral=True, title="🌐 Discord usporen")
-        except Exception as e:
-            try:
-                _log.error("Komanda %s baca: %s", getattr(cmd, "name", "?"), e, exc_info=e)
-            except Exception:
-                pass
-            await _safe_interaction_reply(interaction, "Nešto je puklo u pozadini, ali bot je živ. Probaj ponovo.", ephemeral=True, title="🛠️ Mali zastoj")
+    if i.guild and i.guild.icon:
+        e.set_thumbnail(url=i.guild.icon.url)
+    e.set_footer(text="📜 GIANNI (Custom) • Pravilnik", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
 
     try:
-        wrapper.__gianni_wrapped__ = True
-        cmd.callback = wrapper
-    except Exception:
-        pass
+        await i.channel.send(embed=e)
+        await i.followup.send(
+            embed=em("✅ Postavljeno", "Pravilnik je objavljen u kanalu.", color=COLORS["success"]),
+            ephemeral=True,
+        )
+    except discord.Forbidden:
+        await i.followup.send(
+            embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]),
+            ephemeral=True,
+        )
 
-def _install_command_wrappers():
+
+# ─── 🔊 PRAVILA VOICE (privatni voice kanali) ───
+@bot.tree.command(name="pravila-voice", description="🔊 Postavi embed sa pravilima privatnih voice kanala [samo vlasnik]")
+async def pravila_voice_cmd(i: discord.Interaction):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    await i.response.defer(ephemeral=True)
+
+    BAR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+
+    e = discord.Embed(
+        title="🔊 ═╡ ＰＲＡＶＩＬＡ  ＰＲＩＶＡＴＮＩＨ  ＶＯＩＣＥ  ＫＡＮＡＬＡ ╞═ 🔊",
+        description=(
+            "╔══════════════════════════════╗\n"
+            "║  Dobrodošli u **Privatni Voice** sistem!  ║\n"
+            "╚══════════════════════════════╝\n\n"
+            "🎙️ Svako može napraviti **svoj vlastiti voice kanal** kojim u potpunosti upravlja.\n"
+            "📌 Molimo vas da poštujete sljedeća pravila:"
+        ),
+        color=COLORS["default"],
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    e.add_field(name=f"{BAR}\n🚀 ═╡ KAKO NAPRAVITI KANAL ╞═ 🚀", value=(
+        f"➜ Uđi u voice kanal **🔊 Kreiraj svoj kanal** <#{JTC_VOICE_ID}>\n"
+        "➜ Bot će ti **automatski** napraviti privatni voice\n"
+        "➜ I **odmah** te prebaciti u njega\n"
+        "➜ Postaješ **vlasnik** 👑 i dobijaš kontrolni panel"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🤝 ═╡ POŠTUJTE DRUGE ČLANOVE ╞═ 🤝", value=(
+        "🚫 Zabranjeno je vrijeđanje, maltretiranje i provociranje u voice kanalima\n"
+        "❌ Nema rasizma, diskriminacije i govora mržnje\n"
+        "🎙️ Ne prekidaj druge dok pričaju — sačekaj svoj red\n"
+        "🔇 Ne lupaj mikrofonom, ne puštaj glasnu pozadinsku muziku bez dozvole"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n👑 ═╡ VLASNIŠTVO KANALA ╞═ 👑", value=(
+        "🎛️ Samo vlasnik može koristiti kontrolni panel (Lock, Hide, Kick, itd.)\n"
+        "👥 Vlasnik je odgovoran za atmosferu u svom kanalu\n"
+        "🔁 Prije izlaska možeš prebaciti vlasništvo na drugog (`👑 Owner`)\n"
+        "⚖️ Vlasnik **NE smije** koristiti kontrole za maltretiranje (npr. spamovati Kick)"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🔒 ═╡ LOCK / HIDE PRAVILA ╞═ 🔒", value=(
+        "🔐 Možeš zaključati ili sakriti kanal — to je **tvoje pravo**\n"
+        "🚷 Ali **nemoj** koristiti privatne kanale za zaobilaženje pravila servera\n"
+        "👮 Staff ima pristup svim kanalima zbog moderacije"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🔞 ═╡ NEPRIKLADAN SADRŽAJ ╞═ 🔞", value=(
+        "🚫 Zabranjen NSFW sadržaj, govor i streaming u voice kanalima\n"
+        "🩸 Nema nasilnih, šokantnih ili uznemirujućih sadržaja\n"
+        "📋 Sva opšta pravila servera vrijede i u privatnim voice-ovima"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n📛 ═╡ IMENA KANALA ╞═ 📛", value=(
+        "✏️ Ime kanala mora biti pristojno\n"
+        "🚫 Zabranjena su uvredljiva, provokativna i NSFW imena\n"
+        "🛡️ Staff zadržava pravo da preimenuje ili obriše neprikladan kanal"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n🗑️ ═╡ AUTOMATSKO BRISANJE ╞═ 🗑️", value=(
+        "💨 Kad **svi izađu** iz kanala, bot ga **automatski briše**\n"
+        "💾 Ne brini o čišćenju — bot to radi za tebe\n"
+        "👑 Ako želiš da kanal ostane — prebaci vlasništvo prije izlaska"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n⚠️ ═╡ KAZNE ZA KRŠENJE ╞═ ⚠️", value=(
+        "Kršenje voice pravila može dovesti do sljedećih sankcija:\n\n"
+        "📌 `1.` ⚠️ Upozorenje *(warn)*\n"
+        "📌 `2.` 🔇 Voice mute na određeno vrijeme\n"
+        "📌 `3.` 🚫 Zabrana korištenja privatnih voice kanala\n"
+        "📌 `4.` 👢 Kick / 🔨 Ban sa servera"
+    ), inline=False)
+
+    e.add_field(name=f"{BAR}\n💫 ═╡ ZAVRŠNA RIJEČ ╞═ 💫", value=(
+        "🎧 Privatni voice kanali postoje da se družite, smijete i provedete kvalitetno vrijeme.\n"
+        "🤜🤛 Poštuj druge, čuvaj atmosferu i uživaj u GIANNI ekipi.\n\n"
+        "**✨ Sretno druženje! ✨**"
+    ), inline=False)
+
+    if i.guild and i.guild.icon:
+        e.set_thumbnail(url=i.guild.icon.url)
+    e.set_footer(text="🔊 GIANNI (Custom) • Voice Pravila", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
+
     try:
-        for cmd in list(bot.tree.walk_commands()):
-            try:
-                _wrap_command_callback(cmd)
-            except Exception:
-                pass
-    except Exception:
-        pass
+        await i.channel.send(embed=e)
+        await i.followup.send(
+            embed=em("✅ Postavljeno", "Voice pravila su objavljena u kanalu.", color=COLORS["success"]),
+            ephemeral=True,
+        )
+    except discord.Forbidden:
+        await i.followup.send(
+            embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]),
+            ephemeral=True,
+        )
 
-# Pozovi pre i posle setup_hook-a (sigurnosni pojas)
-_install_command_wrappers()
-
-_orig_setup_hook = getattr(bot, "setup_hook", None)
-async def _patched_setup_hook():
-    try:
-        if _orig_setup_hook is not None:
-            await _orig_setup_hook()
-    finally:
-        _install_command_wrappers()
-try:
-    bot.setup_hook = _patched_setup_hook  # type: ignore
-except Exception:
-    pass
-
-# Globalni event-error swallow (da exception u listeneru ne ruši loop)
-@bot.event
-async def on_error(event_method, *args, **kwargs):
-    try:
-        _log.error("Greška u event-u %s\n%s", event_method, _traceback.format_exc())
-    except Exception:
-        pass
 
 # ═══════════════════════════════════════════
 #    POKRETANJE
 # ═══════════════════════════════════════════
 if __name__ == "__main__":
     print(f"\n{BOT_NAME} {VERSION} STARTUJE...\n")
-    _logging.basicConfig(
-        level=_logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        stream=_sys.stdout,
-    )
     try:
         bot.run(TOKEN)
     except discord.LoginFailure:
