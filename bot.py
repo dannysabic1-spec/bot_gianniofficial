@@ -783,6 +783,62 @@ async def on_ready():
         except Exception as e:
             print(f"  ✘ selfroles restore [{key}]: {e}")
 
+    # ── 🎉 RECOVERY: nastavi aktivne giveaway-ove poslije restarta ──
+    saved_gws = data.get("active_giveaways", {})
+    if saved_gws:
+        print(f"  🎉 Recovery {len(saved_gws)} aktivnih giveaway-ova...")
+        now_ts = datetime.now(timezone.utc).timestamp()
+        for mid_str, gd in list(saved_gws.items()):
+            try:
+                mid = int(mid_str)
+                ga = {
+                    "entrants": set(gd.get("entrants", [])),
+                    "prize": gd["prize"],
+                    "channel_id": gd["channel_id"],
+                    "msg_id": mid,
+                    "end_at": gd.get("end_at"),
+                    "guild_id": gd.get("guild_id"),
+                }
+                active_giveaways[mid] = ga
+                ch = bot.get_channel(gd["channel_id"])
+                if not ch:
+                    print(f"  ✘ giveaway {mid}: kanal {gd['channel_id']} ne postoji, brišem")
+                    _remove_giveaway(mid); active_giveaways.pop(mid, None)
+                    continue
+                end_at = gd.get("end_at") or now_ts
+                remaining = max(0, end_at - now_ts)
+                if remaining <= 0:
+                    asyncio.create_task(_end_giveaway(mid, ch))
+                    print(f"  ✔ giveaway {mid}: istekao → završavam")
+                else:
+                    async def _resume(mid=mid, ch=ch, sec=remaining):
+                        await asyncio.sleep(sec)
+                        await _end_giveaway(mid, ch)
+                    asyncio.create_task(_resume())
+                    print(f"  ✔ giveaway {mid}: nastavlja se ({int(remaining)}s preostalo)")
+            except Exception as e:
+                print(f"  ✘ giveaway recovery [{mid_str}]: {e}")
+
+    # ── 🔊 CLEANUP: orphaned privatni VC-ovi ──
+    pvs = dict(data.get("private_voices", {}))
+    cleaned = 0
+    for ch_id_str in list(pvs.keys()):
+        try:
+            ch = bot.get_channel(int(ch_id_str))
+            if ch is None:
+                # Kanal ne postoji više
+                data["private_voices"].pop(ch_id_str, None); cleaned += 1
+            elif len([m for m in ch.members if not m.bot]) == 0:
+                # Prazan — obriši
+                try: await ch.delete(reason="Cleanup orphaned PVC na startup")
+                except: pass
+                data["private_voices"].pop(ch_id_str, None); cleaned += 1
+        except Exception as e:
+            print(f"  ✘ pvc cleanup [{ch_id_str}]: {e}")
+    if cleaned:
+        save_data()
+        print(f"  🧹 Očišćeno {cleaned} praznih/nepostojećih privatnih VC-ova")
+
 @bot.event
 async def on_guild_join(guild):
     print(f"  ➕ Pridružen server: {guild.name} ({guild.member_count} članova)")
@@ -4107,6 +4163,22 @@ async def quests_cmd(i: discord.Interaction):
 # ═══════════════════════════════════════════
 active_giveaways: dict = {}
 
+def _save_giveaway(msg_id, ga):
+    """Persistira giveaway u data fajl (preživljava restart)."""
+    data.setdefault("active_giveaways", {})[str(msg_id)] = {
+        "entrants": list(ga["entrants"]),
+        "prize": ga["prize"],
+        "channel_id": ga["channel_id"],
+        "msg_id": ga["msg_id"],
+        "end_at": ga.get("end_at"),
+        "guild_id": ga.get("guild_id"),
+    }
+    save_data()
+
+def _remove_giveaway(msg_id):
+    data.get("active_giveaways", {}).pop(str(msg_id), None)
+    save_data()
+
 class GiveawayView(discord.ui.View):
     def __init__(self, msg_id=None):
         super().__init__(timeout=None)
@@ -4114,7 +4186,9 @@ class GiveawayView(discord.ui.View):
 
     @discord.ui.button(label="Učestvuj", emoji="🎉", style=discord.ButtonStyle.success, custom_id="ga_enter")
     async def enter(self, i: discord.Interaction, b):
-        ga = active_giveaways.get(self.msg_id)
+        # Pronađi giveaway preko msg_id (interaction message ako self.msg_id None)
+        mid = self.msg_id or i.message.id
+        ga = active_giveaways.get(mid)
         if not ga:
             return await i.response.send_message("Nagradna igra je završena!", ephemeral=True)
         if i.user.id in ga["entrants"]:
@@ -4123,8 +4197,9 @@ class GiveawayView(discord.ui.View):
         else:
             ga["entrants"].add(i.user.id)
             await i.response.send_message("✅ Prijavljen/a si! Sretno! 🍀", ephemeral=True)
+        _save_giveaway(mid, ga)
         try:
-            msg = await i.channel.fetch_message(self.msg_id)
+            msg = await i.channel.fetch_message(mid)
             e   = msg.embeds[0]
             e.set_field_at(1, name="👥 Učesnici", value=f"`{len(ga['entrants'])}`", inline=True)
             await msg.edit(embed=e)
@@ -4151,8 +4226,12 @@ async def giveaway_start(i: discord.Interaction, nagrada: str, minuta: int = 60,
     e.set_footer(text=f"Završava se • {BOT_NAME}")
     await i.response.send_message("✅ Nagradna igra pokrenuta!", ephemeral=True)
     msg = await chan.send(embed=e)
-    ga  = {"entrants": set(), "prize": nagrada, "channel_id": chan.id, "msg_id": msg.id}
+    ga  = {
+        "entrants": set(), "prize": nagrada, "channel_id": chan.id,
+        "msg_id": msg.id, "end_at": end.timestamp(), "guild_id": chan.guild.id,
+    }
     active_giveaways[msg.id] = ga
+    _save_giveaway(msg.id, ga)
     await msg.edit(view=GiveawayView(msg.id))
     await asyncio.sleep(minuta * 60)
     await _end_giveaway(msg.id, chan)
@@ -4170,6 +4249,7 @@ async def giveaway_end(i: discord.Interaction):
 
 async def _end_giveaway(msg_id, channel):
     ga = active_giveaways.pop(msg_id, None)
+    _remove_giveaway(msg_id)
     if not ga: return
     try: msg = await channel.fetch_message(msg_id)
     except: return
@@ -6595,18 +6675,46 @@ async def on_voice_state_update(member, before, after):
     if member.bot: return
     # ── KREIRAJ NOVI PRIVATNI VC ──
     if after.channel and after.channel.id == JTC_VOICE_ID:
+        new_ch = None
         try:
             cat = after.channel.category
-            new_ch = await member.guild.create_voice_channel(
-                name=f"🔊 {member.display_name}",
-                category=cat,
-                reason=f"Privatni VC za {member}"
-            )
+            me = member.guild.me
+            # ── Provjera permisija ──
+            missing = []
+            if not me.guild_permissions.manage_channels: missing.append("Manage Channels")
+            if not me.guild_permissions.move_members:    missing.append("Move Members")
+            if cat is not None:
+                cat_perms = cat.permissions_for(me)
+                if not cat_perms.manage_channels: missing.append("Manage Channels (kategorija)")
+                if not cat_perms.connect:         missing.append("Connect (kategorija)")
+            if missing:
+                msg = f"Botu nedostaju permisije: **{', '.join(missing)}**"
+                print(f"[pvc create] ✘ {msg}")
+                try: await member.send(f"❌ Ne mogu napraviti tvoj voice kanal.\n{msg}")
+                except: pass
+                return
+            # ── Kreiraj kanal (fallback bez kategorije ako je puna) ──
+            try:
+                new_ch = await member.guild.create_voice_channel(
+                    name=f"🔊 {member.display_name}",
+                    category=cat,
+                    reason=f"Privatni VC za {member}"
+                )
+            except discord.HTTPException as he:
+                if (he.code == 30013) or ("Maximum number" in str(he)):
+                    print(f"[pvc create] kategorija puna → pravim bez kategorije")
+                    new_ch = await member.guild.create_voice_channel(
+                        name=f"🔊 {member.display_name}",
+                        reason=f"Privatni VC za {member} (bez kategorije)"
+                    )
+                else:
+                    raise
             await new_ch.set_permissions(member, manage_channels=True, move_members=True,
                 mute_members=True, deafen_members=True, connect=True, view_channel=True)
             data["private_voices"][str(new_ch.id)] = member.id
             save_data()
             await member.move_to(new_ch)
+            print(f"[pvc create] ✓ {member} → {new_ch.name} ({new_ch.id})")
             # Pošalji panel u kanal (text chat unutar VC-a, Discord 2024+ feature)
             try:
                 e = discord.Embed(
@@ -6628,7 +6736,12 @@ async def on_voice_state_update(member, before, after):
                 e.set_footer(text=f"{BOT_NAME} • Privatni Voice Sistem")
                 await new_ch.send(content=member.mention, embed=e, view=PrivateVCPanel())
             except Exception as _e: print(f"[pvc panel] {_e}")
-        except Exception as _e: print(f"[pvc create] {_e}")
+        except Exception as _e:
+            import traceback
+            print(f"[pvc create] ✘ {type(_e).__name__}: {_e}")
+            traceback.print_exc()
+            try: await member.send(f"❌ Greška pri kreiranju voice kanala:\n```{type(_e).__name__}: {_e}```")
+            except: pass
 
     # ── OBRIŠI PRAZAN PRIVATNI VC ──
     if before.channel and str(before.channel.id) in data.get("private_voices", {}):
@@ -6718,25 +6831,30 @@ class StaffApplicationModal(discord.ui.Modal, title="📋 Prijava za Staff"):
                 ephemeral=True,
             )
 
-        # Kanal permisije — svi VIDE, samo admini i staff pišu + glasaju
+        # 🔒 PRIVATNO — vidi SAMO vlasnik bota + aplikant (po želji korisnika)
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(
-                read_messages=True, send_messages=False, add_reactions=False
+                read_messages=False, send_messages=False, add_reactions=False
             ),
             i.user: discord.PermissionOverwrite(
-                read_messages=True, send_messages=False
+                read_messages=True, send_messages=False, add_reactions=False
             ),
             guild.me: discord.PermissionOverwrite(
                 read_messages=True, send_messages=True, manage_channels=True
             ),
         }
-        for role in guild.roles:
-            if role.permissions.administrator or any(
-                w in role.name.lower() for w in ("gianni", "owner", "founder", "admin", "mod", "staff")
-            ):
-                overwrites[role] = discord.PermissionOverwrite(
-                    read_messages=True, send_messages=True, add_reactions=True
+        # Dodaj sve OWNER-e iz OWNER_IDS whiteliste
+        for owner_id in OWNER_IDS:
+            owner_member = guild.get_member(owner_id)
+            if owner_member:
+                overwrites[owner_member] = discord.PermissionOverwrite(
+                    read_messages=True, send_messages=True, add_reactions=True, manage_channels=True
                 )
+        # Dodaj i vlasnika servera (guild.owner) da uvijek vidi
+        if guild.owner and guild.owner.id not in OWNER_IDS:
+            overwrites[guild.owner] = discord.PermissionOverwrite(
+                read_messages=True, send_messages=True, add_reactions=True
+            )
 
         # Kategorija: "Staff Prijave" → "Prijave" → "Tickets" → bez kategorije
         category = (
@@ -6807,10 +6925,10 @@ class StaffApplicationModal(discord.ui.Modal, title="📋 Prijava za Staff"):
             ),
             inline=False,
         )
-        e.set_footer(text=f"📋 GIANNI Staff Prijava  •  {guild.name}  •  Svi mogu vidjeti")
+        e.set_footer(text=f"🔒 GIANNI Staff Prijava  •  {guild.name}  •  PRIVATNO — vidi samo vlasnik")
 
         await chan.send(
-            content=f"📢 **Nova staff prijava od {i.user.mention}!** — Admin glasanje ispod 👇",
+            content=f"🔒 **Nova staff prijava od {i.user.mention}** — vidljivo samo vlasniku 👇",
             embed=e,
             view=StaffVoteView(),
         )
@@ -6835,8 +6953,8 @@ class StaffApplicationModal(discord.ui.Modal, title="📋 Prijava za Staff"):
             description=(
                 f"## 🎉 Uspješno si se prijavio/la za Staff!\n"
                 f"📂 Tvoja prijava je objavljena: {chan.mention}\n\n"
-                f"👀 Svi članovi servera mogu vidjeti tvoju prijavu.\n"
-                f"⏳ Admin glasanje traje **1–3 dana**. Budemo te obavijestili! 📩"
+                f"🔒 Tvoja prijava je **privatna** — vidi je samo vlasnik bota.\n"
+                f"⏳ Pregled traje **1–3 dana**. Budemo te obavijestili! 📩"
             ),
             color=0x00BCD4,
             timestamp=datetime.now(timezone.utc),
