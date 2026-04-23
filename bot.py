@@ -678,7 +678,12 @@ async def get_gif(action: str) -> str | None:
 #    EVENTI
 # ═══════════════════════════════════════════
 async def _license_check_and_shutdown_if_clone():
-    """Provjerava da je bot na zvaničnom GIANNI serveru. Ako nije — gasi se."""
+    """Provjerava da je bot na zvaničnom GIANNI serveru. Ako nije — gasi se.
+    Aktivira se SAMO ako je env var LICENSE_GUARD=1 (sigurnosni opt-in).
+    """
+    if os.environ.get("LICENSE_GUARD") != "1":
+        print(f"  🔓 Licenca: guard isključen (postavi LICENSE_GUARD=1 da uključiš)")
+        return True
     if bot.get_guild(OFFICIAL_GUILD_ID) is not None:
         print(f"  🔐 Licenca: ✓ ovo je ZVANIČNI bot (discord.gg/{OFFICIAL_INVITE})")
         return True
@@ -781,8 +786,8 @@ async def on_ready():
 @bot.event
 async def on_guild_join(guild):
     print(f"  ➕ Pridružen server: {guild.name} ({guild.member_count} članova)")
-    # ── 🔐 Licencna provjera za novi server ──
-    if bot.get_guild(OFFICIAL_GUILD_ID) is None:
+    # ── 🔐 Licencna provjera za novi server (samo ako je guard aktivan) ──
+    if os.environ.get("LICENSE_GUARD") == "1" and bot.get_guild(OFFICIAL_GUILD_ID) is None:
         # Ovo je klonirani bot — ne dozvoli mu rad na novom serveru
         try:
             ch = next((c for c in guild.text_channels if c.permissions_for(guild.me).send_messages), None)
