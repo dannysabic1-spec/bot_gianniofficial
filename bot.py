@@ -3326,7 +3326,10 @@ class PokerActionView(discord.ui.View):
         if uid not in g.get("needs_action", set()):
             return await interaction.response.send_message("Već si djelovao/la u ovoj rundi.", ephemeral=True)
         g["needs_action"].discard(uid)
-        await interaction.response.send_message("✅ Pratiš!", ephemeral=True)
+        await interaction.response.send_message(
+            embed=em("✅ Pratiš!", "Tvoja akcija je registrovana.", color=COLORS["success"]),
+            ephemeral=True
+        )
         await _pk_check_advance(self.channel_id)
 
     @discord.ui.button(label="❌ Fold", style=discord.ButtonStyle.danger, row=1)
@@ -3414,15 +3417,21 @@ async def _pk_next_phase(channel_id: int):
     if phase == "preflop":
         g["community"] = [g["deck"].pop(), g["deck"].pop(), g["deck"].pop()]
         g["phase"]     = "flop"
-        announce = f"🌊 **FLOP** — Zajedničke kartice:\n{_pk_cards(g['community'])}"
+        ann_title = "🌊 FLOP"
+        ann_desc  = f"Zajedničke kartice:\n{_pk_cards(g['community'])}"
+        ann_color = COLORS["info"]
     elif phase == "flop":
         g["community"].append(g["deck"].pop())
         g["phase"] = "turn"
-        announce = f"🔄 **TURN** — Kartice:\n{_pk_cards(g['community'])}"
+        ann_title = "🔄 TURN"
+        ann_desc  = f"Kartice:\n{_pk_cards(g['community'])}"
+        ann_color = COLORS["purple"]
     elif phase == "turn":
         g["community"].append(g["deck"].pop())
         g["phase"] = "river"
-        announce = f"🌊 **RIVER** — Kartice:\n{_pk_cards(g['community'])}"
+        ann_title = "🌊 RIVER"
+        ann_desc  = f"Kartice:\n{_pk_cards(g['community'])}"
+        ann_color = COLORS["gold"]
     elif phase == "river":
         await _pk_showdown(channel_id)
         return
@@ -3437,7 +3446,7 @@ async def _pk_next_phase(channel_id: int):
             await msg.edit(embed=e, view=view)
     except Exception:
         pass
-    await ch.send(announce)
+    await ch.send(embed=em(ann_title, ann_desc, color=ann_color))
 
 async def _pk_showdown(channel_id: int):
     g = poker_games.get(channel_id)
