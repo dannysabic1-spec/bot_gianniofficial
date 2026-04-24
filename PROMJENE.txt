@@ -1,55 +1,234 @@
-════════════════════════════════════════════════════════════
-  GIANNI BOT — FIX ZA 100-COMMAND LIMIT
-════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════
+  GIANNI BOT v2.3.2 — PROMJENE
+═══════════════════════════════════════════════════════
 
-PROBLEM
-───────
-Bot je imao 100 individualnih slash komandi + 2 komandne grupe
-(`giveaway`, `vatrice`) = 102 globalno registrovanih komandi.
-Discord limit je 100, pa je bot pucao na startu sa:
+✅ ŠTA JE NOVO
 
-    discord.app_commands.errors.CommandLimitReached:
-    maximum number of slash commands exceeded 100 globally
+00) /report VRAĆENA — sa cooldownom 1 sat po članu
+    Korištenje: /report korisnik:@neko razlog:opis
+    • 1 prijava na sat po osobi (anti-spam)
+    • Šalje embed u kanal koji admin postavi sa
+      /setchannel tip:report kanal:#report-kanal
+    • Ako kanal nije postavljen — šalje DM vlasniku
+    • Reporter dobije ephemeral potvrdu (samo on vidi)
+    • Uvijek anonimno za prijavljenog (on ne vidi ko ga je prijavio)
 
+    Da bi ostali na 100 komandi (Discord limit), uklonjena:
+    • /setname — bot ime mijenjaj preko Developer Portal-a
 
-ŠTA JE URAĐENO
-──────────────
-Uklonjene 2 komande:
+0) Bot prepoznaje uloge i sa dekorativnim separatorima
+   ispred imena (〢, ║, ┃, │, ┊, •, ・, |, ‖, itd.)
+   Primjeri imena uloga koja sad svi rade:
+     - "Banned Permisson"
+     - "〢 Banned Permisson"
+     - "║ Banned Permission ║"
+     - "┃BANNED┃"
+   Bot automatski ignoriše: 〢║┃│┊╏▎▏▌▍︙⫶•·・｜|‖╎┋┆┇
+                            ┈┉─━═▪▫◆◇★☆◈◉○●«»‹›
+                            navodnike, *=+~-_.
 
-  1) /report     — anonimna prijava korisnika moderatorima
-                   (vlasnik je tražio uklanjanje; tiket sistem
-                    pokriva ozbiljne prijave)
+1) /ban — preusmjerena ovlast
+   • VLASNIK (tvoj Discord ID): radi PRAVI Discord ban
+   • STAFF (Admin/Mod/itd.): umjesto bana automatski:
+     - Skida sve uloge korisniku
+     - Dodjeljuje ulogu "Banned Permisson" (radi i sa typo)
+     - Sprema njegove stare uloge u memoriju (za vraćanje)
+     - DM-uje vlasnika sa obavještenjem
+     - Embed ima 2 dugmeta (samo vlasnik može):
+        ✅ Vrati Uloge (skine Banned Permisson + vrati stare)
+        🔨 Pravi Ban (izvrši pravi Discord ban)
 
-  2) /setavatar  — promjena slike bota
-                   (admin koristi 1x u životu; može i preko
-                    Discord Developer Portal-a → Bot → Avatar)
+2) /kick — preusmjerena ovlast
+   • VLASNIK: radi PRAVI Discord kick
+   • STAFF: umjesto kicka samo dodjeljuje "/GIANNI" oznaku
+   • DM vlasniku za uvid
 
-NIŠTA DRUGO NIJE DIRANO. Sve ostale komande, sva logika,
-ekonomija, igre, mafia, backup sistem, ticket sistem, tiketstaff,
-poll, event, brojanje, vatrice, giveaway, setup-* komande,
-roleplay komande (cudan, tapsi, srce, mazi, fora, animals, kocka,
-sort-roles) — SVE OSTAJE NETAKNUTO.
+3) Upload filter — samo slike i GIF-ovi (NOVO)
+   • Dozvoljeno: .gif .png .jpg .jpeg .webp .apng
+     + sve sa "image/*" content-type
+   • Blokirano: dokumenti (.pdf .docx), arhive (.zip .rar .7z),
+     izvršne (.exe .bat), audio (.mp3 .wav), video (.mp4 .mov)
+   • GIF-ovi iz Discord GIF picker-a (Tenor/GIPHY) UVIJEK rade
+   • Admin izuzet
+   • Bot loguje svaki blokirani upload u audit log
 
+⚠️ ANTI-NSFW — VEĆ POSTOJI U BOTU (nije diran)
+   Bot već ima vlastiti pametni NSFW sistem (check_nsfw):
+   - Blokira porno sajtove (pornhub, xvideos, onlyfans, itd.)
+   - Blokira NSFW nazive fajlova (dick, porn, hentai, itd.)
+   - DOZVOLJAVA u NSFW-označenim kanalima
+   - Tenor/GIPHY su uvijek izuzeti
+   - Prati "nsfw_strikes" po članu
 
-NOVI RAČUN
-──────────
-  • Slash komande:        98
-  • Komandne grupe:       +2  (giveaway, vatrice)
-  • Globalno:            100  ✅ TAČNO NA LIMITU
+═══════════════════════════════════════════════════════
+  BROJ KOMANDI
+═══════════════════════════════════════════════════════
+98 individualnih + 2 grupe (giveaway, vatrice) = 100 globalno
+(Discord limit: 100 — TAČNO NA GRANICI)
 
+═══════════════════════════════════════════════════════
+  KAKO UPLOADATI NOVI BOT.PY (KORACI)
+═══════════════════════════════════════════════════════
 
-KAKO POSTAVITI
-──────────────
-1) Skini staru bot.py sa hostinga
-2) Postavi novu bot.py iz ovog zipa
-3) Restartuj bota
-4) Sačekaj 1–2 minute da se slash komande sinhronizuju
-   (ili otkucaj /sync ako si vlasnik)
+1) ZAUSTAVI bota na hostu (panel → Stop)
+   Ne brini — članovi će vidjeti da je offline ~30 sekundi.
 
+2) NAĐI staru bot.py datoteku na hostu
+   Najčešće lokacije:
+   - /home/container/bot.py
+   - root/main folder hosta
 
-NAPOMENA
-────────
-Ako u budućnosti budeš dodavao još funkcija, najbolja opcija
-je grupisanje setup-* komandi (ima ih 13) u jednu /setup grupu
-sa podkomandama — to bi oslobodilo ~12 slotova odjednom, jer
-podkomande unutar grupe ne broje u limit.
+3) BACKUP — preimenuj staru u bot.py.OLD
+   (za svaki slučaj, ako nešto pukne, vratiš staru)
+
+4) UPLOADAJ novu bot.py iz ovog zip-a
+   ⚠️ NEMOJ uploadati i NEMOJ dirati:
+      • oleun_data.json    ← OVO ČUVA SVE PODATKE
+      • backups/ folder
+      • requirements.txt (osim ako kažem)
+
+5) POKRENI bota (panel → Start)
+
+6) ČIM se konektuje, idi na Discord i u bilo kom kanalu
+   gdje bot radi otkucaj:
+        /sync
+   (ovo registruje izmjene komandi /ban i /kick na Discord)
+   Sačekaj 1-2 minute da se registruje.
+
+═══════════════════════════════════════════════════════
+  DA LI SE NASTAVLJAJU VATRICE? — DA!
+═══════════════════════════════════════════════════════
+
+✅ SVE OSTAJE — vatrice, novci, rangovi, upozorenja, sve.
+
+Razlog: bot čuva podatke u DATA_FILE = oleun_data.json
+(odvojen file od bot.py).
+
+Sve što članovi imaju:
+   🔥 vatrice
+   💶 novac (baki)
+   📈 XP / level / rank
+   ⚠️ warnings
+   🎁 daily streaks
+   🎫 lottery tiketi
+   🏠 zoo životinje
+   ❤️ brakovi i crushevi
+   📋 quests progress
+   ...sve ostalo
+
+Sve to ostaje NETAKNUTO jer ne dira oleun_data.json.
+
+❌ JEDINO što se "resetuje" — soft-bani u memoriji ako još
+nisu sačuvani prije restart-a. Ali otkad sam dodao save_data()
+poziv, sve se sprema odmah.
+
+═══════════════════════════════════════════════════════
+  ŠTA TI TREBAŠ URADITI NA DISCORD-u
+═══════════════════════════════════════════════════════
+
+A) HIJERARHIJA ULOGA — pomakni GIANNI bot ulogu IZNAD svih
+   uloga koje treba da kontroliše. Najmanje IZNAD:
+   - "Banned Permisson"
+   - "/GIANNI"
+   - svih običnih member uloga
+   GIANNI uloga ostaje ISPOD vlasnika.
+
+B) PROVJERI permisije bot uloge (GIANNI Custom):
+   - Manage Roles ✓
+   - Ban Members ✓ (treba za pravi ban)
+   - Kick Members ✓ (treba za pravi kick)
+   - Manage Messages ✓ (briše blokirane uploadove)
+   - View Audit Log ✓
+   - Send Messages, Embed Links, Attach Files ✓
+
+C) PERMISIJE STAFF ULOGA (Server Settings → Roles):
+   • Administrator → SKINI "Ban Members"
+   • Moderator    → SKINI "Ban Members" (ostavi Timeout)
+   • StaffTeam    → SKINI "Ban Members" (ostavi Timeout)
+   • Owners       → po želji (preporučeno: ostavi pravi ban)
+   Vlasnik (Cryptid Gianni) — Administrator (zadrži)
+
+D) "Banned Permisson" uloga — postavi sve permisije na ❌
+   crveni X (View Channels, Send Messages, Connect, Speak,
+   Add Reactions, Use Application Commands, sve manage*).
+   Pomakni je u hijerarhiji IZNAD običnog member-a, ali
+   ISPOD bota i staffa.
+
+E) "/GIANNI" uloga — minimalne permisije (može chatati ali
+   pod nadzorom). Po želji: dodaj Read Message History,
+   Send Messages, View Channels — ostalo ❌.
+
+═══════════════════════════════════════════════════════
+  KAKO RADE NOVE KOMANDE
+═══════════════════════════════════════════════════════
+
+🔴 STAFF kuca:  /ban @korisnik razlog: spam
+   → Bot:
+      - Skida sve uloge korisniku
+      - Dodaje "Banned Permisson"
+      - Sprema u memoriju njegove stare uloge
+      - DM vlasniku
+      - Šalje embed sa dugmadima [Vrati Uloge] [Pravi Ban]
+
+👑 VLASNIK kuca:  /ban @korisnik razlog: nuke
+   → Bot:
+      - Pravi Discord ban (kao i prije)
+
+✅ VLASNIK klikne "Vrati Uloge"
+   → Bot:
+      - Skida "Banned Permisson"
+      - Vraća sve stare uloge
+      - Briše soft-ban iz memorije
+
+🔨 VLASNIK klikne "Pravi Ban"
+   → Bot:
+      - Izvršava Discord ban
+      - Briše soft-ban iz memorije
+
+═══════════════════════════════════════════════════════
+  UPLOAD FILTER — primjeri
+═══════════════════════════════════════════════════════
+
+✅ DOZVOLJENO:
+   slika.png, animacija.gif, photo.jpg, sticker.webp,
+   GIF iz Discord GIF picker-a (Tenor/GIPHY),
+   bilo koja datoteka sa Content-Type: image/*
+
+❌ BLOKIRANO:
+   dokument.pdf, racun.docx, arhiva.zip, virus.exe,
+   muzika.mp3, video.mp4, instalacija.bat, audio.wav
+
+   Bot pošalje upozorenje: "Datoteka X blokirana,
+   dozvoljene su samo slike i GIF-ovi"
+
+═══════════════════════════════════════════════════════
+  TROUBLESHOOTING
+═══════════════════════════════════════════════════════
+
+❓ Bot kaže "Uloga Banned Permisson ne postoji"
+   → Provjeri pišeš li tačno isto kao na serveru.
+   Bot tolerira tipfelere razmaka i veličinu slova.
+   Trebaju varijante: "Banned Permisson", "Banned
+   Permission", "Banned" — bilo koja od njih radi.
+
+❓ Bot kaže "ne može dodijeliti jer je iznad uloge"
+   → Pomakni GIANNI Custom (bot ulogu) u hijerarhiji
+   iznad "Banned Permisson" i "/GIANNI" uloga.
+
+❓ Staff i dalje može pravi ban
+   → Skini im permisiju "Ban Members" u Server Settings
+   → Roles → [uloga] → Permissions.
+
+❓ Slike se brišu zajedno sa dokumentima
+   → Provjeri ekstenziju datoteke. Bot dozvoljava
+   .gif .png .jpg .jpeg .webp .apng. Ako je tvoja slika
+   neki drugi format (npr. .heic, .bmp, .tiff) — javi
+   pa ću dodati u listu.
+
+❓ Vatrice/novci nestali nakon update-a
+   → Slučajno si obrisao oleun_data.json. Vrati ga iz
+   backups/ foldera (bot pravi auto-backupe svakih 6h).
+
+═══════════════════════════════════════════════════════
+                    Verzija 2.3
+═══════════════════════════════════════════════════════

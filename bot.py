@@ -2161,44 +2161,174 @@ async def brojanje_reset(i: discord.Interaction):
     save_data()
     await i.response.send_message(embed=em("✅ Resetovano!", "Brojanje krene od **1**.", color=COLORS["success"]))
 
-@bot.tree.command(name="setname", description="✏️ Promeni ime bota")
-@app_commands.checks.has_permissions(administrator=True)
-async def setname(i: discord.Interaction, ime: str):
-    try:
-        await bot.user.edit(username=ime)
-        e = em("✅ Ime promenjeno!", f"Novo ime: **{ime}**", color=COLORS["success"])
-    except discord.HTTPException as ex:
-        e = em("❌ Greška", f"{ex}\n*Max 2 promene na 10 min*", color=COLORS["error"])
-    await i.response.send_message(embed=e, ephemeral=True)
-
-# /setavatar — uklonjeno (oslobađa slot za 100-command limit)
+# /setname i /setavatar — uklonjeni (oslobađa slotove za 100-command limit)
+# Bot ime/avatar mijenjaj ručno preko Discord Developer Portal-a.
 
 # ═══════════════════════════════════════════
 #    MODERACIJA
 # ═══════════════════════════════════════════
-@bot.tree.command(name="ban", description="🔨 Banuj korisnika")
+def _find_role_by_names(guild: discord.Guild, names: list):
+    """Pronađi ulogu po nazivu (case-insensitive, zanemari razmake i dekorativne separatore).
+    Tolerira: 〢 ║ ┃ │ ┊ ╏ ▎ ▏ ▌ ▍ ︙ ⫶ • · ・ ｜ | ‖ ╎ ┋ ┆ ┇ ┈ ┉ ─ ━ ═ ▪ ▫ ◆ ◇ ★ ☆"""
+    SEP_CHARS = "〢║┃│┊╏▎▏▌▍︙⫶•·・｜|‖╎┋┆┇┈┉─━═▪▫◆◇★☆◈◉○●◎◍◌«»‹›„""''‚‛*=+~-_."
+    def norm(s: str) -> str:
+        s = s.lower()
+        # Skini sve dekorativne separatore i razmake
+        s = "".join(ch for ch in s if ch not in SEP_CHARS)
+        s = re.sub(r"\s+", "", s)
+        return s
+    targets = [norm(n) for n in names]
+    for r in guild.roles:
+        if norm(r.name) in targets:
+            return r
+    return None
+
+@bot.tree.command(name="ban", description="🔨 [VLASNIK] Pravi ban / [STAFF] dodjela uloge Banned Permisson")
 @app_commands.default_permissions(ban_members=True)
 @app_commands.checks.has_permissions(ban_members=True)
 async def ban(i: discord.Interaction, korisnik: discord.Member, razlog: str = "Bez razloga"):
     if korisnik.top_role >= i.user.top_role:
-        return await i.response.send_message(embed=em("❌ Greška", "Ne možeš banovati nekoga sa višom ulogom!", color=COLORS["error"]), ephemeral=True)
-    await korisnik.ban(reason=razlog)
-    await i.response.send_message(embed=em("🔨 Banovan", color=COLORS["error"], thumb=korisnik.display_avatar.url, fields=[
-        ("👤 Korisnik", f"{korisnik} (`{korisnik.id}`)", False),
-        ("📝 Razlog", razlog, False), ("🛡️ Moderator", i.user.mention, False),
-    ]))
+        return await i.response.send_message(embed=em("❌ Greška", "Ne možeš ovo nekome sa višom ili istom ulogom!", color=COLORS["error"]), ephemeral=True)
 
-@bot.tree.command(name="kick", description="👢 Izbaci korisnika")
+    # ── VLASNIK → pravi Discord ban ──
+    if i.user.id in OWNER_IDS:
+        await korisnik.ban(reason=f"[VLASNIK BAN] {razlog}")
+        return await i.response.send_message(embed=em("🔨 Banovan (Vlasnik)", color=COLORS["error"], thumb=korisnik.display_avatar.url, fields=[
+            ("👤 Korisnik", f"{korisnik} (`{korisnik.id}`)", False),
+            ("📝 Razlog", razlog, False), ("👑 Vlasnik", i.user.mention, False),
+        ]))
+
+    # ── STAFF → soft-ban: dodaj ulogu "Banned Permisson" ──
+    banned_role = _find_role_by_names(i.guild, ["Banned Permisson", "Banned Permission", "Banned"])
+    if not banned_role:
+        return await i.response.send_message(embed=em("❌ Greška", "Uloga `Banned Permisson` ne postoji na serveru!\nKreiraj je ili javi vlasniku.", color=COLORS["error"]), ephemeral=True)
+    if banned_role >= i.guild.me.top_role:
+        return await i.response.send_message(embed=em("❌ Greška", f"Bot ne može dodijeliti `{banned_role.name}` jer je iznad njegove uloge!\nPomakni GIANNI bot ulogu iznad nje.", color=COLORS["error"]), ephemeral=True)
+
+    # Sačuvaj sve njegove uloge (osim @everyone) za moguće vraćanje
+    saved_roles = [r.id for r in korisnik.roles if r != i.guild.default_role and r != banned_role]
+    data.setdefault("soft_bans", {})[str(korisnik.id)] = {
+        "guild_id": i.guild.id, "roles": saved_roles,
+        "razlog": razlog, "moderator": i.user.id,
+        "vreme": datetime.now(timezone.utc).strftime("%d.%m.%Y. %H:%M")
+    }
+    save_data()
+
+    try:
+        # Skini sve uloge i dodaj banned
+        roles_to_remove = [r for r in korisnik.roles if r != i.guild.default_role and r < i.guild.me.top_role]
+        if roles_to_remove:
+            await korisnik.remove_roles(*roles_to_remove, reason=f"Soft-ban od {i.user}: {razlog}")
+        await korisnik.add_roles(banned_role, reason=f"Soft-ban od {i.user}: {razlog}")
+    except discord.Forbidden:
+        return await i.response.send_message(embed=em("❌ Greška", "Bot nema permisiju da mijenja uloge ovom korisniku!", color=COLORS["error"]), ephemeral=True)
+
+    # View sa dugmadima za vlasnika (Vrati uloge / Pravi Ban)
+    class SoftBanView(discord.ui.View):
+        def __init__(self, target_id: int, banned_role_id: int):
+            super().__init__(timeout=None)
+            self.target_id = target_id
+            self.banned_role_id = banned_role_id
+
+        @discord.ui.button(label="✅ Vrati Uloge", style=discord.ButtonStyle.success, custom_id=f"softban_restore_{korisnik.id}")
+        async def restore(self, ii: discord.Interaction, btn: discord.ui.Button):
+            if ii.user.id not in OWNER_IDS:
+                return await ii.response.send_message("❌ Samo vlasnik može vratiti uloge.", ephemeral=True)
+            target = ii.guild.get_member(self.target_id)
+            if not target:
+                return await ii.response.send_message("❌ Korisnik više nije na serveru.", ephemeral=True)
+            sb = data.get("soft_bans", {}).get(str(self.target_id))
+            if not sb:
+                return await ii.response.send_message("❌ Nema sačuvanih uloga.", ephemeral=True)
+            br = ii.guild.get_role(self.banned_role_id)
+            try:
+                if br and br in target.roles:
+                    await target.remove_roles(br, reason=f"Restore od {ii.user}")
+                roles_to_add = [ii.guild.get_role(rid) for rid in sb.get("roles", [])]
+                roles_to_add = [r for r in roles_to_add if r and r < ii.guild.me.top_role]
+                if roles_to_add:
+                    await target.add_roles(*roles_to_add, reason=f"Restore od {ii.user}")
+                data["soft_bans"].pop(str(self.target_id), None); save_data()
+                await ii.response.send_message(f"✅ Vraćene uloge za {target.mention}", ephemeral=True)
+            except Exception as e:
+                await ii.response.send_message(f"❌ Greška: `{e}`", ephemeral=True)
+
+        @discord.ui.button(label="🔨 Pravi Ban", style=discord.ButtonStyle.danger, custom_id=f"softban_hardban_{korisnik.id}")
+        async def hardban(self, ii: discord.Interaction, btn: discord.ui.Button):
+            if ii.user.id not in OWNER_IDS:
+                return await ii.response.send_message("❌ Samo vlasnik može banovati.", ephemeral=True)
+            target = ii.guild.get_member(self.target_id)
+            if not target:
+                return await ii.response.send_message("❌ Korisnik više nije na serveru.", ephemeral=True)
+            try:
+                await target.ban(reason=f"[VLASNIK] Pravi ban iz soft-ban panela ({ii.user})")
+                data.get("soft_bans", {}).pop(str(self.target_id), None); save_data()
+                await ii.response.send_message(f"🔨 {target} pravi banovan.", ephemeral=True)
+            except Exception as e:
+                await ii.response.send_message(f"❌ Greška: `{e}`", ephemeral=True)
+
+    await i.response.send_message(embed=em("⛔ Soft-Ban (uloga Banned Permisson)", color=COLORS["error"], thumb=korisnik.display_avatar.url, fields=[
+        ("👤 Korisnik", f"{korisnik.mention} (`{korisnik.id}`)", False),
+        ("📝 Razlog", razlog, False),
+        ("🛡️ Moderator", i.user.mention, True),
+        ("ℹ️ Info", "Pravi Discord ban može uraditi **samo vlasnik** (dugmad ispod).", False),
+    ]), view=SoftBanView(korisnik.id, banned_role.id))
+    # DM vlasniku za odobrenje pravog bana
+    for oid in OWNER_IDS:
+        try:
+            owner = await bot.fetch_user(oid)
+            await owner.send(embed=em("🔔 Soft-Ban zahtijeva pažnju", color=COLORS["warning"], fields=[
+                ("👤 Korisnik", f"{korisnik} (`{korisnik.id}`)", False),
+                ("📝 Razlog", razlog, False),
+                ("🛡️ Moderator", f"{i.user} (`{i.user.id}`)", False),
+                ("🏠 Server", i.guild.name, True),
+                ("⚖️ Akcija", "Vrati uloge ili pravi ban — kroz panel u serveru.", False),
+            ]))
+        except: pass
+
+@bot.tree.command(name="kick", description="👢 [VLASNIK] Pravi kick / [STAFF] dodjela /GIANNI oznake")
 @app_commands.default_permissions(kick_members=True)
 @app_commands.checks.has_permissions(kick_members=True)
 async def kick(i: discord.Interaction, korisnik: discord.Member, razlog: str = "Bez razloga"):
     if korisnik.top_role >= i.user.top_role:
-        return await i.response.send_message(embed=em("❌ Greška", "Ne možeš izbaciti nekoga sa višom ulogom!", color=COLORS["error"]), ephemeral=True)
-    await korisnik.kick(reason=razlog)
-    await i.response.send_message(embed=em("👢 Izbačen", color=COLORS["warning"], thumb=korisnik.display_avatar.url, fields=[
-        ("👤 Korisnik", f"{korisnik} (`{korisnik.id}`)", False),
-        ("📝 Razlog", razlog, False), ("🛡️ Moderator", i.user.mention, False),
+        return await i.response.send_message(embed=em("❌ Greška", "Ne možeš ovo nekome sa višom ili istom ulogom!", color=COLORS["error"]), ephemeral=True)
+
+    # ── VLASNIK → pravi kick ──
+    if i.user.id in OWNER_IDS:
+        await korisnik.kick(reason=f"[VLASNIK KICK] {razlog}")
+        return await i.response.send_message(embed=em("👢 Izbačen (Vlasnik)", color=COLORS["warning"], thumb=korisnik.display_avatar.url, fields=[
+            ("👤 Korisnik", f"{korisnik} (`{korisnik.id}`)", False),
+            ("📝 Razlog", razlog, False), ("👑 Vlasnik", i.user.mention, False),
+        ]))
+
+    # ── STAFF → dodaj /GIANNI ulogu kao oznaku upozorenja ──
+    gianni_role = _find_role_by_names(i.guild, ["/GIANNI", "/Gianni", "GIANNI"])
+    if not gianni_role:
+        return await i.response.send_message(embed=em("❌ Greška", "Uloga `/GIANNI` ne postoji na serveru!\nKreiraj je ili javi vlasniku.", color=COLORS["error"]), ephemeral=True)
+    if gianni_role >= i.guild.me.top_role:
+        return await i.response.send_message(embed=em("❌ Greška", f"Bot ne može dodijeliti `{gianni_role.name}` jer je iznad njegove uloge!", color=COLORS["error"]), ephemeral=True)
+
+    try:
+        await korisnik.add_roles(gianni_role, reason=f"Soft-kick (oznaka) od {i.user}: {razlog}")
+    except discord.Forbidden:
+        return await i.response.send_message(embed=em("❌ Greška", "Bot nema permisiju!", color=COLORS["error"]), ephemeral=True)
+
+    await i.response.send_message(embed=em("⚠️ Soft-Kick (oznaka /GIANNI)", color=COLORS["warning"], thumb=korisnik.display_avatar.url, fields=[
+        ("👤 Korisnik", f"{korisnik.mention} (`{korisnik.id}`)", False),
+        ("📝 Razlog", razlog, False),
+        ("🛡️ Moderator", i.user.mention, True),
+        ("ℹ️ Info", "Pravi Discord kick može uraditi **samo vlasnik**. Dodijeljena oznaka `/GIANNI`.", False),
     ]))
+    for oid in OWNER_IDS:
+        try:
+            owner = await bot.fetch_user(oid)
+            await owner.send(embed=em("🔔 Soft-Kick (oznaka /GIANNI)", color=COLORS["warning"], fields=[
+                ("👤 Korisnik", f"{korisnik} (`{korisnik.id}`)", False),
+                ("📝 Razlog", razlog, False),
+                ("🛡️ Moderator", f"{i.user} (`{i.user.id}`)", False),
+                ("🏠 Server", i.guild.name, True),
+            ]))
+        except: pass
 
 @bot.tree.command(name="timeout", description="⏱️ Ućutkaj korisnika")
 @app_commands.default_permissions(moderate_members=True)
@@ -4291,6 +4421,8 @@ INVITE_REGEX = re.compile(
     re.I
 )
 
+ALLOWED_UPLOAD_EXTS = {".gif", ".png", ".jpg", ".jpeg", ".webp", ".apng"}
+
 async def check_automod(message) -> bool:
     if message.author.guild_permissions.administrator:
         return False
@@ -4305,6 +4437,29 @@ async def check_automod(message) -> bool:
             await audit_log(message.guild, "🚫 Anti-Invite", f"{message.author.mention} pokušao reklamirati drugi server u {message.channel.mention}")
         except: pass
         return True
+
+    # ── Upload filter: dozvoli samo slike/GIF-ove (.gif/.png/.jpg/.jpeg/.webp) ──
+    # NAPOMENA: NSFW filter postoji odvojeno (check_nsfw) — radi ranije u on_message
+    if message.attachments:
+        for att in message.attachments:
+            fname = (att.filename or "").lower()
+            ext = "." + fname.rsplit(".", 1)[-1] if "." in fname else ""
+            ctype = (att.content_type or "").lower()
+            is_image = ext in ALLOWED_UPLOAD_EXTS or ctype.startswith("image/")
+            if not is_image:
+                try:
+                    await message.delete()
+                    await message.channel.send(
+                        embed=em("📎 Upload Zabranjen",
+                                 f"{message.author.mention} — dozvoljene su **samo slike i GIF-ovi** (.gif, .png, .jpg, .jpeg, .webp).\n"
+                                 f"❌ Datoteka: `{att.filename}` blokirana.\n\n"
+                                 f"💡 GIF-ovi preko Discord GIF picker-a (Tenor/GIPHY) rade normalno.",
+                                 color=COLORS["error"]),
+                        delete_after=10
+                    )
+                    await audit_log(message.guild, "📎 Upload Block", f"{message.author.mention} pokušao uploadati `{att.filename}` u {message.channel.mention}")
+                except: pass
+                return True
     content_lower = message.content.lower()
     for word in BAD_WORDS:
         if word in content_lower:
@@ -7345,7 +7500,84 @@ async def on_app_command_completion(interaction, command):
         data["cmd_uses"][n] = data["cmd_uses"].get(n, 0) + 1
     except Exception: pass
 
-# ─── 🚨 REPORT — uklonjeno (oslobađa slot za 100-command limit) ───
+# ─── 🚨 REPORT — sa 1h cooldown po članu ───
+@bot.tree.command(name="report", description="🚨 Prijavi člana staffu (1x na sat)")
+@app_commands.describe(korisnik="Koga prijavljuješ", razlog="Razlog prijave (kratko i jasno)")
+@app_commands.checks.cooldown(1, 3600.0, key=lambda i: (i.guild_id, i.user.id))
+async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: str):
+    if korisnik.id == i.user.id:
+        return await i.response.send_message(
+            embed=em("❌ Greška", "Ne možeš prijaviti samog sebe.", color=COLORS["error"]),
+            ephemeral=True
+        )
+    if korisnik.bot:
+        return await i.response.send_message(
+            embed=em("❌ Greška", "Botove ne možeš prijaviti.", color=COLORS["error"]),
+            ephemeral=True
+        )
+
+    cfg = get_guild_config(i.guild.id)
+    ch_id = cfg.get("report_channel")
+    target_ch = i.guild.get_channel(ch_id) if ch_id else None
+
+    e = discord.Embed(
+        title="🚨 NOVA PRIJAVA",
+        color=COLORS["error"],
+        timestamp=discord.utils.utcnow(),
+    )
+    e.add_field(name="👤 Prijavio", value=f"{i.user.mention}\n`{i.user}`\nID: `{i.user.id}`", inline=True)
+    e.add_field(name="🎯 Prijavljen", value=f"{korisnik.mention}\n`{korisnik}`\nID: `{korisnik.id}`", inline=True)
+    e.add_field(name="📍 Kanal", value=i.channel.mention if i.channel else "—", inline=True)
+    e.add_field(name="📝 Razlog", value=razlog[:1000], inline=False)
+    try:
+        e.set_thumbnail(url=korisnik.display_avatar.url)
+    except Exception: pass
+    e.set_footer(text=f"Server: {i.guild.name}")
+
+    sent = False
+    if target_ch:
+        try:
+            await target_ch.send(embed=e)
+            sent = True
+        except Exception: pass
+
+    if not sent:
+        for oid in OWNER_IDS:
+            try:
+                u = await bot.fetch_user(oid)
+                await u.send(embed=e)
+                sent = True
+            except Exception: pass
+
+    if sent:
+        await i.response.send_message(
+            embed=em("✅ Prijava poslata", "Staff je obaviješten. Hvala!\n\n*Možeš ponovo prijaviti za 1 sat.*", color=COLORS["success"]),
+            ephemeral=True
+        )
+    else:
+        await i.response.send_message(
+            embed=em("⚠️ Nije poslato", "Ne mogu poslati prijavu.\nReci adminu: `/setchannel tip:report kanal:#kanal`", color=COLORS["warning"]),
+            ephemeral=True
+        )
+
+@report_cmd.error
+async def report_cmd_error(i: discord.Interaction, error):
+    if isinstance(error, app_commands.CommandOnCooldown):
+        mins = int(error.retry_after // 60)
+        secs = int(error.retry_after % 60)
+        try:
+            await i.response.send_message(
+                embed=em("⏳ Sačekaj", f"Možeš opet prijaviti za **{mins}m {secs}s**.\n*Limit: 1 prijava na sat po članu.*", color=COLORS["warning"]),
+                ephemeral=True
+            )
+        except Exception: pass
+    else:
+        try:
+            await i.response.send_message(
+                embed=em("❌ Greška", f"`{error}`", color=COLORS["error"]),
+                ephemeral=True
+            )
+        except Exception: pass
 
 # ═══════════════════════════════════════════
 #    📋 STAFF PRIJAVA — /tiket-staff
