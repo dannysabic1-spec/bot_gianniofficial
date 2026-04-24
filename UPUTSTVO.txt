@@ -1,0 +1,144 @@
+════════════════════════════════════════════════════════════
+  GIANNI BOT — VERZIJA 2.2 (Mafia + Auto-Embed + Cloud Backup)
+════════════════════════════════════════════════════════════
+
+ŠTA JE NOVO U OVOM UPLOADU
+──────────────────────────
+
+  1) 🎭  NOVA IGRA: /mafia
+        - Lobby sa dugmadima (Pridruži se / Napusti / POKRENI / Otkaži)
+        - 4–12 igrača, automatska podjela uloga
+        - Uloge: 👨‍🌾 Civil, 🔪 Mafia, 🛡️ Doktor, 🕵️ Detektiv
+        - Noć (45s) → Jutro → Dan/diskusija (60s) → Glasanje (45s)
+        - Svaka faza je u embedu, sve akcije su klikom (ne kucaš ništa)
+        - DM-akcije za noćne uloge (mafia/doktor/detektiv)
+        - /mafia-stop → domaćin može prekinuti igru
+
+  2) 🎨  AUTO-EMBED ZAŠTITA
+        - Sve plain-text poruke koje bot šalje sada se AUTOMATSKI
+          umotavaju u embed sa odgovarajućom bojom
+        - Ništa na serveru više nije "providno"
+        - Boje:
+              ❌  → crvena (greška)
+              ⚠️  → žuta (upozorenje)
+              ✅  → zelena (uspjeh)
+              🔒  → ljubičasta
+              💶  → zlatna
+              ostalo → plava (info)
+
+  3) 🗑️  UKLONJENE KOMANDE (oslobađa Discord limit za /mafia)
+        - /pozz
+        - /flip
+        - /8ball
+
+  4) 💾  DISCORD CLOUD BACKUP (vatrice/tiket/brojanje preživi sve)
+        - Već implementirano u prošlom uploadu
+        - Sjeti se da postaviš BACKUP_CHANNEL_ID env varijablu
+        - Detalje vidi niže
+
+
+═════════════════════════════════════════
+  POŠTOVANJE DISCORD PRAVILA — ŠTA SE PREPORUČUJE
+═════════════════════════════════════════
+
+Tvoj bot tehnički NE krši nijedno Discord pravilo, ali da
+SERVER bude 100% siguran od ban-a, dodaj ovo:
+
+📋 NA SERVER:
+  • Kanal #pravila — jasno napisana pravila (Bosanski + EN)
+        - Min. dob 13 godina (Discord ToS)
+        - Bez govora mržnje, bullying-a, doxxing-a
+        - Bez NSFW van NSFW-označenih kanala
+        - Bez scam linkova / phishinga / crypto prevara
+  • Kanal #prijave-staff sa /prijava komandom (već imaš tiket sistem)
+  • Kanal #pravila-mafia (ako je server posvećen Mafia igri):
+        - "Ne otkrivaj svoju ulogu drugim igračima preko DM-a"
+        - "Ghosting (mrtvi pričaju u game) = ban iz igre"
+        - "Voting mora biti aktivan — ko ne glasa 3 puta dobija mute"
+  • Kanali #lobby, #game, #dead-chat (opcionalno za Mafia atmosferu)
+  • Verifikaciju: koristi #pravila + reaction-role (već u botu)
+
+⚙️ U BOTU (već imaš ili dodaj):
+  • Anti-Nuke (već aktivno) ✓
+  • Anti-Invite (već aktivno) ✓
+  • Auto-Backup (već aktivno) ✓
+  • Aktivni moderatori sa ban/kick rolama
+  • Slow mode na javnim kanalima
+
+
+═════════════════════════════════════════
+  POSTAVKA CLOUD BACKUP-a (URADI SAMO JEDNOM)
+═════════════════════════════════════════
+
+1) NAPRAVI PRIVATNI KANAL "#bot-backup"
+   - Sakrij od svih osim tebe i bota
+   - Botu daj: View, Send, Attach Files, Read History
+   - Desni klik na kanal → "Copy Channel ID"
+     (uključi Developer Mode u Discord settings)
+
+2) NA HOSTINGU DODAJ ENV VARIJABLU:
+       BACKUP_CHANNEL_ID = <ID koji si kopirao>
+
+3) UPLOADAJ NOVI bot.py iz ovog zipa
+
+4) RESTARTUJ BOTA
+   - Nakon ~90s vidjećeš prvi backup u kanalu
+   - Od tog trenutka VATRICE / TIKET / BROJANJE
+     preživljavaju sve buduće uploadove
+
+5) (opciono) Otkucaj /backup-now da forsiraš odmah
+
+
+═════════════════════════════════════════
+  KOMANDE (vlasnik bota)
+═════════════════════════════════════════
+
+  /backup-now        — odmah pošalji backup u kanal
+  /backup-restore    — vrati zadnji backup sa Discorda
+  /backup-status     — gdje se backup šalje, kad je zadnji bio
+
+
+═════════════════════════════════════════
+  KAKO SE IGRA /mafia
+═════════════════════════════════════════
+
+1) Domaćin u nekom tekstualnom kanalu otkuca:  /mafia
+2) Pojavi se LOBBY embed sa dugmadima
+3) Igrači klikaju "Pridruži se" (treba min. 4, max 12)
+4) Domaćin klikne "POKRENI"
+5) Bot pošalje SVAKOM igraču u DM njegovu ulogu
+6) NOĆ — Mafia/Doktor/Detektiv dobijaju u DM dropdown
+        i biraju kome rade akciju (45s)
+7) JUTRO — bot u kanalu objavi ko je umro (ili je doktor spasio)
+8) DAN — 60s diskusije
+9) GLASANJE — embed sa dropdownom za glasanje (45s)
+10) Krug se ponavlja dok mafia ili civili ne pobijede
+
+VAŽNO: igračima koji su mrtvi → bot više ne šalje akcije.
+Mafia pobjeđuje kad ima ≥ broja civila.
+Civili pobjeđuju kad sve mafije ubiju.
+
+Domaćin može prekinuti igru sa: /mafia-stop
+
+
+════════════════════════════════════════════════════════════
+  AKO NEŠTO NE RADI
+════════════════════════════════════════════════════════════
+
+❓ "/mafia ne pojavljuje se u listi komandi"
+   → Discord komande se sinhronizuju automatski na startu
+     (smart sync). Sačekaj 1-2 minute nakon restarta.
+   → Ako i dalje ne, otkucaj /sync (vlasnik komanda).
+
+❓ "Igrač ne dobija DM sa ulogom"
+   → Igrač ima isključene DM-ove od server članova.
+   → Mora da omogući: Server Settings → Privacy →
+     "Allow direct messages from server members"
+
+❓ "Bot ne šalje backup u kanal"
+   → Otkucaj /backup-status — pokaže šta fali.
+   → Provjeri env var BACKUP_CHANNEL_ID i bot dozvole.
+
+❓ "Vidim providnu poruku"
+   → Ne bi trebalo postojati u v2.2.
+   → Ako vidiš, screenshot pošalji.

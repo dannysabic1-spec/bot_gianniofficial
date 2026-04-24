@@ -583,8 +583,99 @@ def save_data():
                 os.replace(DATA_FILE, bak)
             except Exception: pass
         os.replace(tmp, DATA_FILE)
+        # 🔁 OBILJEŽI da treba poslati backup na Discord (radi auto petlja)
+        try: _DBACKUP_STATE["pending"] = True
+        except Exception: pass
     except Exception as e:
         print(f"[save_data] ERROR: {e}")
+
+# ═══════════════════════════════════════════
+#    💾 DISCORD CLOUD BACKUP — vatrice/tiketstaff/brojanje uvijek online
+#    Bot uploaduje oleun_data.json u privatni Discord kanal i restoruje
+#    ga automatski kad se redeploy desi (nema vanjske baze ni servisa).
+#    PODESI ENV VAR:  BACKUP_CHANNEL_ID = ID kanala (broj)
+#    Bot mora imati pristup tom kanalu i dozvolu Send + Attach Files.
+# ═══════════════════════════════════════════
+BACKUP_CHANNEL_ID = int(os.environ.get("BACKUP_CHANNEL_ID", "0") or "0")
+DBACKUP_INTERVAL  = 90   # min sekundi između dva uploada (anti-spam)
+_DBACKUP_STATE    = {"pending": False, "last": 0.0, "restored": False}
+
+async def _discord_backup_upload():
+    """Pošalji oleun_data.json kao attachment u backup kanal (throttled)."""
+    if not BACKUP_CHANNEL_ID:
+        return
+    if not os.path.exists(DATA_FILE):
+        return
+    ch = bot.get_channel(BACKUP_CHANNEL_ID)
+    if ch is None:
+        try: ch = await bot.fetch_channel(BACKUP_CHANNEL_ID)
+        except Exception as e:
+            print(f"[cloud-backup] kanal {BACKUP_CHANNEL_ID} nedostupan: {e}")
+            return
+    try:
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        with open(DATA_FILE, "rb") as f:
+            await ch.send(
+                content=f"💾 **Auto-backup** · `{ts}`",
+                file=discord.File(f, filename="oleun_data.json"),
+            )
+        _DBACKUP_STATE["last"] = time.time()
+        _DBACKUP_STATE["pending"] = False
+        print(f"[cloud-backup] OK ({ts})")
+    except Exception as e:
+        print(f"[cloud-backup] upload fail: {e}")
+
+async def _discord_backup_restore() -> bool:
+    """Ako je oleun_data.json prazan/nepostojeći — povuci posljednji backup sa Discorda."""
+    if not BACKUP_CHANNEL_ID:
+        print("[cloud-restore] BACKUP_CHANNEL_ID nije postavljen — preskačem")
+        return False
+    # Ne restoruj ako već imamo pun fajl sa vatricama/podacima
+    try:
+        if os.path.exists(DATA_FILE) and os.path.getsize(DATA_FILE) > 50:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                tmp = json.load(f)
+            if tmp.get("vatrice") or tmp.get("counting") or tmp.get("economy") or tmp.get("xp"):
+                print("[cloud-restore] lokalni fajl ima podatke — preskačem restore")
+                return False
+    except Exception:
+        pass
+    ch = bot.get_channel(BACKUP_CHANNEL_ID)
+    if ch is None:
+        try: ch = await bot.fetch_channel(BACKUP_CHANNEL_ID)
+        except Exception as e:
+            print(f"[cloud-restore] kanal nedostupan: {e}")
+            return False
+    try:
+        async for msg in ch.history(limit=50):
+            for att in msg.attachments:
+                if att.filename == "oleun_data.json":
+                    raw = await att.read()
+                    # validacija — mora biti validan JSON
+                    try:
+                        json.loads(raw.decode("utf-8"))
+                    except Exception:
+                        continue
+                    with open(DATA_FILE, "wb") as f:
+                        f.write(raw)
+                    print(f"[cloud-restore] vraćen backup od {msg.created_at.strftime('%Y-%m-%d %H:%M UTC')}")
+                    load_data()
+                    _DBACKUP_STATE["restored"] = True
+                    return True
+        print("[cloud-restore] nema backupa u zadnjih 50 poruka")
+    except Exception as e:
+        print(f"[cloud-restore] error: {e}")
+    return False
+
+@tasks.loop(seconds=30)
+async def _cloud_backup_loop():
+    try:
+        if not BACKUP_CHANNEL_ID:
+            return
+        if _DBACKUP_STATE.get("pending") and (time.time() - _DBACKUP_STATE.get("last", 0)) >= DBACKUP_INTERVAL:
+            await _discord_backup_upload()
+    except Exception as e:
+        print(f"[cloud-backup loop] {e}")
 
 def get_guild_config(guild_id) -> dict:
     key = str(guild_id)
@@ -642,6 +733,71 @@ def em(title, desc="", color=COLORS["balkan"], fields=None, footer=None, thumb=N
     if thumb:  e.set_thumbnail(url=thumb)
     if image:  e.set_image(url=image)
     return e
+
+# ═══════════════════════════════════════════
+#    🎨 AUTO-EMBED MONKEYPATCH
+#    Sve poruke koje bot pošalje kao plain tekst se automatski
+#    pretvaraju u lijepi embed — NIŠTA NE OSTAJE PROVIDNO.
+#    (Originalni embed/file/view/content pozivi se NE diraju.)
+# ═══════════════════════════════════════════
+def _autoembed_color_for(text: str) -> int:
+    t = (text or "").lstrip()
+    if t.startswith(("❌", "🚫", "⛔", "💀")):       return COLORS["error"]
+    if t.startswith(("⚠️", "⚠")):                   return COLORS["warning"]
+    if t.startswith(("✅", "🎉", "🏆", "💚")):       return COLORS["success"]
+    if t.startswith(("🔒", "🔐", "🔑")):             return COLORS["purple"]
+    if t.startswith(("💶", "💰", "🏦", "💸")):       return COLORS["gold"]
+    return COLORS["info"]
+
+def _wrap_to_embed(content):
+    if content is None: return None
+    s = str(content)
+    if not s.strip(): return None
+    return em(None, s, color=_autoembed_color_for(s))
+
+_orig_iresp_send       = discord.InteractionResponse.send_message
+_orig_webhook_send     = discord.Webhook.send
+_orig_messageable_send = discord.abc.Messageable.send
+
+async def _patched_iresp_send(self, content=None, *args, **kwargs):
+    if (content is not None and not args
+        and "embed"   not in kwargs and "embeds" not in kwargs
+        and "file"    not in kwargs and "files"  not in kwargs
+        and "view"    not in kwargs and "modal"  not in kwargs):
+        emb = _wrap_to_embed(content)
+        if emb is not None:
+            kwargs["embed"] = emb
+            content = None
+    return await _orig_iresp_send(self, content, *args, **kwargs)
+
+async def _patched_webhook_send(self, content=None, *args, **kwargs):
+    if (content is not None and not args
+        and "embed"   not in kwargs and "embeds" not in kwargs
+        and "file"    not in kwargs and "files"  not in kwargs
+        and "view"    not in kwargs):
+        emb = _wrap_to_embed(content)
+        if emb is not None:
+            kwargs["embed"] = emb
+            content = None
+    return await _orig_webhook_send(self, content, *args, **kwargs)
+
+async def _patched_messageable_send(self, content=None, *args, **kwargs):
+    # Ne diraj poruke koje već imaju embed/file/view ili tts/reference
+    if (content is not None and not args
+        and "embed"   not in kwargs and "embeds" not in kwargs
+        and "file"    not in kwargs and "files"  not in kwargs
+        and "view"    not in kwargs and "stickers" not in kwargs
+        and "reference" not in kwargs):
+        emb = _wrap_to_embed(content)
+        if emb is not None:
+            kwargs["embed"] = emb
+            content = None
+    return await _orig_messageable_send(self, content, *args, **kwargs)
+
+discord.InteractionResponse.send_message  = _patched_iresp_send
+discord.Webhook.send                      = _patched_webhook_send
+discord.abc.Messageable.send              = _patched_messageable_send
+print("[auto-embed] aktivan — sve plain poruke automatski idu kao embed")
 
 # Premium embed za važne ekrane (profil, daily, level-up, pobjede, shop)
 def em_pro(title, desc="", color=COLORS["gold"], fields=None, footer=None, thumb=None, image=None, author=None, accent=True):
@@ -728,6 +884,13 @@ async def on_ready():
     # ── 🔐 Licencna provjera — gasi se ako je kopija ──
     if not await _license_check_and_shutdown_if_clone():
         return
+    # ── 💾 CLOUD RESTORE — ako je oleun_data.json nestao poslije uploada ──
+    try:
+        restored = await _discord_backup_restore()
+        if restored:
+            print("  ✔ Cloud restore uspio — vatrice/tiket/brojanje vraćeni!")
+    except Exception as _e:
+        print(f"[cloud-restore on_ready] {_e}")
     # ── Persistent views (preživljavaju restart) ──
     try:
         bot.add_view(GiveawayView())
@@ -770,6 +933,13 @@ async def on_ready():
     if not change_status.is_running(): change_status.start()
     if not birthday_check.is_running(): birthday_check.start()
     if not auto_backup.is_running(): auto_backup.start()
+    if not _cloud_backup_loop.is_running(): _cloud_backup_loop.start()
+    # forsiraj prvi backup ubrzo nakon pokretanja (ako je kanal podešen)
+    try:
+        if BACKUP_CHANNEL_ID:
+            _DBACKUP_STATE["pending"] = True
+            _DBACKUP_STATE["last"]    = 0.0
+    except Exception: pass
     # vanity_loop uklonjen — zamijenjen sa /vatrice sistemom
     if not auto_game_loop.is_running(): auto_game_loop.start()
     if not active_member_week.is_running(): active_member_week.start()
@@ -2269,30 +2439,7 @@ async def rulet(i: discord.Interaction):
         ])
     await i.followup.send(embed=e)
 
-@bot.tree.command(name="flip", description="🪙 Baci novčić — možeš kladiti")
-async def flip(i: discord.Interaction, oklada: int = 0):
-    d = get_economy(i.user.id)
-    if oklada < 0: return await i.response.send_message(embed=em("❌", "Oklada ne može biti negativna!", color=COLORS["error"]), ephemeral=True)
-    if oklada > d["balance"]: return await i.response.send_message(embed=em("❌ Nemaš dovoljno", f"Imaš `{d['balance']:,} 💶`", color=COLORS["error"]), ephemeral=True)
-    await i.response.defer(); await asyncio.sleep(1)
-    won = random.choice([True, False])
-    if oklada > 0:
-        if won: d["balance"] += oklada; extra = f"\n💶 Zaradio `+{oklada} 💶`!"
-        else: d["balance"] -= oklada; extra = f"\n💸 Izgubio `-{oklada} 💶`!"
-        save_data()
-    else: extra = ""
-    await i.followup.send(embed=em(f"🪙 {'Glava! 👤' if won else 'Pismo! 📜'}",
-        f"**{'Glava 👤' if won else 'Pismo 📜'}**{extra}",
-        color=COLORS["success"] if won else COLORS["error"],
-        fields=[("🏦 Balans", f"`{d['balance']:,} 💶`", True)] if oklada>0 else None
-    ))
-
-@bot.tree.command(name="8ball", description="🎱 Postavi pitanje magičnoj kugli")
-async def eightball(i: discord.Interaction, pitanje: str):
-    await i.response.send_message(embed=em("🎱 Magična Kugla", color=COLORS["purple"], fields=[
-        ("❓ Pitanje", pitanje, False), ("💬 Odgovor", random.choice(EIGHTBALL_REPLIES), False),
-    ]))
-
+# /flip i /8ball uklonjeni (v2.2) — pravimo mjesto za /mafia igru.
 # /meme uklonjeno (v2.1) — vanjski sadržaj može vratiti NSFW u SFW kanal.
 
 # ═══════════════════════════════════════════
@@ -3710,16 +3857,7 @@ FORA_PORUKE = [
     "🏆 {from} za {to}: 'Nagradu za originalnost si propustio/la zajedno sa svakom drugom nagradom.' 😂",
 ]
 
-@bot.tree.command(name="pozz", description="👋 Pozdravi server ili nekoga (sa humorom!)")
-@discord.app_commands.describe(korisnik="Korisnik koga pozdravljaš (opcionalno)")
-async def pozz(i: discord.Interaction, korisnik: discord.Member = None):
-    if await fun_cooldown(i, "pozz"): return
-    target = korisnik or i.user
-    poruka = random.choice(POZZ_PORUKE).replace("{user}", target.mention)
-    e = discord.Embed(description=f"👋 **Pozz!**\n\n{poruka}", color=COLORS["fun"], timestamp=datetime.now(timezone.utc))
-    e.set_thumbnail(url=target.display_avatar.url)
-    e.set_footer(text=f"{BOT_NAME} • Pozdravi")
-    await i.response.send_message(embed=e)
+# /pozz uklonjeno (v2.2) — pravimo mjesto za /mafia igru.
 
 @bot.tree.command(name="kompli", description="🌹 Pošalji slatki kompliment nekome")
 @discord.app_commands.describe(korisnik="Kome šalješ kompliment")
@@ -8167,6 +8305,482 @@ async def sync_cmd(i: discord.Interaction, scope: app_commands.Choice[str] = Non
     e.set_footer(text=f"{BOT_NAME} • Force Sync")
     await i.followup.send(embed=e, ephemeral=True)
 
+
+# ═══════════════════════════════════════════
+#    🎭 MAFIA IGRA — sve sa embedima i klikabilnim dugmadima
+#    /mafia       — pokreni novu igru u kanalu (lobby)
+#    Igra ima 4–12 igrača, uloge: Civil / Mafia / Doktor / Detektiv
+#    Faze: 🌙 Noć (DM komande) → ☀️ Dan (rasprava) → 🗳️ Glasanje
+# ═══════════════════════════════════════════
+MAFIA_GAMES: dict[int, "MafiaGame"] = {}   # channel_id -> game
+
+class MafiaGame:
+    def __init__(self, channel: discord.TextChannel, host: discord.Member):
+        self.channel  = channel
+        self.host     = host
+        self.players: list[discord.Member] = [host]
+        self.alive:   set[int]             = set()
+        self.roles:   dict[int, str]       = {}   # uid -> role
+        self.actions: dict[str, int]       = {}   # "mafia_kill"/"doc_heal"/"det_check" -> uid
+        self.vote_msgs: dict[int, int]     = {}   # voter -> target
+        self.day      = 0
+        self.phase    = "lobby"   # lobby/night/day/vote/over
+        self.lock     = asyncio.Lock()
+        self.task: asyncio.Task | None = None
+
+    def alive_players(self) -> list[discord.Member]:
+        return [p for p in self.players if p.id in self.alive]
+
+    def role_of(self, uid: int) -> str:
+        return self.roles.get(uid, "civil")
+
+    def alive_with_role(self, role: str) -> list[discord.Member]:
+        return [p for p in self.alive_players() if self.role_of(p.id) == role]
+
+    def winner(self) -> str | None:
+        mafia = len(self.alive_with_role("mafia"))
+        rest  = len(self.alive_players()) - mafia
+        if mafia == 0:                return "civili"
+        if mafia >= rest:             return "mafia"
+        return None
+
+    def assign_roles(self):
+        n = len(self.players)
+        ids = [p.id for p in self.players]
+        random.shuffle(ids)
+        n_mafia = 1 if n <= 6 else 2 if n <= 10 else 3
+        roles = (["mafia"] * n_mafia + ["doktor", "detektiv"]
+                 + ["civil"] * (n - n_mafia - 2))[:n]
+        random.shuffle(roles)
+        self.roles = dict(zip(ids, roles))
+        self.alive = set(ids)
+
+ROLE_INFO = {
+    "civil":     ("👨‍🌾 Civil",     "Tvoj cilj: otkrij i izglasaj mafiju!", COLORS["info"]),
+    "mafia":     ("🔪 Mafia",       "Noću ubijaš jednog igrača. Cilj: pobij sve civile.", COLORS["error"]),
+    "doktor":    ("🛡️ Doktor",     "Noću spašavaš jednog igrača (možeš i sebe — jednom).", COLORS["success"]),
+    "detektiv":  ("🕵️ Detektiv",   "Noću provjeravaš identitet jednog igrača.", COLORS["purple"]),
+}
+
+# ── LOBBY VIEW ──
+class MafiaLobbyView(discord.ui.View):
+    def __init__(self, game: MafiaGame):
+        super().__init__(timeout=600)
+        self.game = game
+
+    @discord.ui.button(label="Pridruži se", style=discord.ButtonStyle.success, emoji="✋")
+    async def join(self, i: discord.Interaction, b: discord.ui.Button):
+        g = self.game
+        if g.phase != "lobby":
+            return await i.response.send_message(
+                embed=em("⚠️ Lobby zatvoren", "Igra je već počela.", color=COLORS["warning"]), ephemeral=True)
+        if any(p.id == i.user.id for p in g.players):
+            return await i.response.send_message(
+                embed=em("⚠️", "Već si u lobby-ju.", color=COLORS["warning"]), ephemeral=True)
+        if len(g.players) >= 12:
+            return await i.response.send_message(
+                embed=em("❌ Puna igra", "Maksimalno 12 igrača.", color=COLORS["error"]), ephemeral=True)
+        g.players.append(i.user)
+        await i.response.send_message(
+            embed=em("✅ Ušao u igru", f"{i.user.mention} se pridružio Mafia igri!", color=COLORS["success"]),
+            ephemeral=True,
+        )
+        await self.refresh_lobby_msg(i)
+
+    @discord.ui.button(label="Napusti", style=discord.ButtonStyle.secondary, emoji="🚪")
+    async def leave(self, i: discord.Interaction, b: discord.ui.Button):
+        g = self.game
+        if g.phase != "lobby":
+            return await i.response.send_message(
+                embed=em("⚠️", "Igra je već počela — ne možeš izaći.", color=COLORS["warning"]), ephemeral=True)
+        if i.user.id == g.host.id:
+            return await i.response.send_message(
+                embed=em("⚠️", "Domaćin ne može izaći. Otkaži igru dugmetom **Otkaži**.", color=COLORS["warning"]), ephemeral=True)
+        g.players = [p for p in g.players if p.id != i.user.id]
+        await i.response.send_message(
+            embed=em("👋", f"{i.user.mention} je napustio igru.", color=COLORS["info"]), ephemeral=True)
+        await self.refresh_lobby_msg(i)
+
+    @discord.ui.button(label="POKRENI", style=discord.ButtonStyle.primary, emoji="▶️", row=1)
+    async def start(self, i: discord.Interaction, b: discord.ui.Button):
+        g = self.game
+        if i.user.id != g.host.id:
+            return await i.response.send_message(
+                embed=em("❌", "Samo domaćin može pokrenuti.", color=COLORS["error"]), ephemeral=True)
+        if len(g.players) < 4:
+            return await i.response.send_message(
+                embed=em("❌ Premalo igrača", "Trebaju **minimalno 4 igrača**.", color=COLORS["error"]), ephemeral=True)
+        if g.phase != "lobby":
+            return await i.response.send_message("⚠️ Već pokrenuto.", ephemeral=True)
+        g.phase = "starting"
+        for c in self.children: c.disabled = True
+        await i.response.edit_message(view=self)
+        await mafia_start_game(g, i)
+
+    @discord.ui.button(label="Otkaži igru", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
+    async def cancel(self, i: discord.Interaction, b: discord.ui.Button):
+        g = self.game
+        if i.user.id != g.host.id:
+            return await i.response.send_message(
+                embed=em("❌", "Samo domaćin može otkazati.", color=COLORS["error"]), ephemeral=True)
+        g.phase = "over"
+        MAFIA_GAMES.pop(g.channel.id, None)
+        for c in self.children: c.disabled = True
+        await i.response.edit_message(
+            embed=em("🛑 Igra otkazana", "Domaćin je otkazao Mafia igru.", color=COLORS["error"]),
+            view=self,
+        )
+
+    async def refresh_lobby_msg(self, i: discord.Interaction):
+        g = self.game
+        try:
+            await i.message.edit(embed=mafia_lobby_embed(g), view=self)
+        except Exception: pass
+
+def mafia_lobby_embed(g: MafiaGame) -> discord.Embed:
+    lst = "\n".join(f"`{n+1}.` {p.mention}" for n, p in enumerate(g.players)) or "_prazno_"
+    e = em(
+        "🎭 MAFIA — Lobby",
+        f"Domaćin: {g.host.mention}\nKlikni **Pridruži se** da uđeš u igru.\nKad bude **min. 4 igrača**, domaćin klikne **POKRENI**.",
+        color=COLORS["balkan"],
+        fields=[
+            (f"👥 Igrači ({len(g.players)}/12)", lst, False),
+            ("⏱️ Trajanje faze", "Noć **45s** • Dan **60s** • Glasanje **45s**", True),
+            ("🎲 Uloge", "Civil / Mafia / Doktor / Detektiv", True),
+        ],
+    )
+    e.set_footer(text=f"{BOT_NAME} • Mafia Online")
+    return e
+
+# ── ACTION VIEWS (target select za noćne uloge) ──
+class MafiaTargetView(discord.ui.View):
+    def __init__(self, game: MafiaGame, actor: discord.Member, action_key: str, label: str, allow_self: bool = False):
+        super().__init__(timeout=40)
+        self.game = game
+        self.actor = actor
+        self.action_key = action_key
+        opts = []
+        for p in game.alive_players():
+            if not allow_self and p.id == actor.id: continue
+            opts.append(discord.SelectOption(label=p.display_name[:80], value=str(p.id)))
+        self.sel = discord.ui.Select(placeholder=label, options=opts[:25], min_values=1, max_values=1)
+        self.sel.callback = self._cb
+        self.add_item(self.sel)
+
+    async def _cb(self, i: discord.Interaction):
+        if i.user.id != self.actor.id:
+            return await i.response.send_message(
+                embed=em("❌", "Ovo nije tvoj odabir.", color=COLORS["error"]), ephemeral=True)
+        tid = int(self.sel.values[0])
+        self.game.actions[self.action_key] = tid
+        target = self.game.channel.guild.get_member(tid)
+        await i.response.edit_message(
+            embed=em("✅ Akcija primljena",
+                     f"Tvoj cilj: **{target.display_name if target else tid}**.\nSačekaj jutro.",
+                     color=COLORS["success"]),
+            view=None,
+        )
+
+# ── VOTE VIEW (u glavnom kanalu) ──
+class MafiaVoteView(discord.ui.View):
+    def __init__(self, game: MafiaGame):
+        super().__init__(timeout=50)
+        self.game = game
+        opts = [discord.SelectOption(label=p.display_name[:80], value=str(p.id))
+                for p in game.alive_players()]
+        opts.append(discord.SelectOption(label="❌ Preskoči (nikoga)", value="skip"))
+        self.sel = discord.ui.Select(placeholder="Glasaj koga linčovati…", options=opts[:25])
+        self.sel.callback = self._cb
+        self.add_item(self.sel)
+
+    async def _cb(self, i: discord.Interaction):
+        g = self.game
+        if i.user.id not in g.alive:
+            return await i.response.send_message(
+                embed=em("❌", "Mrtvi i nedužni-spektatori ne glasaju.", color=COLORS["error"]), ephemeral=True)
+        v = self.sel.values[0]
+        g.vote_msgs[i.user.id] = 0 if v == "skip" else int(v)
+        await i.response.send_message(
+            embed=em("🗳️ Glas zabilježen", "Možeš promijeniti glas dok glasanje traje.", color=COLORS["success"]),
+            ephemeral=True,
+        )
+
+# ── ENGINE ──
+async def _safe_dm(member: discord.Member, **kw):
+    try: return await member.send(**kw)
+    except Exception: return None
+
+async def mafia_start_game(g: MafiaGame, i: discord.Interaction):
+    g.assign_roles()
+    g.phase = "starting"
+    # DM uloge
+    for p in g.players:
+        role = g.role_of(p.id)
+        title, desc, color = ROLE_INFO[role]
+        e = em(f"🎭 Tvoja uloga: {title}", desc, color=color, fields=[
+            ("📍 Server", g.channel.guild.name, True),
+            ("📺 Kanal igre", g.channel.mention, True),
+        ])
+        e.set_footer(text="🤫 NIKOM ne otkrivaj svoju ulogu!")
+        await _safe_dm(p, embed=e)
+    # Najava
+    n = len(g.players)
+    n_mafia = sum(1 for r in g.roles.values() if r == "mafia")
+    await g.channel.send(embed=em(
+        "🎭 MAFIA — POČETAK",
+        f"**{n} igrača** ulazi u igru.\n🔪 Mafia: **{n_mafia}** • 🛡️ Doktor: **1** • 🕵️ Detektiv: **1**\n\n"
+        "Provjerite **DM** — tamo je vaša uloga.",
+        color=COLORS["balkan"],
+    ))
+    await asyncio.sleep(4)
+    g.task = asyncio.create_task(mafia_loop(g))
+
+async def mafia_loop(g: MafiaGame):
+    try:
+        while True:
+            g.day += 1
+            # ── NOĆ ──
+            g.phase = "night"
+            g.actions.clear()
+            await g.channel.send(embed=em(
+                f"🌙 NOĆ #{g.day}",
+                "Selo spava… Mafia, Doktor i Detektiv djeluju u DM-u.\nImate **45 sekundi**.",
+                color=COLORS["purple"],
+            ))
+            # Pošalji noćne akcije svim relevantnim igračima u DM
+            mafias    = g.alive_with_role("mafia")
+            doctors   = g.alive_with_role("doktor")
+            detectives = g.alive_with_role("detektiv")
+            for m in mafias:
+                await _safe_dm(m,
+                    embed=em("🔪 Mafia akcija", "Odaberi koga noćas ubijate:", color=COLORS["error"]),
+                    view=MafiaTargetView(g, m, "mafia_kill", "Žrtva noći…", allow_self=False))
+            for d in doctors:
+                await _safe_dm(d,
+                    embed=em("🛡️ Doktor akcija", "Koga noćas spašavaš?", color=COLORS["success"]),
+                    view=MafiaTargetView(g, d, "doc_heal", "Spasi…", allow_self=True))
+            for det in detectives:
+                await _safe_dm(det,
+                    embed=em("🕵️ Detektiv akcija", "Koga noćas provjeravaš?", color=COLORS["purple"]),
+                    view=MafiaTargetView(g, det, "det_check", "Provjeri…", allow_self=False))
+            await asyncio.sleep(45)
+            # Razrešenje noći
+            killed_id = g.actions.get("mafia_kill")
+            healed_id = g.actions.get("doc_heal")
+            checked_id = g.actions.get("det_check")
+            if checked_id and detectives:
+                target = g.channel.guild.get_member(checked_id)
+                role   = g.role_of(checked_id)
+                t_title, _, t_col = ROLE_INFO.get(role, ROLE_INFO["civil"])
+                for det in detectives:
+                    await _safe_dm(det, embed=em(
+                        "🕵️ Rezultat istrage",
+                        f"**{target.display_name if target else checked_id}** je: **{t_title}**",
+                        color=t_col,
+                    ))
+            died = None
+            if killed_id and killed_id != healed_id and killed_id in g.alive:
+                g.alive.discard(killed_id)
+                died = g.channel.guild.get_member(killed_id)
+            # Najava jutra
+            if died:
+                de = em(f"☀️ JUTRO #{g.day}",
+                        f"💀 **{died.display_name}** je pronađen mrtav!\nUloga: **{ROLE_INFO[g.role_of(died.id)][0]}**",
+                        color=COLORS["error"])
+            elif killed_id and killed_id == healed_id:
+                de = em(f"☀️ JUTRO #{g.day}",
+                        "🛡️ Doktor je **spasio žrtvu** noćas! Niko nije umro.",
+                        color=COLORS["success"])
+            else:
+                de = em(f"☀️ JUTRO #{g.day}", "🌅 Selo je spavalo mirno — nema žrtava.", color=COLORS["info"])
+            await g.channel.send(embed=de)
+            # Pobjeda?
+            w = g.winner()
+            if w: return await mafia_end(g, w)
+            # ── DAN — diskusija ──
+            g.phase = "day"
+            await g.channel.send(embed=em(
+                "💬 DISKUSIJA",
+                f"Imate **60 sekundi** da razgovarate prije glasanja.\nŽivi: {', '.join(p.mention for p in g.alive_players())}",
+                color=COLORS["info"],
+            ))
+            await asyncio.sleep(60)
+            # ── GLASANJE ──
+            g.phase = "vote"
+            g.vote_msgs.clear()
+            view = MafiaVoteView(g)
+            await g.channel.send(
+                embed=em("🗳️ GLASANJE", "Svaki živi igrač bira metu (ili **Preskoči**). Imate **45s**.",
+                         color=COLORS["warning"]),
+                view=view,
+            )
+            await asyncio.sleep(45)
+            for c in view.children: c.disabled = True
+            # Prebroji
+            tally: dict[int, int] = {}
+            for v, t in g.vote_msgs.items():
+                if v in g.alive:
+                    tally[t] = tally.get(t, 0) + 1
+            target_id, top = (None, 0)
+            for tid, cnt in tally.items():
+                if cnt > top:
+                    target_id, top = tid, cnt
+            if target_id and target_id != 0 and top > 0:
+                victim = g.channel.guild.get_member(target_id)
+                g.alive.discard(target_id)
+                await g.channel.send(embed=em(
+                    "⚖️ PRESUDA",
+                    f"💀 **{victim.display_name}** je linčovan glasanjem ({top} glasova).\nUloga: **{ROLE_INFO[g.role_of(target_id)][0]}**",
+                    color=COLORS["error"],
+                ))
+            else:
+                await g.channel.send(embed=em(
+                    "⚖️ PRESUDA", "Nema dovoljno glasova — niko nije linčovan.", color=COLORS["info"]))
+            w = g.winner()
+            if w: return await mafia_end(g, w)
+            await asyncio.sleep(3)
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        await g.channel.send(embed=em("❌ Mafia greška", f"`{e}`", color=COLORS["error"]))
+        MAFIA_GAMES.pop(g.channel.id, None)
+
+async def mafia_end(g: MafiaGame, winner: str):
+    g.phase = "over"
+    title, color = (("🔪 MAFIA POBJEDJUJE!", COLORS["error"]) if winner == "mafia"
+                    else ("👨‍🌾 CIVILI POBJEDJUJU!", COLORS["success"]))
+    revealed = "\n".join(f"{ROLE_INFO[g.role_of(p.id)][0]} — {p.mention}" for p in g.players)
+    await g.channel.send(embed=em(
+        title,
+        f"**Igra završena u danu {g.day}.**\n\n__Otkrivene uloge:__\n{revealed}",
+        color=color,
+    ))
+    MAFIA_GAMES.pop(g.channel.id, None)
+
+@bot.tree.command(name="mafia", description="🎭 Pokreni Mafia igru u ovom kanalu")
+async def mafia_cmd(i: discord.Interaction):
+    if not isinstance(i.channel, discord.TextChannel):
+        return await i.response.send_message(
+            embed=em("❌", "Mafia se igra samo u tekstualnom kanalu.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    if i.channel.id in MAFIA_GAMES and MAFIA_GAMES[i.channel.id].phase != "over":
+        return await i.response.send_message(
+            embed=em("⚠️ Već postoji igra",
+                     "U ovom kanalu već traje Mafia igra. Sačekaj kraj ili neka domaćin otkaže.",
+                     color=COLORS["warning"]),
+            ephemeral=True,
+        )
+    g = MafiaGame(i.channel, i.user)
+    MAFIA_GAMES[i.channel.id] = g
+    view = MafiaLobbyView(g)
+    await i.response.send_message(embed=mafia_lobby_embed(g), view=view)
+
+@bot.tree.command(name="mafia-stop", description="🛑 [DOMAĆIN] Prekini Mafia igru u ovom kanalu")
+async def mafia_stop_cmd(i: discord.Interaction):
+    g = MAFIA_GAMES.get(i.channel.id)
+    if not g:
+        return await i.response.send_message(
+            embed=em("ℹ️", "Nema aktivne Mafia igre ovdje.", color=COLORS["info"]), ephemeral=True)
+    if i.user.id != g.host.id and i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌", "Samo domaćin igre ili vlasnik bota.", color=COLORS["error"]), ephemeral=True)
+    g.phase = "over"
+    if g.task: g.task.cancel()
+    MAFIA_GAMES.pop(i.channel.id, None)
+    await i.response.send_message(embed=em("🛑 Mafia prekinuta", "Igra je nasilno zaustavljena.", color=COLORS["error"]))
+
+# ═══════════════════════════════════════════
+#    💾 RUČNI CLOUD BACKUP / RESTORE — slash komande
+# ═══════════════════════════════════════════
+@bot.tree.command(name="backup-now", description="💾 [VLASNIK] Forsiraj odmah upload backupa na Discord")
+async def backup_now_cmd(i: discord.Interaction):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌ Samo vlasnik", "Samo vlasnik bota može pokrenuti backup.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    if not BACKUP_CHANNEL_ID:
+        return await i.response.send_message(
+            embed=em("⚠️ BACKUP_CHANNEL_ID nije postavljen",
+                     "Postavi env varijablu **BACKUP_CHANNEL_ID** (ID privatnog kanala) i restartuj bota.",
+                     color=COLORS["warning"]),
+            ephemeral=True,
+        )
+    await i.response.defer(ephemeral=True)
+    save_data()
+    await _discord_backup_upload()
+    await i.followup.send(
+        embed=em("✅ Backup gurnut", f"Fajl `oleun_data.json` poslan u <#{BACKUP_CHANNEL_ID}>.",
+                 color=COLORS["success"]),
+        ephemeral=True,
+    )
+
+@bot.tree.command(name="backup-restore", description="💾 [VLASNIK] Vrati podatke iz zadnjeg backupa sa Discorda")
+async def backup_restore_cmd(i: discord.Interaction):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌ Samo vlasnik", "Samo vlasnik bota može pokrenuti restore.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    if not BACKUP_CHANNEL_ID:
+        return await i.response.send_message(
+            embed=em("⚠️ BACKUP_CHANNEL_ID nije postavljen",
+                     "Postavi env varijablu **BACKUP_CHANNEL_ID** i restartuj bota.",
+                     color=COLORS["warning"]),
+            ephemeral=True,
+        )
+    await i.response.defer(ephemeral=True)
+    # privremeno izbriši lokalni fajl da restore prođe
+    try:
+        if os.path.exists(DATA_FILE):
+            os.replace(DATA_FILE, DATA_FILE + ".manual_restore.bak")
+    except Exception: pass
+    ok = await _discord_backup_restore()
+    if ok:
+        await i.followup.send(
+            embed=em("✅ Restore uspio", "Podaci su vraćeni iz zadnjeg backupa.", color=COLORS["success"]),
+            ephemeral=True,
+        )
+    else:
+        # vrati lokalni fajl ako restore nije uspio
+        try:
+            if os.path.exists(DATA_FILE + ".manual_restore.bak"):
+                os.replace(DATA_FILE + ".manual_restore.bak", DATA_FILE)
+                load_data()
+        except Exception: pass
+        await i.followup.send(
+            embed=em("❌ Restore neuspješan",
+                     "Nema validnog backupa u zadnjih 50 poruka kanala. Lokalni fajl vraćen.",
+                     color=COLORS["error"]),
+            ephemeral=True,
+        )
+
+@bot.tree.command(name="backup-status", description="💾 [VLASNIK] Status cloud backup sistema")
+async def backup_status_cmd(i: discord.Interaction):
+    if i.user.id not in OWNER_IDS:
+        return await i.response.send_message(
+            embed=em("❌ Samo vlasnik", "Samo vlasnik može vidjeti status.", color=COLORS["error"]),
+            ephemeral=True,
+        )
+    last = _DBACKUP_STATE.get("last", 0)
+    last_str = datetime.fromtimestamp(last, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC") if last else "_nikad_"
+    ch_str = f"<#{BACKUP_CHANNEL_ID}>" if BACKUP_CHANNEL_ID else "❌ **NIJE POSTAVLJENO** (env var BACKUP_CHANNEL_ID)"
+    restored_str = "✅ DA" if _DBACKUP_STATE.get("restored") else "—"
+    pending_str = "⏳ DA" if _DBACKUP_STATE.get("pending") else "—"
+    fsize = os.path.getsize(DATA_FILE) if os.path.exists(DATA_FILE) else 0
+    desc = (
+        f"📡 **Backup kanal:** {ch_str}\n"
+        f"💾 **Lokalni fajl:** `{DATA_FILE}` ({fsize:,} B)\n"
+        f"🕐 **Zadnji upload:** {last_str}\n"
+        f"♻️ **Restore na ovom startu:** {restored_str}\n"
+        f"📤 **Pending upload:** {pending_str}\n"
+        f"⏱️ **Min interval:** {DBACKUP_INTERVAL}s"
+    )
+    await i.response.send_message(
+        embed=em("💾 Cloud Backup status", desc, color=COLORS["info"]),
+        ephemeral=True,
+    )
 
 # ═══════════════════════════════════════════
 #    POKRETANJE
