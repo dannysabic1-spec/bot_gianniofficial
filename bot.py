@@ -327,7 +327,7 @@ CHANNEL_RULES = {
 CMDS_ANYWHERE = {
     "ping", "help", "serverinfo", "userinfo", "avatar", "invite", "spotify",
     "qr", "remind", "birthday", "afk", "serverstats", "topchatters",
-    "say", "poll", "suggest", "confess", "report", "tiketstaff", "tiket", "pravila", "warn", "warnings",
+    "say", "poll", "confess", "report", "tiketstaff", "tiket", "pravila", "warn", "warnings",
     "clearwarnings", "ban", "kick", "timeout", "clear",
     # setup
     "setup", "setup-roles", "setup-welcome", "setup-leave", "setup-autorole",
@@ -903,12 +903,17 @@ async def on_member_join(member):
             return  # Kickovan, ne radi welcome
     except Exception as _e: print(f"[anti-raid] {_e}")
 
-    # ── 🔥 VATRICE — novi član dobija 1 auto vatricu pri ulasku ──
+    # ── 🔥 VATRICE — novi član dobija 1 auto vatricu pri ulasku + ažurira nick ──
     try:
         cfg_vj = get_guild_config(member.guild.id)
         vemoji = cfg_vj.get("vatrice_emoji", "🔥")
         novi_v = _add_vatrica(member.guild.id, member.id, 1)
         save_data()
+        # ⬇️ Odmah ažuriraj nick da član dobije varicu pored nicka
+        try:
+            await _update_vatrice_nick(member, novi_v, vemoji)
+        except Exception:
+            pass
         if vch_id := cfg_vj.get("vatrice_channel"):
             if vch := member.guild.get_channel(vch_id):
                 vj_e = discord.Embed(
@@ -1910,6 +1915,91 @@ async def invite_cmd(i: discord.Interaction, korisnik: discord.Member = None):
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="Otvori invite", emoji="🔗", url=invite_url, style=discord.ButtonStyle.link))
     await i.response.send_message(embed=e, view=view) if view else await i.response.send_message(embed=e)
+
+# ═══════════════════════════════════════════
+#    🔗 INVITE LINK ZA REKLAMU SERVERA
+#    (sve u jednoj grupi — 1 komandni slot)
+# ═══════════════════════════════════════════
+
+link_group = app_commands.Group(name="link", description="🔗 Upravljanje invite linkom servera za reklamu")
+
+@link_group.command(name="postavi", description="🔗 Postavi invite link servera za reklamu [ADMIN]")
+@app_commands.describe(link="Invite link (npr. discord.gg/abc123 ili https://discord.gg/abc123)")
+@app_commands.checks.has_permissions(administrator=True)
+async def link_postavi(i: discord.Interaction, link: str):
+    link = link.strip()
+    link = link.replace("https://", "").replace("http://", "").strip("/")
+    if not link.startswith("discord.gg/"):
+        link = f"discord.gg/{link}"
+    gkey = str(i.guild.id)
+    if gkey not in data["guild_config"]:
+        data["guild_config"][gkey] = {}
+    data["guild_config"][gkey]["server_invite"] = link
+    save_data()
+    e = discord.Embed(
+        title="✅ Invite link postavljen",
+        description=f"Korisnici sada mogu koristiti `/link prikazi` da dobiju link:\n**https://{link}**",
+        color=COLORS["success"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    e.set_footer(text=f"{BOT_NAME} • Postavio: {i.user}")
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Otvori link", emoji="🔗", url=f"https://{link}", style=discord.ButtonStyle.link))
+    await i.response.send_message(embed=e, view=view, ephemeral=True)
+
+@link_group.command(name="prikazi", description="🔗 Dobij invite link servera za dijeljenje s drugima")
+async def link_prikazi(i: discord.Interaction):
+    gkey = str(i.guild.id)
+    cfg = data["guild_config"].get(gkey, {})
+    invite = cfg.get("server_invite")
+    if not invite:
+        try:
+            invs = await i.guild.invites()
+            if invs:
+                best = max(invs, key=lambda x: x.uses)
+                invite = f"discord.gg/{best.code}"
+        except Exception:
+            pass
+    if not invite:
+        await i.response.send_message(
+            embed=discord.Embed(
+                title="❌ Invite link nije postavljen",
+                description="Admin treba postaviti invite link koristeći `/link postavi`.",
+                color=COLORS["error"],
+            ),
+            ephemeral=True,
+        )
+        return
+    full_url = f"https://{invite}" if not invite.startswith("http") else invite
+    e = discord.Embed(
+        title=f"🔗 Reklama — {i.guild.name}",
+        description=(
+            f"Podijeli ovaj link s prijateljima i reklairaj naš server!\n\n"
+            f"```\n{full_url}\n```"
+        ),
+        color=COLORS["teal"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    if i.guild.icon:
+        e.set_thumbnail(url=i.guild.icon.url)
+    e.set_footer(text=f"{BOT_NAME} • Hvala što reklamiraš server!")
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="Pridruži se serveru", emoji="🔗", url=full_url, style=discord.ButtonStyle.link))
+    await i.response.send_message(embed=e, view=view)
+
+@link_group.command(name="ukloni", description="🗑️ Ukloni postavljeni invite link servera [ADMIN]")
+@app_commands.checks.has_permissions(administrator=True)
+async def link_ukloni(i: discord.Interaction):
+    gkey = str(i.guild.id)
+    cfg = data["guild_config"].get(gkey, {})
+    if "server_invite" not in cfg:
+        await i.response.send_message(embed=discord.Embed(title="ℹ️ Nema postavljenog invite linka.", color=COLORS["info"]), ephemeral=True)
+        return
+    del cfg["server_invite"]
+    save_data()
+    await i.response.send_message(embed=discord.Embed(title="✅ Invite link uklonjen.", color=COLORS["success"]), ephemeral=True)
+
+bot.tree.add_command(link_group)
 
 @bot.tree.command(name="avatar", description="🖼️ Prikaži avatar korisnika")
 async def avatar(i: discord.Interaction, korisnik: discord.Member = None):
@@ -4990,32 +5080,6 @@ async def afk_cmd(i: discord.Interaction, razlog: str = "AFK"):
 
 
 
-@bot.tree.command(name="suggest", description="💡 Pošalji prijedlog moderatorima")
-@discord.app_commands.describe(prijedlog="Tvoj prijedlog ili ideja za server")
-async def suggest_cmd(i: discord.Interaction, prijedlog: str):
-    cfg = get_guild_config(i.guild_id)
-    ch_id = cfg.get("suggest_channel")
-    ch = i.guild.get_channel(ch_id) if ch_id else None
-    if not ch:
-        return await i.response.send_message(embed=em("❌", "Kanal za prijedloge nije postavljen! Admini trebaju koristiti `/setchannel suggest`.", color=COLORS["error"]), ephemeral=True)
-    data["suggest_count"] = data.get("suggest_count", 0) + 1
-    cnt = data["suggest_count"]
-    save_data()
-    se = discord.Embed(
-        title=f"💡 Prijedlog #{cnt}",
-        description=prijedlog[:1500],
-        color=COLORS["default"],
-        timestamp=datetime.now(timezone.utc)
-    )
-    se.set_author(name=i.user.display_name, icon_url=i.user.display_avatar.url)
-    se.set_footer(text=f"Prijedlog od: {i.user} • {i.guild.name}")
-    try:
-        msg = await ch.send(embed=se)
-        await msg.add_reaction("✅")
-        await msg.add_reaction("❌")
-    except Exception:
-        return await i.response.send_message(embed=em("❌", "Nisam mogao poslati prijedlog. Provjeri moje permisije u kanalu.", color=COLORS["error"]), ephemeral=True)
-    await i.response.send_message(embed=em("✅ Prijedlog poslan!", f"Tvoj prijedlog **#{cnt}** je proslijeđen moderatorima!\n\n> {prijedlog[:200]}", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
 #    SELF ROLES
@@ -5192,8 +5256,7 @@ async def help_cmd(i: discord.Interaction):
     e.add_field(
         name="╠═ 😴  AFK & SOCIJALNO",
         value=(
-            "> `/afk` — Postavi AFK status\n"
-            "> `/suggest` — Pošalji prijedlog adminu"
+            "> `/afk` — Postavi AFK status"
         ),
         inline=False,
     )
@@ -5573,7 +5636,6 @@ data.setdefault("lottery", {"pot": 0, "tickets": {}, "last_draw": 0})
 data.setdefault("reminders", [])
 data.setdefault("heist_cooldown", {})
 data.setdefault("confess_count", 0)
-data.setdefault("suggest_count", 0)
 data.setdefault("cmd_uses", {})
 
 # ─── 📊 SERVER STATS ───
@@ -5725,11 +5787,10 @@ async def qr_cmd(i: discord.Interaction, tekst: str):
 # ─── 🤫 CONFESS (anonimno) ───
 # /confess uklonjeno (v2.1) — anonimnost se može zloupotrijebiti za uznemiravanje.
 
-@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/suggest/report/birthday/staff-apps kanal")
+@bot.tree.command(name="setchannel", description="⚙️ [ADMIN] Postavi confess/report/birthday/staff-apps kanal")
 @app_commands.describe(tip="Tip kanala", kanal="Kanal za taj tip")
 @app_commands.choices(tip=[
     app_commands.Choice(name="confess",    value="confess_channel"),
-    app_commands.Choice(name="suggest",    value="suggest_channel"),
     app_commands.Choice(name="report",     value="report_channel"),
     app_commands.Choice(name="birthday",   value="birthday_channel"),
     app_commands.Choice(name="staff-apps", value="staff_apps_channel"),
@@ -5820,14 +5881,14 @@ async def _post_vatrice_objava(guild: discord.Guild, davalac: discord.Member | N
     if davalac:
         izvor_line = f"🎁 Vatricu poklonio: {davalac.mention}"
     else:
-        izvor_line = f"💬 Zarađeno aktivnošću u chatu (svakih 500 poruka)"
+        izvor_line = f"💬 Zarađeno aktivnošću u chatu (svakih 150 poruka)"
 
     # progres bar do sljedeće vatrice po porukama (samo informativno za primaoca)
     msg_key = f"{guild.id}:{primalac.id}"
     msgs_total = data.get("msg_count", {}).get(msg_key, 0)
-    do_sljedece = 500 - (msgs_total % 500) if msgs_total > 0 else 500
-    progress = max(0, min(500, 500 - do_sljedece))
-    bar_full = "█" * (progress // 50)
+    do_sljedece = 150 - (msgs_total % 150) if msgs_total > 0 else 150
+    progress = max(0, min(150, 150 - do_sljedece))
+    bar_full = "█" * (progress // 15)
     bar_empty = "░" * (10 - len(bar_full))
     bar = f"`{bar_full}{bar_empty}`"
 
@@ -5853,7 +5914,7 @@ async def _post_vatrice_objava(guild: discord.Guild, davalac: discord.Member | N
         f"{sep}\n"
         f"{izvor_line}\n"
         f"{rank_line}\n"
-        f"\n**Do sljedeće vatrice:** {bar}  `{progress}/500`\n"
+        f"\n**Do sljedeće vatrice:** {bar}  `{progress}/150`\n"
         f"\n**🏆 Trenutni podij:**\n{top_block}\n"
         f"{sep}\n"
         f"_Pogledaj kompletnu top listu sa_ `/vatrice pup`"
@@ -5982,7 +6043,7 @@ async def vatrice_pup(i: discord.Interaction):
     )
     if i.guild.icon:
         e.set_thumbnail(url=i.guild.icon.url)
-    e.set_footer(text=f"🔥 {BOT_NAME} • Vatrice sistem  •  Vatricu zarađuješ svakih 500 poruka")
+    e.set_footer(text=f"🔥 {BOT_NAME} • Vatrice sistem  •  Vatricu zarađuješ svakih 150 poruka")
     await i.response.send_message(embed=e)
 
 @vatrice_group.command(name="oblik", description="🔥 [VLASNIK] Postavi oblik (emoji) vatrice na serveru")
