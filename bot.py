@@ -1,4 +1,5 @@
 import discord, random, asyncio, json, os, time, aiohttp, re
+from itertools import combinations as _pk_comb
 from collections import defaultdict, deque, Counter
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -1916,90 +1917,6 @@ async def invite_cmd(i: discord.Interaction, korisnik: discord.Member = None):
         view.add_item(discord.ui.Button(label="Otvori invite", emoji="🔗", url=invite_url, style=discord.ButtonStyle.link))
     await i.response.send_message(embed=e, view=view) if view else await i.response.send_message(embed=e)
 
-# ═══════════════════════════════════════════
-#    🔗 INVITE LINK ZA REKLAMU SERVERA
-#    (sve u jednoj grupi — 1 komandni slot)
-# ═══════════════════════════════════════════
-
-link_group = app_commands.Group(name="link", description="🔗 Upravljanje invite linkom servera za reklamu")
-
-@link_group.command(name="postavi", description="🔗 Postavi invite link servera za reklamu [ADMIN]")
-@app_commands.describe(link="Invite link (npr. discord.gg/abc123 ili https://discord.gg/abc123)")
-@app_commands.checks.has_permissions(administrator=True)
-async def link_postavi(i: discord.Interaction, link: str):
-    link = link.strip()
-    link = link.replace("https://", "").replace("http://", "").strip("/")
-    if not link.startswith("discord.gg/"):
-        link = f"discord.gg/{link}"
-    gkey = str(i.guild.id)
-    if gkey not in data["guild_config"]:
-        data["guild_config"][gkey] = {}
-    data["guild_config"][gkey]["server_invite"] = link
-    save_data()
-    e = discord.Embed(
-        title="✅ Invite link postavljen",
-        description=f"Korisnici sada mogu koristiti `/link prikazi` da dobiju link:\n**https://{link}**",
-        color=COLORS["success"],
-        timestamp=datetime.now(timezone.utc),
-    )
-    e.set_footer(text=f"{BOT_NAME} • Postavio: {i.user}")
-    view = discord.ui.View()
-    view.add_item(discord.ui.Button(label="Otvori link", emoji="🔗", url=f"https://{link}", style=discord.ButtonStyle.link))
-    await i.response.send_message(embed=e, view=view, ephemeral=True)
-
-@link_group.command(name="prikazi", description="🔗 Dobij invite link servera za dijeljenje s drugima")
-async def link_prikazi(i: discord.Interaction):
-    gkey = str(i.guild.id)
-    cfg = data["guild_config"].get(gkey, {})
-    invite = cfg.get("server_invite")
-    if not invite:
-        try:
-            invs = await i.guild.invites()
-            if invs:
-                best = max(invs, key=lambda x: x.uses)
-                invite = f"discord.gg/{best.code}"
-        except Exception:
-            pass
-    if not invite:
-        await i.response.send_message(
-            embed=discord.Embed(
-                title="❌ Invite link nije postavljen",
-                description="Admin treba postaviti invite link koristeći `/link postavi`.",
-                color=COLORS["error"],
-            ),
-            ephemeral=True,
-        )
-        return
-    full_url = f"https://{invite}" if not invite.startswith("http") else invite
-    e = discord.Embed(
-        title=f"🔗 Reklama — {i.guild.name}",
-        description=(
-            f"Podijeli ovaj link s prijateljima i reklairaj naš server!\n\n"
-            f"```\n{full_url}\n```"
-        ),
-        color=COLORS["teal"],
-        timestamp=datetime.now(timezone.utc),
-    )
-    if i.guild.icon:
-        e.set_thumbnail(url=i.guild.icon.url)
-    e.set_footer(text=f"{BOT_NAME} • Hvala što reklamiraš server!")
-    view = discord.ui.View()
-    view.add_item(discord.ui.Button(label="Pridruži se serveru", emoji="🔗", url=full_url, style=discord.ButtonStyle.link))
-    await i.response.send_message(embed=e, view=view)
-
-@link_group.command(name="ukloni", description="🗑️ Ukloni postavljeni invite link servera [ADMIN]")
-@app_commands.checks.has_permissions(administrator=True)
-async def link_ukloni(i: discord.Interaction):
-    gkey = str(i.guild.id)
-    cfg = data["guild_config"].get(gkey, {})
-    if "server_invite" not in cfg:
-        await i.response.send_message(embed=discord.Embed(title="ℹ️ Nema postavljenog invite linka.", color=COLORS["info"]), ephemeral=True)
-        return
-    del cfg["server_invite"]
-    save_data()
-    await i.response.send_message(embed=discord.Embed(title="✅ Invite link uklonjen.", color=COLORS["success"]), ephemeral=True)
-
-bot.tree.add_command(link_group)
 
 @bot.tree.command(name="avatar", description="🖼️ Prikaži avatar korisnika")
 async def avatar(i: discord.Interaction, korisnik: discord.Member = None):
@@ -3185,6 +3102,478 @@ async def amogus_stop(i: discord.Interaction):
         return await i.response.send_message(embed=em("❌","Samo host ili admin može zaustaviti igru!",color=COLORS["error"]),ephemeral=True)
     amogus_games.pop(i.channel.id, None)
     await i.response.send_message(embed=em("🚀 Igra zaustavljena","Among Us igra je prekinuta.", color=COLORS["warning"]))
+
+# ═══════════════════════════════════════════
+#    🃏 POKER — Texas Hold'em za pravi novac
+# ═══════════════════════════════════════════
+
+_PK_RANKS  = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"]
+_PK_SUITS  = ["♠","♥","♦","♣"]
+_PK_SE     = {"♠":"♠️","♥":"♥️","♦":"♦️","♣":"♣️"}
+_PK_RV     = {r: i+2 for i, r in enumerate(_PK_RANKS)}
+_PK_HNAMES = [
+    "Visoka karta","Par","Dva para","Tri iste","Strit",
+    "Flush","Full house","Četiri iste","Strit flush","Rojal flush"
+]
+
+def _pk_deck():
+    d = [(r, s) for s in _PK_SUITS for r in _PK_RANKS]
+    random.shuffle(d)
+    return d
+
+def _pk_card(c):
+    return f"`{c[0]}{_PK_SE[c[1]]}`"
+
+def _pk_cards(cards):
+    return " ".join(_pk_card(c) for c in cards) if cards else "`?` `?`"
+
+def _pk_hand_rank(five):
+    vals  = sorted([_PK_RV[c[0]] for c in five], reverse=True)
+    suits = [c[1] for c in five]
+    flush = len(set(suits)) == 1
+    straight = (vals == list(range(vals[0], vals[0]-5, -1)))
+    if not straight and sorted(vals) == [2, 3, 4, 5, 14]:
+        straight = True; vals = [5, 4, 3, 2, 1]
+    cnt = Counter(vals)
+    grp = sorted(cnt.items(), key=lambda x: (x[1], x[0]), reverse=True)
+    gc  = [g[1] for g in grp]
+    gv  = [g[0] for g in grp]
+    if flush and straight:
+        return (9 if vals[0] == 14 and vals[1] == 13 else 8, vals)
+    if gc[0] == 4:                return (7, gv)
+    if gc[:2] == [3, 2]:          return (6, gv)
+    if flush:                     return (5, vals)
+    if straight:                  return (4, vals)
+    if gc[0] == 3:                return (3, gv)
+    if gc[:2] == [2, 2]:          return (2, gv)
+    if gc[0] == 2:                return (1, gv)
+    return (0, vals)
+
+def _pk_best(hole, community):
+    all7 = hole + community
+    if len(all7) < 5:
+        return (_pk_hand_rank(all7), all7)
+    return max(((_pk_hand_rank(list(c)), list(c)) for c in _pk_comb(all7, 5)), key=lambda x: x[0])
+
+poker_games: dict = {}  # channel_id -> game dict
+
+def _pk_get_bal(guild_id, user_id):
+    mkey = f"{guild_id}:{user_id}"
+    return data["money"].get(mkey, data["economy"].get(str(user_id), {}).get("balance", 0))
+
+def _pk_set_bal(guild_id, user_id, amount):
+    data["money"][f"{guild_id}:{user_id}"] = max(0, int(amount))
+
+def _pk_lobby_embed(g):
+    plist = "\n".join(f"▸ **{p['name']}**" for p in g["players"].values()) or "_Niko još nije ušao_"
+    e = discord.Embed(
+        title="🃏 POKER — Texas Hold'em",
+        description=(
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"💰 **Ulog po igraču:** `{g['ulog']:,} 💶`\n"
+            f"🏆 **Trenutni pot:** `{g['pot']:,} 💶`\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👥 **Igrači ({len(g['players'])}/9):**\n{plist}\n\n"
+            f"▸ Klikni **Ulazi u igru** da se pridružiš\n"
+            f"▸ Domaćin klika **Počni igru** kad je spreman\n"
+            f"▸ Igra automatski kreće za **60 sekundi**"
+        ),
+        color=0x2ECC71,
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.set_footer(text=f"🃏 {BOT_NAME} • Poker • Min 2, Max 9 igrača")
+    return e
+
+def _pk_game_embed(g):
+    phase_titles = {
+        "preflop": "🃏 Pre-Flop — Kartice podijeljene",
+        "flop":    "🌊 Flop — 3 zajedničke kartice",
+        "turn":    "🔄 Turn — 4. zajednička kartica",
+        "river":   "🌊 River — 5. zajednička kartica",
+    }
+    community_str = _pk_cards(g["community"]) if g["community"] else "`?` `?` `?` `?` `?`"
+    active = [(uid, p) for uid, p in g["players"].items() if not p["folded"]]
+    folded = [(uid, p) for uid, p in g["players"].items() if p["folded"]]
+    act_str  = "\n".join(f"✅ **{p['name']}**" for _, p in active) or "_nema_"
+    fold_str = "\n".join(f"❌ ~~{p['name']}~~" for _, p in folded)
+    needs = g.get("needs_action", set())
+    wait_str = "\n".join(f"⏳ {g['players'][uid]['name']}" for uid in needs if uid in g["players"]) or "_Svi su djelovali_"
+    desc = (
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🃏 **Zajedničke kartice:**\n{community_str}\n"
+        f"💰 **Pot:** `{g['pot']:,} 💶`\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👥 **Aktivni:**\n{act_str}\n"
+    )
+    if fold_str:
+        desc += f"❌ **Foldali:**\n{fold_str}\n"
+    desc += f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n⏳ **Čekamo potez:**\n{wait_str}"
+    e = discord.Embed(
+        title=phase_titles.get(g["phase"], "🃏 POKER"),
+        description=desc,
+        color=0xE74C3C if g["phase"] == "river" else 0xF39C12,
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.set_footer(text=f"🃏 {BOT_NAME} • Klikni 'Vidi kartice' za svoju ruku • Pot: {g['pot']:,} 💶")
+    return e
+
+class PokerLobbyView(discord.ui.View):
+    def __init__(self, channel_id: int):
+        super().__init__(timeout=60)
+        self.channel_id = channel_id
+        self._started   = False
+
+    @discord.ui.button(label="Ulazi u igru 🎴", style=discord.ButtonStyle.success, row=0)
+    async def join_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        g = poker_games.get(self.channel_id)
+        if not g or g["phase"] != "join":
+            return await interaction.response.send_message("❌ Prijava je zatvorena.", ephemeral=True)
+        uid = interaction.user.id
+        if uid in g["players"]:
+            return await interaction.response.send_message("Već si u igri!", ephemeral=True)
+        if len(g["players"]) >= 9:
+            return await interaction.response.send_message("❌ Igra je puna (max 9)!", ephemeral=True)
+        ulog = g["ulog"]
+        bal  = _pk_get_bal(g["guild_id"], uid)
+        if bal < ulog:
+            return await interaction.response.send_message(
+                f"❌ Nemaš dovoljno! Trebaš `{ulog:,} 💶`, a imaš `{bal:,} 💶`.", ephemeral=True)
+        _pk_set_bal(g["guild_id"], uid, bal - ulog)
+        save_data()
+        g["players"][uid] = {"name": interaction.user.display_name, "hole": [], "folded": False}
+        g["pot"] += ulog
+        try:
+            await interaction.message.edit(embed=_pk_lobby_embed(g))
+        except Exception:
+            pass
+        await interaction.response.send_message(
+            f"✅ Ušao/la si u igru! Skinuto `{ulog:,} 💶`. Pot: `{g['pot']:,} 💶`", ephemeral=True)
+
+    @discord.ui.button(label="Počni igru ▶️", style=discord.ButtonStyle.primary, row=0)
+    async def start_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        g = poker_games.get(self.channel_id)
+        if not g:
+            return await interaction.response.send_message("Nema aktivne igre.", ephemeral=True)
+        if interaction.user.id != g["host_id"] and interaction.user.id not in OWNER_IDS:
+            return await interaction.response.send_message("❌ Samo domaćin može pokrenuti igru!", ephemeral=True)
+        if len(g["players"]) < 2:
+            return await interaction.response.send_message("❌ Trebaju minimalno **2 igrača**!", ephemeral=True)
+        if self._started:
+            return await interaction.response.send_message("Igra već počinje...", ephemeral=True)
+        self._started = True
+        await interaction.response.defer()
+        await _pk_begin(self.channel_id)
+
+    async def on_timeout(self):
+        g = poker_games.get(self.channel_id)
+        if not g or g["phase"] != "join":
+            return
+        if len(g["players"]) >= 2:
+            await _pk_begin(self.channel_id)
+        else:
+            for uid in g["players"]:
+                _pk_set_bal(g["guild_id"], uid, _pk_get_bal(g["guild_id"], uid) + g["ulog"])
+            save_data()
+            del poker_games[self.channel_id]
+            ch = bot.get_channel(self.channel_id)
+            if ch:
+                try:
+                    msg = g.get("msg")
+                    if msg:
+                        await msg.edit(embed=discord.Embed(
+                            title="❌ Poker otkazan",
+                            description="Nema dovoljno igrača (min 2). Ulozi vraćeni.",
+                            color=COLORS["error"]
+                        ), view=None)
+                except Exception:
+                    pass
+
+class PokerActionView(discord.ui.View):
+    def __init__(self, channel_id: int):
+        super().__init__(timeout=120)
+        self.channel_id = channel_id
+
+    @discord.ui.button(label="🃏 Vidi kartice", style=discord.ButtonStyle.secondary, row=0)
+    async def see_cards(self, interaction: discord.Interaction, button: discord.ui.Button):
+        g = poker_games.get(self.channel_id)
+        if not g:
+            return await interaction.response.send_message("Nema aktivne igre.", ephemeral=True)
+        uid = interaction.user.id
+        if uid not in g["players"]:
+            return await interaction.response.send_message("Nisi u ovoj igri!", ephemeral=True)
+        p      = g["players"][uid]
+        hole   = p["hole"]
+        status = "❌ **FOLDO si**" if p["folded"] else "✅ **Aktivno igraš**"
+        community = g.get("community", [])
+        if community and len(hole) == 2:
+            rank_t, best5 = _pk_best(hole, community)
+            best_str = f"\n🏆 Tvoja trenutna ruka: **{_PK_HNAMES[rank_t[0]]}**\n→ {_pk_cards(best5)}"
+        else:
+            best_str = ""
+        await interaction.response.send_message(
+            f"🃏 **Tvoje kartice:** {_pk_cards(hole)}\n{status}{best_str}", ephemeral=True)
+
+    @discord.ui.button(label="✅ Prati", style=discord.ButtonStyle.success, row=1)
+    async def check_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        g = poker_games.get(self.channel_id)
+        if not g:
+            return await interaction.response.send_message("Nema igre.", ephemeral=True)
+        uid = interaction.user.id
+        if uid not in g["players"]:
+            return await interaction.response.send_message("Nisi u igri!", ephemeral=True)
+        if g["players"][uid]["folded"]:
+            return await interaction.response.send_message("Već si foldo!", ephemeral=True)
+        if uid not in g.get("needs_action", set()):
+            return await interaction.response.send_message("Već si djelovao/la u ovoj rundi.", ephemeral=True)
+        g["needs_action"].discard(uid)
+        await interaction.response.send_message("✅ Pratiš!", ephemeral=True)
+        await _pk_check_advance(self.channel_id)
+
+    @discord.ui.button(label="❌ Fold", style=discord.ButtonStyle.danger, row=1)
+    async def fold_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        g = poker_games.get(self.channel_id)
+        if not g:
+            return await interaction.response.send_message("Nema igre.", ephemeral=True)
+        uid = interaction.user.id
+        if uid not in g["players"]:
+            return await interaction.response.send_message("Nisi u igri!", ephemeral=True)
+        if g["players"][uid]["folded"]:
+            return await interaction.response.send_message("Već si foldo!", ephemeral=True)
+        if uid not in g.get("needs_action", set()):
+            return await interaction.response.send_message("Već si djelovao/la u ovoj rundi.", ephemeral=True)
+        g["players"][uid]["folded"] = True
+        g["needs_action"].discard(uid)
+        active_left = [u for u, p in g["players"].items() if not p["folded"]]
+        await interaction.response.send_message(
+            f"❌ Foldo/la si! Ostalo **{len(active_left)}** aktivnih igrača.", ephemeral=True)
+        await _pk_check_advance(self.channel_id)
+
+    async def on_timeout(self):
+        g = poker_games.get(self.channel_id)
+        if not g or g["phase"] in ("join", "showdown"):
+            return
+        for uid in list(g.get("needs_action", set())):
+            if uid in g["players"] and not g["players"][uid]["folded"]:
+                g["players"][uid]["folded"] = True
+        g["needs_action"] = set()
+        await _pk_check_advance(self.channel_id)
+
+async def _pk_begin(channel_id: int):
+    g = poker_games.get(channel_id)
+    if not g:
+        return
+    g["phase"]     = "preflop"
+    deck           = _pk_deck()
+    g["deck"]      = deck
+    g["community"] = []
+    for uid in g["players"]:
+        g["players"][uid]["hole"]   = [deck.pop(), deck.pop()]
+        g["players"][uid]["folded"] = False
+    g["needs_action"] = set(g["players"].keys())
+    ch = bot.get_channel(channel_id)
+    if not ch:
+        return
+    e    = _pk_game_embed(g)
+    view = PokerActionView(channel_id)
+    try:
+        msg = g.get("msg")
+        if msg:
+            await msg.edit(embed=e, view=view)
+        else:
+            msg = await ch.send(embed=e, view=view)
+            g["msg"] = msg
+    except Exception:
+        msg = await ch.send(embed=e, view=view)
+        g["msg"] = msg
+    await ch.send(
+        "🃏 **Kartice su podijeljene!**\n"
+        "▸ Klikni **Vidi kartice** da vidiš svoju ruku (samo ti vidiš)\n"
+        "▸ Klikni **Prati** da ostaneš u igri ili **Fold** da odustaneš."
+    )
+
+async def _pk_check_advance(channel_id: int):
+    g = poker_games.get(channel_id)
+    if not g:
+        return
+    active = [uid for uid, p in g["players"].items() if not p["folded"]]
+    if len(active) <= 1:
+        await _pk_end_game(channel_id, active)
+        return
+    if not g.get("needs_action"):
+        await _pk_next_phase(channel_id)
+
+async def _pk_next_phase(channel_id: int):
+    g = poker_games.get(channel_id)
+    if not g:
+        return
+    ch = bot.get_channel(channel_id)
+    if not ch:
+        return
+    active = [uid for uid, p in g["players"].items() if not p["folded"]]
+    phase  = g["phase"]
+    if phase == "preflop":
+        g["community"] = [g["deck"].pop(), g["deck"].pop(), g["deck"].pop()]
+        g["phase"]     = "flop"
+        announce = f"🌊 **FLOP** — Zajedničke kartice:\n{_pk_cards(g['community'])}"
+    elif phase == "flop":
+        g["community"].append(g["deck"].pop())
+        g["phase"] = "turn"
+        announce = f"🔄 **TURN** — Kartice:\n{_pk_cards(g['community'])}"
+    elif phase == "turn":
+        g["community"].append(g["deck"].pop())
+        g["phase"] = "river"
+        announce = f"🌊 **RIVER** — Kartice:\n{_pk_cards(g['community'])}"
+    elif phase == "river":
+        await _pk_showdown(channel_id)
+        return
+    else:
+        return
+    g["needs_action"] = set(active)
+    e    = _pk_game_embed(g)
+    view = PokerActionView(channel_id)
+    try:
+        msg = g.get("msg")
+        if msg:
+            await msg.edit(embed=e, view=view)
+    except Exception:
+        pass
+    await ch.send(announce)
+
+async def _pk_showdown(channel_id: int):
+    g = poker_games.get(channel_id)
+    if not g:
+        return
+    g["phase"] = "showdown"
+    ch = bot.get_channel(channel_id)
+    if not ch:
+        return
+    active = [(uid, p) for uid, p in g["players"].items() if not p["folded"]]
+    if not active:
+        del poker_games[channel_id]
+        return
+    if len(active) == 1:
+        await _pk_end_game(channel_id, [active[0][0]])
+        return
+    community = g["community"]
+    results   = []
+    for uid, p in active:
+        rank_t, best5 = _pk_best(p["hole"], community)
+        results.append((uid, p["name"], rank_t, best5, p["hole"]))
+    results.sort(key=lambda x: x[2], reverse=True)
+    best_rank  = results[0][2]
+    winners    = [r for r in results if r[2] == best_rank]
+    winner_ids = [r[0] for r in winners]
+    pot        = g["pot"]
+    split      = pot // len(winners)
+    lines = []
+    for uid, name, rank_t, best5, hole in results:
+        crown = "🏆" if uid in winner_ids else "  "
+        lines.append(
+            f"{crown} **{name}**\n"
+            f"   Ruka: {_pk_cards(hole)}\n"
+            f"   → **{_PK_HNAMES[rank_t[0]]}** | {_pk_cards(best5)}"
+        )
+    winner_str = " & ".join(r[1] for r in winners)
+    tie_note   = " *(Split pot)*" if len(winners) > 1 else ""
+    e = discord.Embed(
+        title="🏆 SHOWDOWN — Poker",
+        description=(
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🃏 **Zajedničke kartice:**\n{_pk_cards(community)}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            + "\n\n".join(lines) +
+            f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🏆 **Pobjednik:** {winner_str}{tie_note}\n"
+            f"💰 **Dobitak:** `{split:,} 💶` po pobjedniku"
+        ),
+        color=COLORS.get("gold", 0xFFD700),
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.set_footer(text=f"🃏 {BOT_NAME} • Poker završen • Ukupni pot: {pot:,} 💶")
+    try:
+        msg = g.get("msg")
+        if msg:
+            await msg.edit(embed=e, view=None)
+        else:
+            await ch.send(embed=e)
+    except Exception:
+        await ch.send(embed=e)
+    await _pk_end_game(channel_id, winner_ids, skip_embed=True)
+
+async def _pk_end_game(channel_id: int, winner_ids: list, skip_embed: bool = False):
+    g = poker_games.get(channel_id)
+    if not g:
+        return
+    pot      = g["pot"]
+    guild_id = g["guild_id"]
+    ch       = bot.get_channel(channel_id)
+    if winner_ids:
+        split     = pot // len(winner_ids)
+        remainder = pot % len(winner_ids)
+        for idx, uid in enumerate(winner_ids):
+            amt = split + (remainder if idx == 0 else 0)
+            _pk_set_bal(guild_id, uid, _pk_get_bal(guild_id, uid) + amt)
+        save_data()
+        if not skip_embed and ch:
+            name = g["players"].get(winner_ids[0], {}).get("name", "Pobjednik")
+            e = discord.Embed(
+                title="🏆 Poker — Pobjednik!",
+                description=(
+                    f"🏆 **{name}** pobijedio/la jer su svi ostali foldali!\n"
+                    f"💰 **Dobitak:** `{pot:,} 💶`"
+                ),
+                color=COLORS.get("gold", 0xFFD700),
+                timestamp=datetime.now(timezone.utc)
+            )
+            try:
+                msg = g.get("msg")
+                if msg:
+                    await msg.edit(embed=e, view=None)
+                else:
+                    await ch.send(embed=e)
+            except Exception:
+                await ch.send(embed=e)
+    poker_games.pop(channel_id, None)
+
+@bot.tree.command(name="poker", description="🃏 Pokreni Texas Hold'em Poker za pravi novac (2–9 igrača)")
+@app_commands.describe(ulog="Iznos uloga po igraču u 💶 (default: 200, min: 50, max: 50000)")
+async def poker_cmd(i: discord.Interaction, ulog: int = 200):
+    if poker_games.get(i.channel_id):
+        return await i.response.send_message(
+            embed=em("❌", "Poker igra je već aktivna u ovom kanalu!", color=COLORS["error"]), ephemeral=True)
+    if ulog < 50:
+        return await i.response.send_message(
+            embed=em("❌", "Minimalni ulog je `50 💶`.", color=COLORS["error"]), ephemeral=True)
+    if ulog > 50000:
+        return await i.response.send_message(
+            embed=em("❌", "Maksimalni ulog je `50,000 💶`.", color=COLORS["error"]), ephemeral=True)
+    uid = i.user.id
+    bal = _pk_get_bal(i.guild.id, uid)
+    if bal < ulog:
+        return await i.response.send_message(
+            embed=em("❌", f"Nemaš dovoljno! Trebaš `{ulog:,} 💶`, a imaš `{bal:,} 💶`.", color=COLORS["error"]),
+            ephemeral=True)
+    _pk_set_bal(i.guild.id, uid, bal - ulog)
+    save_data()
+    g = {
+        "guild_id":    i.guild.id,
+        "channel_id":  i.channel_id,
+        "host_id":     uid,
+        "ulog":        ulog,
+        "pot":         ulog,
+        "phase":       "join",
+        "players":     {uid: {"name": i.user.display_name, "hole": [], "folded": False}},
+        "deck":        [],
+        "community":   [],
+        "needs_action": set(),
+        "msg":         None,
+    }
+    poker_games[i.channel_id] = g
+    view = PokerLobbyView(i.channel_id)
+    e    = _pk_lobby_embed(g)
+    await i.response.send_message(embed=e, view=view)
+    msg  = await i.original_response()
+    g["msg"] = msg
 
 # ═══════════════════════════════════════════
 #    LJUBAVNE / SOCIJALNE KOMANDE
@@ -6107,7 +6496,7 @@ async def vatrice_start(i: discord.Interaction):
             f"👥 Ukupno: **{dodano}** članova\n"
             f"📛 Nickovi ažurirani: **{nick_ok}**\n"
             f"👑 Owner servera (preskočen): **{skipped_owner}**\n\n"
-            f"📋 Sada članovi automatski dobijaju vatricu **svakih 500 poruka**.\n"
+            f"📋 Sada članovi automatski dobijaju vatricu **svakih 150 poruka**.\n"
             f"Vlasnik može i ručno dodijeliti sa `/vatrice ember @član`,\n"
             f"a `/vatrice pup` prikazuje top listu.\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
