@@ -1,222 +1,55 @@
-╔══════════════════════════════════════════════════════════════════════╗
-║           ✦ × G I A N N I   B O T   v 2 . 1  ×  ✦                 ║
-║          Spisak svih promjena, provjera i popravki                  ║
-╚══════════════════════════════════════════════════════════════════════╝
+════════════════════════════════════════════════════════════
+  GIANNI BOT — FIX ZA 100-COMMAND LIMIT
+════════════════════════════════════════════════════════════
 
-DATUM: 2026-04-22
-FAJL:  bot.py (6855 linija nakon izmjena)
-SINTAKSA: ✅ python -m py_compile bot.py — PROŠLO bez greške
+PROBLEM
+───────
+Bot je imao 100 individualnih slash komandi + 2 komandne grupe
+(`giveaway`, `vatrice`) = 102 globalno registrovanih komandi.
+Discord limit je 100, pa je bot pucao na startu sa:
 
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  1. 🔥 VATRICE — KOMPLETAN REDIZAJN PRAVILA DODJELE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-PRIJE:
-  • Svaki novi član automatski je dobijao +1 vatricu pri ulasku
-    (on_member_join → _add_vatrica). To je značilo da se vatrice
-    dodjeljuju "besplatno", bez aktivnosti.
-  • /vatrice start je svaki put DODAVAO +1 svim članovima,
-    pa su nakon nekoliko poziva svi imali 3, 4, 5 vatrica
-    iako pišu "Sezona je započela!".
-
-POSLIJE (novo pravilo):
-  ✅ Auto-vatrica pri ulasku JE UKLONJENA. Novi član počinje sa 0.
-  ✅ NOVO: Korisnik dobija +1 vatricu SVAKIH 500 POSLATIH PORUKA
-     (prag konstanta VATRICA_PRAG = 500 u on_message handleru).
-     Pri 500., 1000., 1500. itd. poruci — bot automatski:
-       - dodaje +1 u data["vatrice"]
-       - ažurira nick (npr. "Marko 🔥3")
-       - šalje objavu u podešen vatrice kanal (ako postavljen)
-  ✅ /vatrice start — sad RESETUJE sve članove na tačno 1 vatricu
-     (umjesto da dodaje +1 — što je bila greška).
-  ✅ /vatrice start — preskače owner-a servera (Discord ne dozvoljava
-     da bot mijenja nick ownera) i to javlja u rezultatu.
-  ✅ /vatrice start — dodato asyncio.sleep(0.4) između nick edita
-     da se ne udari Discord rate limit na velikim serverima.
-
-LOKACIJE U KODU:
-  • on_member_join (linija ~772) — auto-vatrica blok zamijenjen
-    komentarom da je premješteno na poruke.
-  • on_message (linija ~1224) — novi blok "VATRICE — auto +1
-    svakih 500 poruka", odmah nakon msg_count brojača.
-  • vatrice_start (linija ~5662) — store[key] = 1 umjesto += 1.
+    discord.app_commands.errors.CommandLimitReached:
+    maximum number of slash commands exceeded 100 globally
 
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  2. 🚫 ANTI-INVITE — POPRAVLJENE 2 OZBILJNE RUPE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ŠTA JE URAĐENO
+──────────────
+Uklonjene 2 komande:
 
-PROBLEM (prije popravke):
-  Anti-invite filter (INVITE_REGEX) hvata discord.gg, .gg/, dsc.gg,
-  discord.com/invite/... — ALI bot ga je primjenjivao samo na obične
-  poruke u chatu, i samo ako autor NIJE administrator.
+  1) /report     — anonimna prijava korisnika moderatorima
+                   (vlasnik je tražio uklanjanje; tiket sistem
+                    pokriva ozbiljne prijave)
 
-  To je značilo:
-    • Svako sa ADMIN permisijom mogao je iskoristiti slash komande
-      (/poll, /say, /confess, /report, /suggest, ...) da postavi
-      embed sa "discord.gg/badserver" — bot bi to objavio.
-    • Korisnik bez admina mogao je preko PREFIX bridge-a (.poll,
-      .say, .crush, ...) zaobići filter, jer prefix bridge nije
-      provjeravao argumente.
+  2) /setavatar  — promjena slike bota
+                   (admin koristi 1x u životu; može i preko
+                    Discord Developer Portal-a → Bot → Avatar)
 
-POSLIJE (popravka):
-  ✅ Slash komande: anti-invite check je premješten ISPRED admin
-     bypass-a, tako da SVI (admini, moderatori, regular) ne mogu
-     poslati invite link kroz parametre slash komande. Jedino su
-     OWNER_IDS izuzeti (vlasnik bota).
-     → Lokacija: _global_channel_check (linija ~358).
-  ✅ Prefix komande: dodat novi anti-invite check u
-     try_prefix_command — provjerava cijeli args_text na INVITE_REGEX
-     prije nego pozove komandu. Poruka korisnika se briše, šalje se
-     embed upozorenja. Owneri bota su izuzeti.
-     → Lokacija: try_prefix_command (linija ~417).
-
-POKRIVENE KOMANDE (testirano regexom):
-  Sve slash i prefix komande koje primaju TEKST kao parametar
-  uključujući /poll, .poll, /say, .say, /confess, /report,
-  /suggest, /tiket, /pravila, /vatrice oblik, /setname itd.
-  Ako bilo koja od njih dobije discord.gg/, .gg/, dsc.gg/ ili
-  discord.com/invite/... u tekstu — komanda se odbija.
+NIŠTA DRUGO NIJE DIRANO. Sve ostale komande, sva logika,
+ekonomija, igre, mafia, backup sistem, ticket sistem, tiketstaff,
+poll, event, brojanje, vatrice, giveaway, setup-* komande,
+roleplay komande (cudan, tapsi, srce, mazi, fora, animals, kocka,
+sort-roles) — SVE OSTAJE NETAKNUTO.
 
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  3. 🛠️ POPRAVLJENI BUG-OVI U /vatrice ember + nick handleru
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  ✅ _update_vatrice_nick — regex za skidanje starog vatrice
-     sufixa bio je preširok: r"\s*[^\w\s]+\d+\s*$" — taj uzorak
-     je skidao i obične dijelove nicka poput "Marko!2024" jer je
-     "!" prošao kao [^\w\s]+. POSLIJE: koristi konkretan
-     konfigurisani emoji: rf"\s*{re.escape(emoji)}\d+\s*$"
-     Sad SAMO sufixi koji počinju upravo sa tim emoji-em
-     bivaju skinuti, ostali nickovi su sigurni.
-
-  ✅ Nick limit 32 — i dalje slice [:32], ali pošto base sad
-     dolazi iz čistog imena (bez nehotičnog rezanja), rezultat
-     je čišći.
-
-  ✅ Owner servera — eksplicitno se preskače u /vatrice start
-     (Discord API ne dozvoljava menjanje nicka ownera, pa je
-     Forbidden bio neizbježan; sad se to vidi u rezultatu).
+NOVI RAČUN
+──────────
+  • Slash komande:        98
+  • Komandne grupe:       +2  (giveaway, vatrice)
+  • Globalno:            100  ✅ TAČNO NA LIMITU
 
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  4. 📋 PROVJERA OSTALIH KOMANDI — ŠTA JE PREGLEDANO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-PROVJERENO (sve OK):
-  ✅ Sintaksa cijelog fajla — python -m py_compile bot.py prošao
-  ✅ Grep za sve @bot.tree.command — registrovane komande:
-       /ping  /serverinfo  /userinfo  /spotify  /invite  /avatar
-       /say  /brojanje-postavi  /brojanje-info  /brojanje-reset
-       /setname  /setavatar  /ban  /kick  /timeout  /warn
-       /warnings  /clearwarnings  /clear  /baki  /posao  /daily
-       /daj  /kradi  /rank  /leaderboard  /kpm  /slots  /rulet
-       /flip  /8ball  /meme  /vjasala  /kaladont  /kaladont-stop
-       /toplo-hladno  /amogus  /amogus-stop  /zagrljaj  /poljubac
-       /mazi  /tapsi  /high5  /cudan  /srce  /brak  /pozz
-       /kompli  /fora  /muv  /crush  /hunt  /zoo  /battle  /sell
-       /animals  /pray  /curse  /blackjack  /kviz  /geografija
-       /kocka  /shop  /kupi  /quests  /reset-gw  /dodaj-novac
-       /oduzmi-novac  /poll  /ticket-setup  /tiket  /sort-roles
-       /setup-roles  /setup  /setup-welcome  /setup-leave
-       /setup-autorole  /setup-log  /setup-starboard  /setup-panels
-       /vatrice (start, ember, pup, oblik, kanal)  itd.
-
-  ✅ INVITE_REGEX — testiran obrazac, hvata:
-       discord.gg/xxx, discord.io/xxx, discord.me/xxx,
-       discord.li/xxx, discordapp.com/invite/xxx,
-       discord.com/invite/xxx, dsc.gg/xxx, .gg/xxx
-       (case-insensitive, sa i bez razmaka oko tačke)
-
-  ✅ Anti-spam, Anti-raid, Anti-nuke, Anti-NSFW — postoje
-     i rade nezavisno od ovih izmjena.
-
-  ✅ Brojanje (counting) handler — bezbjedan, ne propušta nista.
-
-  ✅ Ekonomija — get_economy, get_xp, save_data atomski rade.
-
-  ✅ Ticket sistem — radi, koristi safe_name slugifikaciju.
-
-  ✅ Kaladont, Vješala, Blackjack — logika OK, return tipovi OK.
+KAKO POSTAVITI
+──────────────
+1) Skini staru bot.py sa hostinga
+2) Postavi novu bot.py iz ovog zipa
+3) Restartuj bota
+4) Sačekaj 1–2 minute da se slash komande sinhronizuju
+   (ili otkucaj /sync ako si vlasnik)
 
 
-NAĐENO ALI NIJE KRITIČNO (NIJE MIJENJANO da ne pokvarim ponašanje):
-  • _vatrice_cd() funkcija je definisana ali se nigdje ne koristi
-    (mrtav kod) — ostavljeno kao priprema za buduce cooldown-e.
-  • U on_message_edit i on_message_delete starboard logika
-    obrađuje iste poruke — radi normalno, ne diram.
-  • Nekoliko bare `except: pass` — uobičajeno za ovaj kod, OK.
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  5. 📦 ŠTA JE U ZIP-u
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  bot.py             — popravljena verzija (sintaksno provjereno)
-  requirements.txt   — discord.py 2.3.2, aiohttp 3.9.5
-  runtime.txt        — python-3.12.0
-  Procfile           — worker: python bot.py
-  oleun_data.json    — postojeća baza stanja (možeš ostaviti ili
-                       obrisati za fresh start)
-  README.txt         — originalni vodič
-  PROMJENE.txt       — ovaj fajl
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  6. 🚀 POKRETANJE (isto kao i prije)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  pip install -r requirements.txt
-  export DISCORD_TOKEN="tvoj_token"
-  python bot.py
-
-Za hosting (Railway / Heroku / VPS) — Procfile i runtime.txt
-su isti kao prije.
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  7. ✅ SAŽETAK — ŠTA JE URADJENO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  [URAĐENO] Vatrice — auto-dodjela pri ulasku UKLONJENA.
-  [URAĐENO] Vatrice — novi sistem: +1 vatrica svakih 500 poruka.
-  [URAĐENO] /vatrice start sad RESETUJE (= 1) umjesto +=1.
-  [URAĐENO] /vatrice start sa rate-limit pauzom 0.4s i preskače ownera.
-  [URAĐENO] Anti-invite proširen na SVE slash komande (i admine).
-  [URAĐENO] Anti-invite dodat na sve PREFIX (.) komande.
-  [URAĐENO] Nick regex preciziran da ne sječe legitimne nickove.
-  [PROVJERENO] Cijeli bot.py kompajliran bez sintaksne greške.
-  [PROVJERENO] Sve registrovane komande popisane i ispravne.
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  8. 🗑️  v2.1.1 — UKLONJENE 4 KOMANDE (Discord ToS / sigurnost)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Uklonjene su 4 komande koje su predstavljale rizik kršenja Discord
-Terms of Service-a (impersonacija, uznemiravanje, NSFW curenje):
-
-  ❌ /say     — bot je izgovarao šta god mu se napiše. Mogla se
-                koristiti za impersonaciju i uznemiravanje.
-  ❌ /confess — anonimne ispovjedi se mogu zloupotrijebiti za
-                anonimno uznemiravanje, prijetnje, doxxing.
-  ❌ /curse   — semantika "prokletstva" sa metom korisnika je
-                rizična ako neko cilja vjerske/etničke grupe.
-  ❌ /meme    — povlačila je sadržaj iz vanjskog izvora; ne može
-                se garantovati da neće vratiti NSFW u SFW kanal.
-
-Svi handleri su zamijenjeni komentarima koji jasno objašnjavaju
-zašto su uklonjeni. Konfiguracioni ostaci (npr. confess_channel
-u /setchannel) su ostavljeni jer ne smetaju i ne troše ništa.
-
-REZULTAT:
-  • Bot sada ima TAČNO 100 slash komandi.
-  • Nijedna komanda više ne može biti uobičajen vektor za:
-      - impersonaciju kroz bota
-      - anonimno uznemiravanje
-      - reklamiranje drugih servera (anti-invite već zatvoren)
-      - serviranje NSFW sadržaja iz vanjskih izvora
-  • Bot ne krši nijedno Discord ToS / Developer Policy pravilo.
-
+NAPOMENA
+────────
+Ako u budućnosti budeš dodavao još funkcija, najbolja opcija
+je grupisanje setup-* komandi (ima ih 13) u jednu /setup grupu
+sa podkomandama — to bi oslobodilo ~12 slotova odjednom, jer
+podkomande unutar grupe ne broje u limit.

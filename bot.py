@@ -2171,21 +2171,7 @@ async def setname(i: discord.Interaction, ime: str):
         e = em("❌ Greška", f"{ex}\n*Max 2 promene na 10 min*", color=COLORS["error"])
     await i.response.send_message(embed=e, ephemeral=True)
 
-@bot.tree.command(name="setavatar", description="🖼️ Promeni sliku bota")
-@app_commands.checks.has_permissions(administrator=True)
-async def setavatar(i: discord.Interaction, url: str):
-    await i.response.defer(ephemeral=True)
-    try:
-        async with aiohttp.ClientSession() as sess:
-            async with sess.get(url) as resp:
-                if resp.status != 200:
-                    return await i.followup.send(embed=em("❌ Greška", "Ne mogu preuzeti sliku.", color=COLORS["error"]), ephemeral=True)
-                img = await resp.read()
-        await bot.user.edit(avatar=img)
-        e = em("✅ Avatar promenjen!", "Nova slika je postavljena!", color=COLORS["success"], thumb=url)
-    except Exception as ex:
-        e = em("❌ Greška", str(ex), color=COLORS["error"])
-    await i.followup.send(embed=e, ephemeral=True)
+# /setavatar — uklonjeno (oslobađa slot za 100-command limit)
 
 # ═══════════════════════════════════════════
 #    MODERACIJA
@@ -7359,21 +7345,7 @@ async def on_app_command_completion(interaction, command):
         data["cmd_uses"][n] = data["cmd_uses"].get(n, 0) + 1
     except Exception: pass
 
-# ─── 🚨 REPORT (anoniman) ───
-@bot.tree.command(name="report", description="🚨 Anonimno prijavi korisnika moderatorima")
-async def report_cmd(i: discord.Interaction, korisnik: discord.Member, razlog: str):
-    cfg = get_guild_config(i.guild.id)
-    ch_id = cfg.get("report_channel") or cfg.get("log_channel")
-    ch = i.guild.get_channel(ch_id) if ch_id else None
-    if not ch:
-        return await i.response.send_message(embed=em("❌", "Report kanal nije postavljen.\nAdmin: `/setreport #kanal`", color=COLORS["error"]), ephemeral=True)
-    e = discord.Embed(title="🚨 Anonimni Report", color=COLORS["error"], timestamp=datetime.now(timezone.utc))
-    e.add_field(name="👤 Prijavljen", value=korisnik.mention, inline=True)
-    e.add_field(name="📅 Nalog star", value=f"<t:{int(korisnik.created_at.timestamp())}:R>", inline=True)
-    e.add_field(name="📝 Razlog", value=razlog[:1000], inline=False)
-    e.set_thumbnail(url=korisnik.display_avatar.url)
-    await ch.send(embed=e)
-    await i.response.send_message(embed=em("✅", "Report poslan anonimno moderatorima!", color=COLORS["success"]), ephemeral=True)
+# ─── 🚨 REPORT — uklonjeno (oslobađa slot za 100-command limit) ───
 
 # ═══════════════════════════════════════════
 #    📋 STAFF PRIJAVA — /tiket-staff
