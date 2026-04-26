@@ -3944,7 +3944,7 @@ class PokerRaiseModal(discord.ui.Modal, title="💰 Raise / Podigni ulog"):
         bal = _pk_get_bal(g["guild_id"], uid)
         if bal < amt:
             return await interaction.response.send_message(
-                embed=em("❌","Nemaš dovoljno!", f"Imaš `{bal:,} 💶`, treba `{amt:,} 💶`.", color=COLORS["error"]),
+                embed=em("❌","Nemaš dovoljno!", f"Imaš `{bal:,} 💶`, treba `{amt:,} 💶`.", COLORS["error"]),
                 ephemeral=True)
         _pk_set_bal(g["guild_id"], uid, bal - amt)
         g["pot"] += amt
