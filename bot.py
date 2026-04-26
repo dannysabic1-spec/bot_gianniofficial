@@ -1377,6 +1377,17 @@ async def on_member_join(member):
     )
     await chan.send(content=member.mention, embed=e)
 
+def _find_boost_channel(guild: discord.Guild):
+    """Vraća prvi tekstualni kanal koji u imenu sadrži 'boost' (case-insensitive),
+    a u koji bot ima dozvolu da šalje poruke. Fallback: system_channel."""
+    for c in guild.text_channels:
+        if "boost" in c.name.lower() and c.permissions_for(guild.me).send_messages:
+            return c
+    sc = guild.system_channel
+    if sc and sc.permissions_for(guild.me).send_messages:
+        return sc
+    return next((c for c in guild.text_channels if c.permissions_for(guild.me).send_messages), None)
+
 @bot.event
 async def on_member_update(before, after):
     if before.premium_since is None and after.premium_since is not None:
@@ -1388,49 +1399,25 @@ async def on_member_update(before, after):
         get_economy(after.id)["balance"] += BOOST_REWARD
         save_data()
 
-        tier_names = {0: "Nema tiera", 1: "Tier 1 🥈", 2: "Tier 2 🥇", 3: "Tier 3 💎"}
-
-        chan = (
-            guild.get_channel(1494043956965544094) or
-            discord.utils.get(guild.text_channels, name="boosts") or
-            discord.utils.get(guild.text_channels, name="general") or
-            discord.utils.get(guild.text_channels, name="opšte") or
-            discord.utils.get(guild.text_channels, name="chat") or
-            next((c for c in guild.text_channels if c.permissions_for(guild.me).send_messages), None)
-        )
+        chan = _find_boost_channel(guild)
         if not chan:
             return
 
-        zahvale = [
-            f"Ti si naša zvezda, {after.mention}! ✨",
-            f"Legenda servera — {after.mention}! 🏆",
-            f"Bog među nama — {after.mention}! 🙏",
-            f"Bez tebe ne bismo bili ništa, {after.mention}! 💜",
-            f"Kralj/Kraljica servera — {after.mention}! 👑",
-            f"MVP bez premca — {after.mention}! 🎖️",
-            f"Hvala ti beskrajno, {after.mention}! Srce si ove zajednice! ❤️",
-        ]
-        bsep = "══════════════════════════════"
+        # ── MALI, ČIST EMBED ──
         e = discord.Embed(
-            title="🚀 ꜱᴇʀᴠᴇʀ ʙᴏᴏꜱᴛ! 💜",
+            title="💜 Novi Boost!",
             description=(
-                f"```ansi\n\u001b[1;35m{bsep}\u001b[0m\n```"
-                f"## 💜  {after.mention} je boostovao/la **{guild.name}**!\n\n"
-                f"✨ {random.choice(zahvale)}\n\n"
-                f"Hvala ti iz dna duše što podržavaš nas! "
-                f"Tvoj boost čini ovaj server boljim mjestom za sve! 🌍💙\n"
-                f"```ansi\n\u001b[1;35m{bsep}\u001b[0m\n```"
+                f"{after.mention} je upravo **boostovao server**! 🚀\n"
+                f"Hvala ti na podršci — server je sad još jači! 💪"
             ),
             color=0xF47FFF,
             timestamp=datetime.now(timezone.utc)
         )
-        e.add_field(name="🚀 Ukupno Boosta",  value=f"```yaml\n{boosts} boost{'a' if boosts != 1 else ''}\n```", inline=True)
-        e.add_field(name="🏅 Server Tier",    value=f"```yaml\n{tier_names.get(tier, '?')}\n```",                inline=True)
-        e.add_field(name="💶 Nagrada",         value=f"```diff\n+ {BOOST_REWARD:,} coina dodato!\n```",           inline=False)
-        e.add_field(name="🎁 Discord hvali:",  value="*Zahvaljujemo platformi Discord što nam omogućava ovu fantastičnu zajednicu!* 🙏", inline=False)
+        e.add_field(name="🚀 Boostova", value=f"`{boosts}`",        inline=True)
+        e.add_field(name="🏅 Tier",     value=f"`Lvl {tier}`",      inline=True)
+        e.add_field(name="🎁 Nagrada",  value=f"`+{BOOST_REWARD:,} 💶`", inline=True)
         e.set_thumbnail(url=after.display_avatar.url)
-        e.set_image(url="https://i.imgur.com/wSTFkRM.gif")
-        e.set_footer(text=f"💜 {BOT_NAME} {VERSION} • Hvala na podršci!")
+        e.set_footer(text=f"{BOT_NAME} • Hvala na podršci 💜")
         await chan.send(content=after.mention, embed=e)
 
 @bot.event
@@ -2986,6 +2973,53 @@ async def toplo_hladno(i: discord.Interaction, maksimum: int = 100):
     )
 
 # ═══════════════════════════════════════════
+#    🎮 PER-USER COOLDOWN za GAME komande
+#    Regularan član može pokrenuti svaku igru jednom u 30 minuta.
+#    Owner i admin (manage_messages) zaobilaze cooldown.
+# ═══════════════════════════════════════════
+GAME_USER_COOLDOWN_SEC = 30 * 60  # 30 minuta
+_game_user_cooldowns: dict = {}   # (gid, uid, cmd) -> last_use_ts
+
+def _is_game_admin(member) -> bool:
+    """Owner ili korisnik s manage_messages zaobilazi cooldown."""
+    try:
+        if int(getattr(member, "id", 0)) in OWNER_IDS:
+            return True
+    except Exception:
+        pass
+    try:
+        return bool(member.guild_permissions.manage_messages)
+    except Exception:
+        return False
+
+def _check_game_cooldown(member, gid: int, cmd: str):
+    """Vrati (ok: bool, sec_left: int). Owner/admin = uvijek ok."""
+    if _is_game_admin(member):
+        return True, 0
+    key  = (gid or 0, getattr(member, "id", 0), cmd)
+    last = _game_user_cooldowns.get(key, 0.0)
+    now  = time.time()
+    diff = now - last
+    if diff < GAME_USER_COOLDOWN_SEC:
+        return False, int(GAME_USER_COOLDOWN_SEC - diff)
+    return True, 0
+
+def _set_game_cooldown(member, gid: int, cmd: str):
+    if _is_game_admin(member):
+        return
+    _game_user_cooldowns[((gid or 0), getattr(member, "id", 0), cmd)] = time.time()
+
+async def _send_cooldown_msg(i: discord.Interaction, cmd: str, secs_left: int):
+    mins, secs = divmod(secs_left, 60)
+    e = em(
+        "⏳ Cooldown — sačekaj!",
+        f"Možeš ponovo pokrenuti **/{cmd}** za **{mins}m {secs}s**.\n"
+        f"*(Cooldown za regularne članove: 30 min — admin/owner zaobilazi.)*",
+        color=COLORS["warning"]
+    )
+    return await i.response.send_message(embed=e, ephemeral=True)
+
+# ═══════════════════════════════════════════
 #    AMONG US — AMOGUS
 # ═══════════════════════════════════════════
 PLAYER_COLORS   = ["🔴","🟠","🟡","🟢","🔵","🟣","⚫","⚪","🟤","🩷"]
@@ -3670,8 +3704,12 @@ class AmogusMeetingView(discord.ui.View):
 
 @bot.tree.command(name="amogus", description="🚀 Pokreni Among Us igru!")
 async def amogus_cmd(i: discord.Interaction):
+    ok, left = _check_game_cooldown(i.user, i.guild_id, "amogus")
+    if not ok:
+        return await _send_cooldown_msg(i, "amogus", left)
     if i.channel.id in amogus_games:
         return await i.response.send_message(embed=em("❌","Igra je već aktivna! Koristi `/amogus-stop` za kraj.",color=COLORS["error"]),ephemeral=True)
+    _set_game_cooldown(i.user, i.guild_id, "amogus")
     state = {"phase":"lobby","host":i.user.id,"channel_id":i.channel.id,
              "players":{},"total_tasks":0,"done_tasks":0,"votes":{},"game_view":None,"meeting_view":None}
     state["players"][str(i.user.id)] = {
@@ -4235,6 +4273,9 @@ async def _pk_end_game(channel_id: int, winner_ids: list, skip_embed: bool = Fal
 @bot.tree.command(name="poker", description="🃏 Pokreni Texas Hold'em Poker za pravi novac (2–9 igrača)")
 @app_commands.describe(ulog="Iznos uloga po igraču u 💶 (default: 200, min: 50, max: 50000)")
 async def poker_cmd(i: discord.Interaction, ulog: int = 200):
+    ok, left = _check_game_cooldown(i.user, i.guild_id, "poker")
+    if not ok:
+        return await _send_cooldown_msg(i, "poker", left)
     if poker_games.get(i.channel_id):
         return await i.response.send_message(
             embed=em("❌", "Poker igra je već aktivna u ovom kanalu!", color=COLORS["error"]), ephemeral=True)
@@ -4252,6 +4293,7 @@ async def poker_cmd(i: discord.Interaction, ulog: int = 200):
             ephemeral=True)
     _pk_set_bal(i.guild.id, uid, bal - ulog)
     save_data()
+    _set_game_cooldown(i.user, i.guild_id, "poker")
     g = {
         "guild_id":    i.guild.id,
         "channel_id":  i.channel_id,
@@ -5401,23 +5443,55 @@ class GiveawayView(discord.ui.View):
 
 giveaway_group = app_commands.Group(name="giveaway", description="🎉 Nagradne igre")
 
+def _gw_fmt_duration(minuta: int) -> str:
+    """Pretvori minute u 'Xh Ymin' string."""
+    if minuta <= 0: return "0min"
+    h, m = divmod(int(minuta), 60)
+    if h and m: return f"{h}h {m}min"
+    if h:       return f"{h}h"
+    return f"{m}min"
+
+async def _gw_timer(msg_id: int, channel: discord.TextChannel, seconds: float):
+    """Pozadinski timer — preživljava jer je odvojen od interaction context-a."""
+    try:
+        await asyncio.sleep(max(1.0, seconds))
+        await _end_giveaway(msg_id, channel)
+    except asyncio.CancelledError:
+        pass
+    except Exception as ex:
+        print(f"[giveaway timer] msg={msg_id} error: {ex}")
+
 @giveaway_group.command(name="start", description="🎉 Pokreni nagradnu igru")
-@app_commands.describe(nagrada="Šta se osvaja", minuta="Koliko minuta traje", kanal="Kanal (default ovaj)")
+@app_commands.describe(nagrada="Šta se osvaja", minuta="Koliko minuta traje (npr. 60 = 1h, 120 = 2h)", kanal="Kanal (default ovaj)")
 @app_commands.default_permissions(manage_guild=True)
 @app_commands.checks.has_permissions(manage_guild=True)
 async def giveaway_start(i: discord.Interaction, nagrada: str, minuta: int = 60, kanal: discord.TextChannel = None):
+    if minuta < 1:
+        return await i.response.send_message(
+            embed=em("❌", "Minimalno trajanje je **1 minut**.", color=COLORS["error"]), ephemeral=True)
+    if minuta > 60 * 24 * 14:
+        return await i.response.send_message(
+            embed=em("❌", "Maksimalno trajanje je **14 dana** (20160 minuta).", color=COLORS["error"]), ephemeral=True)
     chan = kanal or i.channel
     end  = datetime.now(timezone.utc) + timedelta(minutes=minuta)
+    end_ts = int(end.timestamp())
+    duration_txt = _gw_fmt_duration(minuta)
     e = discord.Embed(
         title="🎉 NAGRADNA IGRA!",
-        description=f"## 🏆  {nagrada}\n\nKlikni dugme da se prijaviš!",
+        description=f"## 🏆  {nagrada}\n\nKlikni dugme **🎉 Učestvuj** da se prijaviš!",
         color=COLORS["gold"], timestamp=end
     )
-    e.add_field(name="⏰ Kraj",       value=f"<t:{int(end.timestamp())}:R>", inline=True)
-    e.add_field(name="👥 Učesnici",  value="`0`",                            inline=True)
-    e.add_field(name="🎟️ Domaćin",  value=i.user.mention,                  inline=True)
-    e.set_footer(text=f"Završava se • {BOT_NAME}")
-    await i.response.send_message("✅ Nagradna igra pokrenuta!", ephemeral=True)
+    e.add_field(name="🕒 Trajanje",  value=f"`{duration_txt}` ({minuta} min)",       inline=True)
+    e.add_field(name="👥 Učesnici",  value="`0`",                                    inline=True)
+    e.add_field(name="🎟️ Domaćin",   value=i.user.mention,                           inline=True)
+    e.add_field(name="📅 Završava",  value=f"<t:{end_ts}:F>\n⏰ <t:{end_ts}:R>",     inline=False)
+    e.set_footer(text=f"Završava se automatski • {BOT_NAME}")
+    await i.response.send_message(
+        embed=em("✅ Pokrenuto!",
+                 f"Nagradna igra **{nagrada}** poslata u {chan.mention}.\n🕒 Trajanje: **{duration_txt}**\n📅 Kraj: <t:{end_ts}:F>",
+                 color=COLORS["success"]),
+        ephemeral=True
+    )
     msg = await chan.send(embed=e)
     ga  = {
         "entrants": set(), "prize": nagrada, "channel_id": chan.id,
@@ -5426,8 +5500,8 @@ async def giveaway_start(i: discord.Interaction, nagrada: str, minuta: int = 60,
     active_giveaways[msg.id] = ga
     _save_giveaway(msg.id, ga)
     await msg.edit(view=GiveawayView(msg.id))
-    await asyncio.sleep(minuta * 60)
-    await _end_giveaway(msg.id, chan)
+    # Timer u POZADINI — interaction se zatvara odmah, giveaway nastavlja
+    asyncio.create_task(_gw_timer(msg.id, chan, minuta * 60))
 
 @giveaway_group.command(name="end", description="🏁 Završi nagradnu igru odmah")
 @app_commands.default_permissions(manage_guild=True)
@@ -5466,6 +5540,32 @@ bot.tree.add_command(giveaway_group)
 # ═══════════════════════════════════════════
 #    🔄 RESET GIVEAWAY (5 min)
 # ═══════════════════════════════════════════
+async def _reset_gw_worker(chan: discord.TextChannel, host: discord.Member, nagrada: str):
+    """Pozadinski radnik — sačeka 5 min, pa pokrene giveaway na 60min."""
+    try:
+        await asyncio.sleep(300)
+        end    = datetime.now(timezone.utc) + timedelta(minutes=60)
+        end_ts = int(end.timestamp())
+        ga_e = discord.Embed(
+            title="🎉 NAGRADNA IGRA!",
+            description=f"## 🏆  {nagrada}\n\nKlikni dugme **🎉 Učestvuj** da se prijaviš!",
+            color=COLORS["gold"], timestamp=end
+        )
+        ga_e.add_field(name="🕒 Trajanje",  value="`1h` (60 min)",               inline=True)
+        ga_e.add_field(name="👥 Učesnici", value="`0`",                          inline=True)
+        ga_e.add_field(name="🎟️ Domaćin", value=host.mention,                   inline=True)
+        ga_e.add_field(name="📅 Završava", value=f"<t:{end_ts}:F>\n⏰ <t:{end_ts}:R>", inline=False)
+        ga_e.set_footer(text=f"Završava se automatski • {BOT_NAME}")
+        msg = await chan.send(embed=ga_e)
+        ga = {"entrants": set(), "prize": nagrada, "channel_id": chan.id,
+              "msg_id": msg.id, "end_at": end.timestamp(), "guild_id": chan.guild.id}
+        active_giveaways[msg.id] = ga
+        _save_giveaway(msg.id, ga)
+        await msg.edit(view=GiveawayView(msg.id))
+        asyncio.create_task(_gw_timer(msg.id, chan, 60 * 60))
+    except Exception as ex:
+        print(f"[reset_gw worker] error: {ex}")
+
 @bot.tree.command(name="reset-gw", description="🔄 [ADMIN] Resetuj i ponovo pokreni giveaway za 5 minuta")
 @app_commands.describe(nagrada="Nagrada za novi giveaway", kanal="Kanal (default ovaj)")
 @app_commands.default_permissions(manage_guild=True)
@@ -5475,39 +5575,27 @@ async def reset_gw_cmd(i: discord.Interaction, nagrada: str, kanal: discord.Text
     for mid, ga in list(active_giveaways.items()):
         if ga["channel_id"] == chan.id:
             active_giveaways.pop(mid, None)
+            _remove_giveaway(mid)
+    start_ts = int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp())
     sep = "═══════════════════════════"
     countdown_e = discord.Embed(
         title="🔄 ɢɪᴠᴇᴀᴡᴀʏ ʀᴇꜱᴇᴛ!",
         description=(
             f"```ansi\n\u001b[1;36m{sep}\u001b[0m\n```"
-            f"⏳ **Novi giveaway počinje za 5 minuta!**\n\n"
+            f"⏳ **Novi giveaway počinje za 5 minuta!** (<t:{start_ts}:R>)\n\n"
             f"```yaml\n"
             f"Nagrada  : {nagrada}\n"
+            f"Trajanje : 1h (60 min)\n"
             f"Kanal    : #{chan.name}\n"
             f"Pokrece  : {i.user.display_name}\n"
+            f"Pocinje  : za 5 min\n"
             f"```"
         ),
         color=COLORS["aqua"], timestamp=datetime.now(timezone.utc)
     )
     countdown_e.set_footer(text=f"🎉 {BOT_NAME} • Giveaway Reset")
     await i.response.send_message(embed=countdown_e)
-    await asyncio.sleep(300)
-    end = datetime.now(timezone.utc) + timedelta(minutes=60)
-    ga_e = discord.Embed(
-        title="🎉 NAGRADNA IGRA!",
-        description=f"## 🏆  {nagrada}\n\nKlikni dugme da se prijaviš!",
-        color=COLORS["gold"], timestamp=end
-    )
-    ga_e.add_field(name="⏰ Kraj",      value=f"<t:{int(end.timestamp())}:R>", inline=True)
-    ga_e.add_field(name="👥 Učesnici", value="`0`",                            inline=True)
-    ga_e.add_field(name="🎟️ Domaćin", value=i.user.mention,                  inline=True)
-    ga_e.set_footer(text=f"Završava se • {BOT_NAME}")
-    msg = await chan.send(embed=ga_e)
-    ga = {"entrants": set(), "prize": nagrada, "channel_id": chan.id, "msg_id": msg.id}
-    active_giveaways[msg.id] = ga
-    await msg.edit(view=GiveawayView(msg.id))
-    await asyncio.sleep(3600)
-    await _end_giveaway(msg.id, chan)
+    asyncio.create_task(_reset_gw_worker(chan, i.user, nagrada))
 
 # ═══════════════════════════════════════════
 #    💰 OWNER-ONLY: DODAJ / ODUZMI NOVAC
@@ -9350,6 +9438,9 @@ async def mafia_cmd(i: discord.Interaction):
             embed=em("❌", "Mafia se igra samo u tekstualnom kanalu.", color=COLORS["error"]),
             ephemeral=True,
         )
+    ok, left = _check_game_cooldown(i.user, i.guild_id, "mafia")
+    if not ok:
+        return await _send_cooldown_msg(i, "mafia", left)
     if i.channel.id in MAFIA_GAMES and MAFIA_GAMES[i.channel.id].phase != "over":
         return await i.response.send_message(
             embed=em("⚠️ Već postoji igra",
@@ -9357,6 +9448,7 @@ async def mafia_cmd(i: discord.Interaction):
                      color=COLORS["warning"]),
             ephemeral=True,
         )
+    _set_game_cooldown(i.user, i.guild_id, "mafia")
     g = MafiaGame(i.channel, i.user)
     MAFIA_GAMES[i.channel.id] = g
     view = MafiaLobbyView(g)

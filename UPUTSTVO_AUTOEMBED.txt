@@ -71,3 +71,50 @@
      pip install -r requirements.txt
      python bot.py
 ══════════════════════════════════════════════════════════════
+
+══════════════════════════════════════════════════════════════
+  NOVO (v3) — COOLDOWN ZA IGRE + GIVEAWAY U POZADINI
+══════════════════════════════════════════════════════════════
+
+5) PER-USER COOLDOWN 30 MIN za /amogus, /mafia, /poker
+───────────────────────────────────────────────────────────────
+   • Svaki regularan član (ne admin/owner) može pokrenuti
+     SVAKU od ove tri igre jednom u 30 minuta.
+   • Cooldown se broji ZASEBNO po komandi (može pokrenuti
+     amogus, pa mafia, pa poker u istih 5 sekundi).
+   • Owner i član s `Manage Messages` permission ZAOBILAZE.
+   • Ako se pokuša prije isteka, ide ephemeral poruka:
+       "⏳ Cooldown — sačekaj!
+        Možeš ponovo pokrenuti /amogus za 12m 34s."
+   • Konstanta: GAME_USER_COOLDOWN_SEC = 30 * 60
+   • Helperi: _is_game_admin / _check_game_cooldown /
+     _set_game_cooldown / _send_cooldown_msg
+
+6) GIVEAWAY — POZADINSKI TIMER (NE ZAMRZAVA)
+───────────────────────────────────────────────────────────────
+   • PROBLEM PRIJE: /giveaway start je čekao `await sleep(min*60)`
+     unutar same komande → interaction context je visio,
+     a nakon restarta bi se "zaledio".
+   • SAD: nakon slanja embeda timer ide kroz
+     `asyncio.create_task(_gw_timer(...))` — komanda se ZATVARA
+     odmah, a giveaway radi u pozadini.
+   • Restart: već postojeći recovery (~linije 1003-1037) detektuje
+     aktivne giveaway-ove iz `data["active_giveaways"]` i nastavlja
+     ih kroz background task — preživljava upload/restart.
+   • EMBED sad pokazuje:
+       🕒 Trajanje:  `1h 30min` (90 min)
+       👥 Učesnici:  `0`
+       🎟️ Domaćin:   @host
+       📅 Završava:  <full datum> + ⏰ <relativno (za X min/h)>
+   • Validacija: minuta mora biti 1..20160 (max 14 dana).
+   • Helper: `_gw_fmt_duration(min)` → "Xh Ymin" string.
+   • `/reset-gw` također radi u pozadini (worker `_reset_gw_worker`)
+     — 5 min countdown se ne zaglavi ni nakon restarta workflow-a.
+
+7) FIX UPLOAD/RESTART — bez grešaka
+───────────────────────────────────────────────────────────────
+   • Decoratori giveaway-a su provjereni (reset-gw je morao biti
+     fixan jer su decoratori bili na pomoćnoj funkciji).
+   • Sve game komande prvo provjere cooldown PRIJE bilo kakvog
+     stanja, pa nema curenja state-a kad se odbije.
+   • Sintaksa validirana sa `python3 -m ast` — 9586 linija.
