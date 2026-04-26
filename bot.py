@@ -755,26 +755,54 @@ def _wrap_to_embed(content):
     if not s.strip(): return None
     return em(None, s, color=_autoembed_color_for(s))
 
+def _aembed_should_wrap(content, args, kwargs, extra_skip=()):
+    """Vrati True samo ako poruka NEMA embed/file/view/modal i NIJE prazna."""
+    if content is None or args:
+        return False
+    skip_keys = ("embed", "embeds", "file", "files", "view", "modal", "stickers")
+    for k in skip_keys + tuple(extra_skip):
+        if k in kwargs:
+            return False
+    s = str(content)
+    return bool(s.strip())
+
 _orig_iresp_send       = discord.InteractionResponse.send_message
+_orig_iresp_edit       = discord.InteractionResponse.edit_message
+_orig_inter_edit_orig  = discord.Interaction.edit_original_response
 _orig_webhook_send     = discord.Webhook.send
 _orig_messageable_send = discord.abc.Messageable.send
+_orig_message_edit     = discord.Message.edit
+_orig_message_reply    = discord.Message.reply
 
 async def _patched_iresp_send(self, content=None, *args, **kwargs):
-    if (content is not None and not args
-        and "embed"   not in kwargs and "embeds" not in kwargs
-        and "file"    not in kwargs and "files"  not in kwargs
-        and "view"    not in kwargs and "modal"  not in kwargs):
+    if _aembed_should_wrap(content, args, kwargs):
         emb = _wrap_to_embed(content)
         if emb is not None:
             kwargs["embed"] = emb
             content = None
     return await _orig_iresp_send(self, content, *args, **kwargs)
 
+async def _patched_iresp_edit(self, *args, **kwargs):
+    # InteractionResponse.edit_message — content kroz kwargs
+    content = kwargs.get("content")
+    if _aembed_should_wrap(content, args, kwargs):
+        emb = _wrap_to_embed(content)
+        if emb is not None:
+            kwargs["embed"] = emb
+            kwargs["content"] = None
+    return await _orig_iresp_edit(self, *args, **kwargs)
+
+async def _patched_inter_edit_orig(self, **kwargs):
+    content = kwargs.get("content")
+    if _aembed_should_wrap(content, (), kwargs):
+        emb = _wrap_to_embed(content)
+        if emb is not None:
+            kwargs["embed"] = emb
+            kwargs["content"] = None
+    return await _orig_inter_edit_orig(self, **kwargs)
+
 async def _patched_webhook_send(self, content=None, *args, **kwargs):
-    if (content is not None and not args
-        and "embed"   not in kwargs and "embeds" not in kwargs
-        and "file"    not in kwargs and "files"  not in kwargs
-        and "view"    not in kwargs):
+    if _aembed_should_wrap(content, args, kwargs):
         emb = _wrap_to_embed(content)
         if emb is not None:
             kwargs["embed"] = emb
@@ -782,22 +810,39 @@ async def _patched_webhook_send(self, content=None, *args, **kwargs):
     return await _orig_webhook_send(self, content, *args, **kwargs)
 
 async def _patched_messageable_send(self, content=None, *args, **kwargs):
-    # Ne diraj poruke koje već imaju embed/file/view ili tts/reference
-    if (content is not None and not args
-        and "embed"   not in kwargs and "embeds" not in kwargs
-        and "file"    not in kwargs and "files"  not in kwargs
-        and "view"    not in kwargs and "stickers" not in kwargs
-        and "reference" not in kwargs):
+    # Ne diraj poruke koje već imaju embed/file/view/sticker/reference
+    if _aembed_should_wrap(content, args, kwargs, extra_skip=("reference",)):
         emb = _wrap_to_embed(content)
         if emb is not None:
             kwargs["embed"] = emb
             content = None
     return await _orig_messageable_send(self, content, *args, **kwargs)
 
-discord.InteractionResponse.send_message  = _patched_iresp_send
-discord.Webhook.send                      = _patched_webhook_send
-discord.abc.Messageable.send              = _patched_messageable_send
-print("[auto-embed] aktivan — sve plain poruke automatski idu kao embed")
+async def _patched_message_edit(self, **kwargs):
+    content = kwargs.get("content")
+    if _aembed_should_wrap(content, (), kwargs):
+        emb = _wrap_to_embed(content)
+        if emb is not None:
+            kwargs["embed"] = emb
+            kwargs["content"] = None
+    return await _orig_message_edit(self, **kwargs)
+
+async def _patched_message_reply(self, content=None, **kwargs):
+    if _aembed_should_wrap(content, (), kwargs, extra_skip=("reference",)):
+        emb = _wrap_to_embed(content)
+        if emb is not None:
+            kwargs["embed"] = emb
+            content = None
+    return await _orig_message_reply(self, content, **kwargs)
+
+discord.InteractionResponse.send_message       = _patched_iresp_send
+discord.InteractionResponse.edit_message       = _patched_iresp_edit
+discord.Interaction.edit_original_response     = _patched_inter_edit_orig
+discord.Webhook.send                           = _patched_webhook_send
+discord.abc.Messageable.send                   = _patched_messageable_send
+discord.Message.edit                           = _patched_message_edit
+discord.Message.reply                          = _patched_message_reply
+print("[auto-embed] aktivan — sve plain poruke (send/edit/reply/followup) automatski idu kao embed")
 
 # Premium embed za važne ekrane (profil, daily, level-up, pobjede, shop)
 def em_pro(title, desc="", color=COLORS["gold"], fields=None, footer=None, thumb=None, image=None, author=None, accent=True):
@@ -2948,23 +2993,79 @@ IMPOSTOR_COUNTS = {4:1, 5:1, 6:1, 7:2, 8:2, 9:2, 10:3}
 TASKS_PER_PLAYER = 3
 KILL_COOLDOWN_SEC = 30
 
-AMOGUS_TASKS = [
-    {"q":"📐 Koliko je 17 × 6?",              "a":"102"},
-    {"q":"📐 Koliko je 144 ÷ 12?",             "a":"12"},
-    {"q":"📐 Koliko je 23 × 4 − 7?",           "a":"85"},
-    {"q":"📐 Kvadratni korijen od 144?",        "a":"12"},
-    {"q":"🔢 Niz: 2, 4, 8, 16, __?",           "a":"32"},
-    {"q":"🔢 Niz: 1, 3, 6, 10, 15, __?",       "a":"21"},
-    {"q":"🔢 Niz: 5, 10, 20, 40, __?",         "a":"80"},
-    {"q":"🔢 Sljedeći prost broj nakon 7?",     "a":"11"},
-    {"q":"⌨️ Upiši: WARP_DRIVE_ON",            "a":"WARP_DRIVE_ON"},
-    {"q":"⌨️ Upiši: REACTOR_CORE_7",           "a":"REACTOR_CORE_7"},
-    {"q":"⌨️ Upiši: AMOGUS_IMPOSTOR",          "a":"AMOGUS_IMPOSTOR"},
-    {"q":"⌨️ Upiši: KABINA_7_ONLINE",          "a":"KABINA_7_ONLINE"},
-    {"q":"⌨️ Upiši: MEDIC_BAY_SCAN",           "a":"MEDIC_BAY_SCAN"},
-    {"q":"🧠 Glavni grad Srbije?",              "a":"Beograd"},
-    {"q":"🧠 Glavni grad Bosne i Hercegovine?", "a":"Sarajevo"},
+#  ── DINAMIČKI GENERATOR ZADATAKA (6 kategorija) ──
+#  Tipovi: math / typing / logic / memory / speed / repair
+#  Svaki zadatak je dict: {q, a, type, fake}
+#   - real (crewmate)  → uvećava done_tasks pri tačnom odgovoru
+#   - fake (impostor)  → izgleda isto, ali NE broji se u napredak
+
+AMOGUS_TASK_TYPES = ["math", "typing", "logic", "memory", "speed", "repair"]
+
+_AG_LOGIC_TEMPLATES = [
+    # (formula, opis za prikaz)
+    (lambda x: x*x,         "n²",        "Niz kvadrata: {a}, {b}, {c}, __?"),
+    (lambda x: x*2,         "n·2",       "Niz duplih: {a}, {b}, {c}, __?"),
+    (lambda x: x*3,         "n·3",       "Niz: {a}, {b}, {c}, __?"),
+    (lambda x: x+x*2,       "n + 2n",    "Niz: {a}, {b}, {c}, __?"),
+    (lambda x: x*x - 1,     "n²-1",      "Niz: {a}, {b}, {c}, __?"),
 ]
+_AG_TYPE_WORDS  = ["REACTOR","ENGINE","SHIELD","SCAN","UPLOAD","O2","COMMS","ADMIN",
+                   "MEDBAY","CAFE","NAV","WEAPONS","STORAGE","ELECTRIC","CAMS"]
+_AG_TYPE_SUFFIX = ["ON","OFF","OK","CORE","BAY","ROOM","42","X9","BETA","ZONE"]
+_AG_REPAIR_WORDS = ["KABEL","REAKTOR","KAMERE","O2VENT","NAVIGAT","STITOVI"]
+_AG_SPEED_WORDS  = ["GO","NOW","FAST","HIT","TAP","RUN","CLICK","ZAP"]
+
+def generate_amogus_task(fake: bool = False) -> dict:
+    """Generiše random zadatak iz jedne od 6 kategorija."""
+    ttype = random.choice(AMOGUS_TASK_TYPES)
+
+    if ttype == "math":
+        op = random.choice(["+","-","×","÷"])
+        if op == "+":
+            a, b = random.randint(15, 99), random.randint(15, 99)
+            q, ans = f"📐 Koliko je {a} + {b}?", str(a+b)
+        elif op == "-":
+            a = random.randint(50, 199); b = random.randint(10, a-1)
+            q, ans = f"📐 Koliko je {a} − {b}?", str(a-b)
+        elif op == "×":
+            a, b = random.randint(6, 19), random.randint(3, 12)
+            q, ans = f"📐 Koliko je {a} × {b}?", str(a*b)
+        else:
+            b = random.randint(2, 12); ans_v = random.randint(3, 25); a = b * ans_v
+            q, ans = f"📐 Koliko je {a} ÷ {b}?", str(ans_v)
+
+    elif ttype == "typing":
+        word = f"{random.choice(_AG_TYPE_WORDS)}_{random.choice(_AG_TYPE_SUFFIX)}_{random.randint(10,99)}"
+        q, ans = f"⌨️ Upiši TAČNO: `{word}`", word
+
+    elif ttype == "logic":
+        fn, label, desc_tpl = random.choice(_AG_LOGIC_TEMPLATES)
+        start = random.randint(2, 7)
+        seq = [fn(start), fn(start+1), fn(start+2)]
+        nxt = fn(start+3)
+        q   = f"🧩 {desc_tpl.format(a=seq[0], b=seq[1], c=seq[2])}  *(formula: {label})*"
+        ans = str(nxt)
+
+    elif ttype == "memory":
+        num = "".join(str(random.randint(0,9)) for _ in range(random.choice([4,5,6])))
+        q   = f"🧠 Zapamti i upiši: **{num}**"
+        ans = num
+
+    elif ttype == "speed":
+        word = random.choice(_AG_SPEED_WORDS)
+        q    = f"⚡ BRZINA! Upiši **{word}** što prije!"
+        ans  = word
+
+    else:  # repair
+        word = random.choice(_AG_REPAIR_WORDS)
+        scrambled = list(word); random.shuffle(scrambled)
+        q   = f"🔧 POPRAVKA — sastavi riječ iz: `{'-'.join(scrambled)}`"
+        ans = word
+
+    return {"q": q, "a": ans, "type": ttype, "fake": bool(fake), "done": False}
+
+# Zadržano za kompatibilnost (nije korišteno aktivno)
+AMOGUS_TASKS = [generate_amogus_task() for _ in range(15)]
 
 amogus_games: dict = {}  # channel_id -> state
 
@@ -3004,7 +3105,10 @@ def _ag_game_embed(state):
     e.add_field(name="👥 Igrači", value=_ag_player_list(state["players"]), inline=False)
     e.add_field(name="📋 Zadaci", value=_task_bar(state["done_tasks"], state["total_tasks"]), inline=True)
     e.add_field(name="🎭 Živi", value=f"🔵 {ac} crew | 🔴 {ai} imp", inline=True)
-    e.set_footer(text="📋 Zadatak  •  🚨 Alarm  •  🔪 Akcija (impostor)")
+    if state.get("reactor"):
+        n_fix = len(state["reactor"]["fixers"])
+        e.add_field(name="💥 SABOTAŽA AKTIVNA!", value=f"Reaktor — `{n_fix}/{REACTOR_FIXES_NEEDED}` popravača! ⏱️", inline=False)
+    e.set_footer(text="📋 Zadatak • 🚨 Alarm • 🔪 Akcija • 🛑 Sabotiraj • 🎭 Lažni alarm • 🔫 Šerif • 👻 Ghost")
     return e
 
 async def _ag_check_win(state, channel) -> bool:
@@ -3121,10 +3225,22 @@ class AmogusLobbyView(discord.ui.View):
         for idx, uid in enumerate(ids):
             role = "impostor" if idx < n_imp else "crewmate"
             state["players"][uid]["role"] = role
-            state["players"][uid]["tasks"] = [dict(t, done=False) for t in random.sample(AMOGUS_TASKS, TASKS_PER_PLAYER)]
-        state["total_tasks"] = (n - n_imp) * TASKS_PER_PLAYER
-        state["done_tasks"]  = 0
-        state["phase"]       = "playing"
+            state["players"][uid]["is_sheriff"] = False
+            state["players"][uid]["shot_used"]  = False
+            # Crewmate dobija prave zadatke; impostor dobija LAŽNE (da glumi rad)
+            is_imp = (role == "impostor")
+            state["players"][uid]["tasks"] = [generate_amogus_task(fake=is_imp) for _ in range(TASKS_PER_PLAYER)]
+        # Jedan random crewmate postaje 👮 ŠERIF
+        crew_uids = [uid for uid in ids if state["players"][uid]["role"] == "crewmate"]
+        if crew_uids:
+            sheriff_uid = random.choice(crew_uids)
+            state["players"][sheriff_uid]["is_sheriff"] = True
+        state["total_tasks"]         = (n - n_imp) * TASKS_PER_PLAYER
+        state["done_tasks"]          = 0
+        state["phase"]               = "playing"
+        state["sabotage_cd"]         = 0
+        state["reactor"]             = None
+        state["last_alarm_was_fake"] = False
         # DMs
         bad_dm = []
         for uid, p in state["players"].items():
@@ -3141,6 +3257,13 @@ class AmogusLobbyView(discord.ui.View):
             if is_imp:
                 partners = [state["players"][x]["name"] for x in ids[:n_imp] if x != uid]
                 if partners: dm_e.add_field(name="🔴 Saimpostori", value="\n".join(partners))
+                dm_e.add_field(name="🛑 Sabotaža",  value=f"Klikni **🛑 Sabotiraj** u kanalu — reaktor će eksplodirati za `{REACTOR_TIME_SEC}s` ako ga ne stabilizuju!", inline=False)
+                dm_e.add_field(name="🎭 Lažni alarm", value="Klikni **🎭 Lažni alarm** da sazoveš FAKE meeting i zbunjš ekipu.", inline=False)
+            if p.get("is_sheriff"):
+                dm_e.add_field(name="👮 SPECIJALNA ULOGA: ŠERIF",
+                               value="Imaš **1 hitac** za cijelu igru!\n• Pogodi **impostora** → on/ona umire\n• Pogodi **civila** → TI umireš (kazna)\n→ Dugme: **🔫 Šerif Pucaj**",
+                               inline=False)
+            dm_e.add_field(name="👻 Ghost Chat", value="Kad umreš, klikni **👻 Ghost Chat** u kanalu da pišeš drugim duhovima.", inline=False)
             dm_e.set_footer(text=f"{BOT_NAME} • Samo ti vidiš ovo!")
             try: await member.send(embed=dm_e)
             except: bad_dm.append(p["name"])
@@ -3172,14 +3295,19 @@ class AmogusTaskModal(discord.ui.Modal, title="📋 Zadatak"):
         if self.odgovor.value.strip().lower() == task["a"].strip().lower():
             task["done"] = True
             p["tasks_done"] += 1
-            state["done_tasks"] += 1
+            is_fake = task.get("fake", False)
+            # Lažni zadaci NE povećavaju globalni napredak
+            if not is_fake:
+                state["done_tasks"] += 1
             rem = TASKS_PER_PLAYER - p["tasks_done"]
             msg = f"✅ Tačno! Ostalo zadataka: **{rem}**" if rem else "✅ Svi zadaci završeni! 🎉"
+            # Igraču NE govorimo da je task fake (zato impostor i može da glumi)
             await i.response.send_message(embed=em("📋 Zadatak završen!", msg, color=COLORS["success"]), ephemeral=True)
             gv = state.get("game_view")
             try: await i.message.edit(embed=_ag_game_embed(state), view=gv)
             except: pass
-            await _ag_check_win(state, i.channel)
+            if not is_fake:
+                await _ag_check_win(state, i.channel)
         else:
             await i.response.send_message(embed=em("❌ Pogrešno!","Pokušaj ponovo!", color=COLORS["error"]), ephemeral=True)
 
@@ -3227,6 +3355,124 @@ class AmogusKillSelect(discord.ui.View):
         except: pass
         await _ag_check_win(state, i.channel)
         self.stop()
+
+# ── REAKTOR (sabotaža mini-igra) ──
+SABOTAGE_COOLDOWN_SEC = 60
+REACTOR_TIME_SEC      = 30
+REACTOR_FIXES_NEEDED  = 2
+
+class AmogusReactorView(discord.ui.View):
+    """Crewmate-i moraju 2x kliknuti '🔧 Stabilizuj' u 30s ili impostori pobjeđuju."""
+    def __init__(self, cid):
+        super().__init__(timeout=REACTOR_TIME_SEC)
+        self.cid = cid
+
+    @discord.ui.button(label="🔧 Stabilizuj reaktor", style=discord.ButtonStyle.success)
+    async def fix(self, i: discord.Interaction, b):
+        state = _ag(self.cid)
+        if not state or not state.get("reactor"):
+            return await i.response.send_message(embed=em("❌","Nema aktivne sabotaže!",color=COLORS["error"]),ephemeral=True)
+        uid = str(i.user.id)
+        p   = state["players"].get(uid)
+        if not p or not p["alive"]:
+            return await i.response.send_message(embed=em("❌","Mrtvi ne mogu popravljati!",color=COLORS["error"]),ephemeral=True)
+        if p["role"] == "impostor":
+            return await i.response.send_message(embed=em("🚫","Impostori NE mogu popravljati! 😈",color=COLORS["error"]),ephemeral=True)
+        state["reactor"]["fixers"].add(uid)
+        n = len(state["reactor"]["fixers"])
+        await i.response.send_message(embed=em("🔧 Popravljaš!", f"Klik registrovan: **{n}/{REACTOR_FIXES_NEEDED}** popravača.", color=COLORS["success"]), ephemeral=True)
+        if n >= REACTOR_FIXES_NEEDED:
+            state["reactor"] = None
+            self.stop()
+            try: await i.message.edit(view=None)
+            except: pass
+            await i.channel.send(embed=em("✅ REAKTOR STABILIZOVAN!", "Crewmate-i su uspjeli popraviti reaktor na vrijeme! 🛡️", color=COLORS["success"]))
+
+    async def on_timeout(self):
+        state = _ag(self.cid)
+        if not state or not state.get("reactor"):
+            return  # već je popravljen
+        state["reactor"] = None
+        ch = bot.get_channel(self.cid)
+        if ch and state["phase"] == "playing":
+            await ch.send(embed=em("💥 REAKTOR EKSPLODIRAO!","Crewmate-i nisu uspjeli popraviti reaktor! 💀", color=COLORS["error"]))
+            await _ag_end(state, ch, "🔴 IMPOSTORI POBJEDJUJU!", "Reaktor eksplodirao zbog sabotaže 💥", COLORS["error"])
+
+# ── ŠERIF SELECT (specijalna crewmate uloga, 1 hitac) ──
+class AmogusSheriffSelect(discord.ui.View):
+    def __init__(self, cid, sheriff_id):
+        super().__init__(timeout=20)
+        self.cid        = cid
+        self.sheriff_id = sheriff_id
+        state = _ag(cid)
+        if not state: return
+        opts = [discord.SelectOption(label=p["name"], value=uid, emoji=p["color"])
+                for uid, p in state["players"].items()
+                if p["alive"] and uid != str(sheriff_id)]
+        if opts:
+            s = discord.ui.Select(placeholder="🔫 Pucaj na...", options=opts[:25])
+            s.callback = self.do_shot
+            self.add_item(s)
+
+    async def do_shot(self, i: discord.Interaction):
+        state = _ag(self.cid)
+        if not state or state["phase"] != "playing":
+            return await i.response.send_message(embed=em("❌","Igra nije aktivna!",color=COLORS["error"]),ephemeral=True)
+        ss = str(self.sheriff_id)
+        sp = state["players"].get(ss)
+        if not sp or not sp.get("is_sheriff") or sp.get("shot_used") or not sp["alive"]:
+            return await i.response.send_message(embed=em("❌","Ne možeš sad pucati!",color=COLORS["error"]),ephemeral=True)
+        tid = i.data["values"][0]
+        tp  = state["players"].get(tid)
+        if not tp or not tp["alive"]:
+            return await i.response.send_message(embed=em("❌","Meta nije dostupna!",color=COLORS["error"]),ephemeral=True)
+        sp["shot_used"] = True
+        if tp["role"] == "impostor":
+            tp["alive"] = False
+            state["total_tasks"] = max(0, state["total_tasks"])  # impostor nema realne zadatke
+            await i.response.send_message(embed=em("🎯 POGODAK!", f"Eliminisao/la si **IMPOSTORA** {tp['name']}!", color=COLORS["success"]), ephemeral=True)
+            await i.channel.send(embed=em("👮 ŠERIF DJELUJE!", f"💥 **{tp['name']}** je upucan/a — bio/la je **IMPOSTOR**! 🎉", color=COLORS["success"]))
+        else:
+            sp["alive"] = False
+            state["total_tasks"] = max(0, state["total_tasks"] - (TASKS_PER_PLAYER - sp["tasks_done"]))
+            await i.response.send_message(embed=em("💀 Pogriješio si!", f"**{tp['name']}** nije bio impostor — UMIREŠ od kazne!", color=COLORS["error"]), ephemeral=True)
+            await i.channel.send(embed=em("👮 ŠERIF PROMAŠIO!", f"⚖️ Šerif **{sp['name']}** pucao u civila — sam je pao! 💀", color=COLORS["error"]))
+        gv = state.get("game_view")
+        try: await i.message.edit(view=None)
+        except: pass
+        await _ag_check_win(state, i.channel)
+        self.stop()
+
+# ── GHOST CHAT (mrtvi pričaju u DM-u) ──
+class AmogusGhostModal(discord.ui.Modal, title="👻 Ghost Chat"):
+    poruka = discord.ui.TextInput(label="Poruka ostalim duhovima:", placeholder="Pisi ovde...", max_length=200, style=discord.TextStyle.paragraph)
+    def __init__(self, cid, uid):
+        super().__init__()
+        self.cid = cid
+        self.uid = uid
+
+    async def on_submit(self, i: discord.Interaction):
+        state = _ag(self.cid)
+        if not state:
+            return await i.response.send_message(embed=em("❌","Nema igre!",color=COLORS["error"]),ephemeral=True)
+        sender = state["players"].get(self.uid)
+        if not sender:
+            return await i.response.send_message(embed=em("❌","Nisi u igri!",color=COLORS["error"]),ephemeral=True)
+        text = self.poruka.value.strip()
+        if not text:
+            return await i.response.send_message(embed=em("❌","Prazna poruka!",color=COLORS["error"]),ephemeral=True)
+        e = em(f"👻 {sender['name']} (DUH)", text, color=COLORS["purple"])
+        e.set_footer(text="🤫 Samo mrtvi vide ovo (Ghost Chat)")
+        sent = 0
+        for puid, p in state["players"].items():
+            if not p["alive"]:
+                try:
+                    m = i.guild.get_member(int(puid))
+                    if m:
+                        await m.send(embed=e)
+                        sent += 1
+                except: pass
+        await i.response.send_message(embed=em("👻 Poslato!", f"Vidjelo te je **{sent}** duhova.", color=COLORS["success"]), ephemeral=True)
 
 class AmogusGameView(discord.ui.View):
     def __init__(self, cid):
@@ -3283,6 +3529,85 @@ class AmogusGameView(discord.ui.View):
         if not kv.children:
             return await i.response.send_message(embed=em("❌","Nema živih crewmate-a!",color=COLORS["error"]),ephemeral=True)
         await i.response.send_message(embed=em("🔪 Odaberi žrtvu","Samo ti vidiš ovo!",color=COLORS["error"]),view=kv,ephemeral=True)
+
+    # ── 🛑 SABOTAŽA (samo impostor) ──
+    @discord.ui.button(label="Sabotiraj", emoji="🛑", style=discord.ButtonStyle.danger, row=1)
+    async def sabotage_btn(self, i: discord.Interaction, b):
+        state = _ag(self.cid)
+        if not state or state["phase"] != "playing":
+            return await i.response.send_message(embed=em("❌","Igra nije aktivna!",color=COLORS["error"]),ephemeral=True)
+        uid = str(i.user.id)
+        p   = state["players"].get(uid)
+        if not p or not p["alive"] or p["role"] != "impostor":
+            return await i.response.send_message(embed=em("🚫","Samo živi impostori sabotiraju!",color=COLORS["error"]),ephemeral=True)
+        if state.get("reactor"):
+            return await i.response.send_message(embed=em("⚠️","Sabotaža je već aktivna!",color=COLORS["warning"]),ephemeral=True)
+        now = time.time()
+        last = state.get("sabotage_cd", 0)
+        if now - last < SABOTAGE_COOLDOWN_SEC:
+            left = int(SABOTAGE_COOLDOWN_SEC - (now - last))
+            return await i.response.send_message(embed=em("⏳ Cooldown",f"Sačekaj još `{left}s` da opet sabotiraš.",color=COLORS["warning"]),ephemeral=True)
+        state["sabotage_cd"] = now
+        state["reactor"]     = {"started": now, "fixers": set()}
+        rv = AmogusReactorView(self.cid)
+        await i.response.send_message(embed=em("🛑 Sabotaža pokrenuta!","Reaktor će eksplodirati za 30s ako ga ne stabilizuju!",color=COLORS["error"]),ephemeral=True)
+        await i.channel.send(embed=em("💥 ALARM — REAKTOR SE TOPI!",
+            f"⚠️ Sabotirano!\n**Treba `{REACTOR_FIXES_NEEDED}` različita crewmate-a da kliknu '🔧 Stabilizuj' u **`{REACTOR_TIME_SEC}s`!**",
+            color=COLORS["error"]), view=rv)
+
+    # ── 🎭 LAŽNI ALARM (samo impostor) ──
+    @discord.ui.button(label="Lažni alarm", emoji="🎭", style=discord.ButtonStyle.secondary, row=1)
+    async def fake_alarm_btn(self, i: discord.Interaction, b):
+        state = _ag(self.cid)
+        if not state or state["phase"] != "playing":
+            return await i.response.send_message(embed=em("❌","Igra nije aktivna!",color=COLORS["error"]),ephemeral=True)
+        uid = str(i.user.id)
+        p   = state["players"].get(uid)
+        if not p or not p["alive"] or p["role"] != "impostor":
+            return await i.response.send_message(embed=em("🚫","Samo živi impostori!",color=COLORS["error"]),ephemeral=True)
+        state["phase"]              = "meeting"
+        state["votes"]              = {}
+        state["meeting_by"]         = i.user.id
+        state["last_alarm_was_fake"] = True
+        alive_pl = [(k, v["name"]) for k,v in state["players"].items() if v["alive"]]
+        mv = AmogusMeetingView(self.cid, alive_pl)
+        state["meeting_view"] = mv
+        me = _ag_meeting_embed(state, p["name"], "🎭 Lažna prijava — neko je 'navodno' vidio tijelo (ali da li je istina?)")
+        await i.response.send_message(embed=em("🎭 Lažni alarm postavljen!","Niko ne zna da si TI to lažirao/la! 😈",color=COLORS["error"]),ephemeral=True)
+        await i.channel.send(embed=me, view=mv)
+
+    # ── 🔫 ŠERIF (specijalna crewmate uloga, 1 hitac) ──
+    @discord.ui.button(label="Šerif Pucaj", emoji="🔫", style=discord.ButtonStyle.danger, row=2)
+    async def sheriff_btn(self, i: discord.Interaction, b):
+        state = _ag(self.cid)
+        if not state or state["phase"] != "playing":
+            return await i.response.send_message(embed=em("❌","Igra nije aktivna!",color=COLORS["error"]),ephemeral=True)
+        uid = str(i.user.id)
+        p   = state["players"].get(uid)
+        if not p or not p["alive"]:
+            return await i.response.send_message(embed=em("💀","Mrtvi ne pucaju!",color=COLORS["error"]),ephemeral=True)
+        if not p.get("is_sheriff"):
+            return await i.response.send_message(embed=em("❌","Nisi šerif!","Samo jedan crewmate ima ovu sposobnost.",color=COLORS["error"]),ephemeral=True)
+        if p.get("shot_used"):
+            return await i.response.send_message(embed=em("❌","Već si potrošio svoj hitac!",color=COLORS["error"]),ephemeral=True)
+        sv = AmogusSheriffSelect(self.cid, i.user.id)
+        if not sv.children:
+            return await i.response.send_message(embed=em("❌","Nema dostupnih meta!",color=COLORS["error"]),ephemeral=True)
+        await i.response.send_message(embed=em("🔫 Šerif — biraj metu","⚠️ Pažljivo! Ako pogriješiš — UMIREŠ od kazne!",color=COLORS["gold"]),view=sv,ephemeral=True)
+
+    # ── 👻 GHOST CHAT (samo mrtvi) ──
+    @discord.ui.button(label="Ghost Chat", emoji="👻", style=discord.ButtonStyle.secondary, row=2)
+    async def ghost_btn(self, i: discord.Interaction, b):
+        state = _ag(self.cid)
+        if not state:
+            return await i.response.send_message(embed=em("❌","Nema aktivne igre!",color=COLORS["error"]),ephemeral=True)
+        uid = str(i.user.id)
+        p   = state["players"].get(uid)
+        if not p:
+            return await i.response.send_message(embed=em("❌","Nisi u igri!",color=COLORS["error"]),ephemeral=True)
+        if p["alive"]:
+            return await i.response.send_message(embed=em("👻","Ghost Chat je SAMO za mrtve!",color=COLORS["error"]),ephemeral=True)
+        await i.response.send_modal(AmogusGhostModal(self.cid, uid))
 
 def _ag_meeting_embed(state, caller, reason):
     e = discord.Embed(title="🚨 EMERGENCY MEETING!", color=0xFF0000,
@@ -3551,6 +3876,57 @@ class PokerLobbyView(discord.ui.View):
                 except Exception:
                     pass
 
+class PokerRaiseModal(discord.ui.Modal, title="💰 Raise / Podigni ulog"):
+    iznos = discord.ui.TextInput(label="Koliko podižeš (💶)?", placeholder="npr. 100", max_length=10)
+
+    def __init__(self, channel_id: int):
+        super().__init__()
+        self.channel_id = channel_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        g = poker_games.get(self.channel_id)
+        if not g or g["phase"] in ("join", "showdown"):
+            return await interaction.response.send_message(
+                embed=em("❌","Igra nije aktivna!", color=COLORS["error"]), ephemeral=True)
+        uid = interaction.user.id
+        if uid not in g["players"] or g["players"][uid]["folded"]:
+            return await interaction.response.send_message(
+                embed=em("❌","Nisi u igri ili si foldo!", color=COLORS["error"]), ephemeral=True)
+        if uid not in g.get("needs_action", set()):
+            return await interaction.response.send_message(
+                embed=em("⏳","Već si djelovao/la!", color=COLORS["warning"]), ephemeral=True)
+        try:
+            amt = int(self.iznos.value.strip())
+        except Exception:
+            return await interaction.response.send_message(
+                embed=em("❌","Mora biti broj!", color=COLORS["error"]), ephemeral=True)
+        if amt < 10:
+            return await interaction.response.send_message(
+                embed=em("❌","Min raise je `10 💶`!", color=COLORS["error"]), ephemeral=True)
+        bal = _pk_get_bal(g["guild_id"], uid)
+        if bal < amt:
+            return await interaction.response.send_message(
+                embed=em("❌","Nemaš dovoljno!", f"Imaš `{bal:,} 💶`, treba `{amt:,} 💶`.", color=COLORS["error"]),
+                ephemeral=True)
+        _pk_set_bal(g["guild_id"], uid, bal - amt)
+        g["pot"] += amt
+        save_data()
+        # Resetuj needs_action: svi ostali aktivni MORAJU reagovati
+        active = [u for u, p in g["players"].items() if not p["folded"] and u != uid]
+        g["needs_action"] = set(active)
+        await interaction.response.send_message(
+            embed=em("💰 Raise!", f"Podigao/la si **`{amt:,} 💶`**!\n🏆 Novi pot: **`{g['pot']:,} 💶`**\n⏳ Ostali igrači moraju reagovati.",
+                     color=COLORS.get("gold", 0xFFD700)),
+            ephemeral=False
+        )
+        # Update embed
+        try:
+            msg = g.get("msg")
+            if msg:
+                await msg.edit(embed=_pk_game_embed(g), view=PokerActionView(self.channel_id))
+        except Exception:
+            pass
+
 class PokerActionView(discord.ui.View):
     def __init__(self, channel_id: int):
         super().__init__(timeout=120)
@@ -3613,6 +3989,55 @@ class PokerActionView(discord.ui.View):
         await interaction.response.send_message(
             f"❌ Foldo/la si! Ostalo **{len(active_left)}** aktivnih igrača.", ephemeral=True)
         await _pk_check_advance(self.channel_id)
+
+    @discord.ui.button(label="💰 Raise", style=discord.ButtonStyle.primary, row=1)
+    async def raise_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        g = poker_games.get(self.channel_id)
+        if not g or g["phase"] in ("join", "showdown"):
+            return await interaction.response.send_message(
+                embed=em("❌","Igra nije aktivna!", color=COLORS["error"]), ephemeral=True)
+        uid = interaction.user.id
+        if uid not in g["players"] or g["players"][uid]["folded"]:
+            return await interaction.response.send_message(
+                embed=em("❌","Nisi u igri ili si foldo!", color=COLORS["error"]), ephemeral=True)
+        if uid not in g.get("needs_action", set()):
+            return await interaction.response.send_message(
+                embed=em("⏳","Već si djelovao/la!", color=COLORS["warning"]), ephemeral=True)
+        await interaction.response.send_modal(PokerRaiseModal(self.channel_id))
+
+    @discord.ui.button(label="🔥 ALL-IN", style=discord.ButtonStyle.danger, row=2)
+    async def allin_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        g = poker_games.get(self.channel_id)
+        if not g or g["phase"] in ("join", "showdown"):
+            return await interaction.response.send_message(
+                embed=em("❌","Igra nije aktivna!", color=COLORS["error"]), ephemeral=True)
+        uid = interaction.user.id
+        if uid not in g["players"] or g["players"][uid]["folded"]:
+            return await interaction.response.send_message(
+                embed=em("❌","Nisi u igri ili si foldo!", color=COLORS["error"]), ephemeral=True)
+        if uid not in g.get("needs_action", set()):
+            return await interaction.response.send_message(
+                embed=em("⏳","Već si djelovao/la!", color=COLORS["warning"]), ephemeral=True)
+        bal = _pk_get_bal(g["guild_id"], uid)
+        if bal <= 0:
+            return await interaction.response.send_message(
+                embed=em("❌","Nemaš novca za all-in!", color=COLORS["error"]), ephemeral=True)
+        _pk_set_bal(g["guild_id"], uid, 0)
+        g["pot"] += bal
+        save_data()
+        active = [u for u, p in g["players"].items() if not p["folded"] and u != uid]
+        g["needs_action"] = set(active)
+        await interaction.response.send_message(
+            embed=em("🔥 ALL-IN!", f"**{interaction.user.display_name}** ide ALL-IN sa **`{bal:,} 💶`**!\n🏆 Pot: **`{g['pot']:,} 💶`**",
+                     color=COLORS["error"]),
+            ephemeral=False
+        )
+        try:
+            msg = g.get("msg")
+            if msg:
+                await msg.edit(embed=_pk_game_embed(g), view=PokerActionView(self.channel_id))
+        except Exception:
+            pass
 
     async def on_timeout(self):
         g = poker_games.get(self.channel_id)
@@ -8553,17 +8978,26 @@ class MafiaGame:
         ids = [p.id for p in self.players]
         random.shuffle(ids)
         n_mafia = 1 if n <= 6 else 2 if n <= 10 else 3
-        roles = (["mafia"] * n_mafia + ["doktor", "detektiv"]
-                 + ["civil"] * (n - n_mafia - 2))[:n]
+        # Specijalne uloge se dodaju kako raste broj igrača
+        specials = ["doktor", "detektiv"]
+        if n >= 6: specials.append("serif")        # 👮 Šerif (1 hitac noću)
+        if n >= 8: specials.append("saljivdzija")  # 🃏 Šaljivdžija (pobjeđuje ako ga linčuju)
+        n_civil = max(0, n - n_mafia - len(specials))
+        roles = (["mafia"] * n_mafia + specials + ["civil"] * n_civil)[:n]
         random.shuffle(roles)
         self.roles = dict(zip(ids, roles))
         self.alive = set(ids)
+        # Šerif ima samo 1 hitac u igri
+        self.serif_shots: dict[int, int] = {uid: 1 for uid, r in self.roles.items() if r == "serif"}
+        self.jester_lynched: int | None  = None
 
 ROLE_INFO = {
-    "civil":     ("👨‍🌾 Civil",     "Tvoj cilj: otkrij i izglasaj mafiju!", COLORS["info"]),
-    "mafia":     ("🔪 Mafia",       "Noću ubijaš jednog igrača. Cilj: pobij sve civile.", COLORS["error"]),
-    "doktor":    ("🛡️ Doktor",     "Noću spašavaš jednog igrača (možeš i sebe — jednom).", COLORS["success"]),
-    "detektiv":  ("🕵️ Detektiv",   "Noću provjeravaš identitet jednog igrača.", COLORS["purple"]),
+    "civil":        ("👨‍🌾 Civil",       "Tvoj cilj: otkrij i izglasaj mafiju!", COLORS["info"]),
+    "mafia":        ("🔪 Mafia",         "Noću ubijaš jednog igrača. Cilj: pobij sve civile.", COLORS["error"]),
+    "doktor":       ("🛡️ Doktor",       "Noću spašavaš jednog igrača (možeš i sebe — jednom).", COLORS["success"]),
+    "detektiv":     ("🕵️ Detektiv",     "Noću provjeravaš identitet jednog igrača.", COLORS["purple"]),
+    "serif":        ("👮 Šerif",         "Imaš **1 hitac** za cijelu igru. Pažljivo gađaj — pogodiš li civila, gubiš.", COLORS["gold"]),
+    "saljivdzija":  ("🃏 Šaljivdžija",   "Tvoj cilj: budi izglasan na danu! Ako te linčuju — POBJEĐUJEŠ!", COLORS["pink"] if "pink" in COLORS else COLORS["purple"]),
 }
 
 # ── LOBBY VIEW ──
@@ -8650,7 +9084,7 @@ def mafia_lobby_embed(g: MafiaGame) -> discord.Embed:
         fields=[
             (f"👥 Igrači ({len(g.players)}/12)", lst, False),
             ("⏱️ Trajanje faze", "Noć **45s** • Dan **60s** • Glasanje **45s**", True),
-            ("🎲 Uloge", "Civil / Mafia / Doktor / Detektiv", True),
+            ("🎲 Uloge", "Civil • 🔪 Mafia • 🛡️ Doktor • 🕵️ Detektiv\n👮 Šerif (6+) • 🃏 Šaljivdžija (8+)", True),
         ],
     )
     e.set_footer(text=f"{BOT_NAME} • Mafia Online")
@@ -8752,9 +9186,10 @@ async def mafia_loop(g: MafiaGame):
                 color=COLORS["purple"],
             ))
             # Pošalji noćne akcije svim relevantnim igračima u DM
-            mafias    = g.alive_with_role("mafia")
-            doctors   = g.alive_with_role("doktor")
+            mafias     = g.alive_with_role("mafia")
+            doctors    = g.alive_with_role("doktor")
             detectives = g.alive_with_role("detektiv")
+            sherifs    = g.alive_with_role("serif")
             for m in mafias:
                 await _safe_dm(m,
                     embed=em("🔪 Mafia akcija", "Odaberi koga noćas ubijate:", color=COLORS["error"]),
@@ -8767,11 +9202,21 @@ async def mafia_loop(g: MafiaGame):
                 await _safe_dm(det,
                     embed=em("🕵️ Detektiv akcija", "Koga noćas provjeravaš?", color=COLORS["purple"]),
                     view=MafiaTargetView(g, det, "det_check", "Provjeri…", allow_self=False))
+            for sh in sherifs:
+                shots_left = getattr(g, "serif_shots", {}).get(sh.id, 0)
+                if shots_left > 0:
+                    await _safe_dm(sh,
+                        embed=em("👮 Šerif akcija", f"Imaš **{shots_left} hitac**. Možeš pucati ili preskočiti (ne odabirati).\n⚠️ Ako pogodiš civila — **gubiš igru!**", color=COLORS["gold"]),
+                        view=MafiaTargetView(g, sh, "serif_shot", "Pucaj na…", allow_self=False))
+                else:
+                    await _safe_dm(sh,
+                        embed=em("👮 Šerif", "Već si potrošio svoj hitac — noćas miruješ.", color=COLORS["info"]))
             await asyncio.sleep(45)
             # Razrešenje noći
-            killed_id = g.actions.get("mafia_kill")
-            healed_id = g.actions.get("doc_heal")
+            killed_id  = g.actions.get("mafia_kill")
+            healed_id  = g.actions.get("doc_heal")
             checked_id = g.actions.get("det_check")
+            shot_id    = g.actions.get("serif_shot")
             if checked_id and detectives:
                 target = g.channel.guild.get_member(checked_id)
                 role   = g.role_of(checked_id)
@@ -8786,17 +9231,43 @@ async def mafia_loop(g: MafiaGame):
             if killed_id and killed_id != healed_id and killed_id in g.alive:
                 g.alive.discard(killed_id)
                 died = g.channel.guild.get_member(killed_id)
+            # Šerif puca (ne može biti spašen od doktora)
+            sherif_died = None
+            sherif_kill_target = None
+            if shot_id and sherifs and shot_id in g.alive:
+                shooter = sherifs[0]
+                if g.serif_shots.get(shooter.id, 0) > 0:
+                    g.serif_shots[shooter.id] -= 1
+                    target_role = g.role_of(shot_id)
+                    if target_role == "civil":
+                        # Šerif je pogodio civila — sam umire kao kazna
+                        g.alive.discard(shooter.id)
+                        sherif_died = shooter
+                        sherif_kill_target = g.channel.guild.get_member(shot_id)
+                        await _safe_dm(shooter, embed=em(
+                            "💀 Šerif je promašio!",
+                            f"Pucao si u **civila** — kazna je smrt!", color=COLORS["error"]))
+                    else:
+                        g.alive.discard(shot_id)
+                        sherif_kill_target = g.channel.guild.get_member(shot_id)
+                        await _safe_dm(shooter, embed=em(
+                            "🎯 Pogodak!",
+                            f"Eliminisao/la si **{sherif_kill_target.display_name if sherif_kill_target else shot_id}**!", color=COLORS["success"]))
             # Najava jutra
+            morning_lines = []
             if died:
-                de = em(f"☀️ JUTRO #{g.day}",
-                        f"💀 **{died.display_name}** je pronađen mrtav!\nUloga: **{ROLE_INFO[g.role_of(died.id)][0]}**",
-                        color=COLORS["error"])
+                morning_lines.append(f"💀 **{died.display_name}** je pronađen mrtav (mafija)!\nUloga: **{ROLE_INFO[g.role_of(died.id)][0]}**")
             elif killed_id and killed_id == healed_id:
-                de = em(f"☀️ JUTRO #{g.day}",
-                        "🛡️ Doktor je **spasio žrtvu** noćas! Niko nije umro.",
-                        color=COLORS["success"])
-            else:
-                de = em(f"☀️ JUTRO #{g.day}", "🌅 Selo je spavalo mirno — nema žrtava.", color=COLORS["info"])
+                morning_lines.append("🛡️ Doktor je **spasio žrtvu** noćas!")
+            if sherif_kill_target and not sherif_died:
+                morning_lines.append(f"🎯 **{sherif_kill_target.display_name}** je upucan/a — Šerif je djelovao!\nUloga: **{ROLE_INFO[g.role_of(sherif_kill_target.id)][0]}**")
+            if sherif_died:
+                morning_lines.append(f"⚖️ **{sherif_died.display_name}** (Šerif) je pucao u civila i umro od kazne!")
+            if not morning_lines:
+                morning_lines.append("🌅 Selo je spavalo mirno — nema žrtava.")
+            de = em(f"☀️ JUTRO #{g.day}", "\n\n".join(morning_lines),
+                    color=COLORS["error"] if (died or sherif_kill_target or sherif_died) else COLORS["info"])
+            de.add_field(name="📊 Stanje", value=f"👥 Živih: **{len(g.alive_players())}** / {len(g.players)}", inline=False)
             await g.channel.send(embed=de)
             # Pobjeda?
             w = g.winner()
@@ -8832,11 +9303,16 @@ async def mafia_loop(g: MafiaGame):
             if target_id and target_id != 0 and top > 0:
                 victim = g.channel.guild.get_member(target_id)
                 g.alive.discard(target_id)
+                victim_role = g.role_of(target_id)
                 await g.channel.send(embed=em(
                     "⚖️ PRESUDA",
-                    f"💀 **{victim.display_name}** je linčovan glasanjem ({top} glasova).\nUloga: **{ROLE_INFO[g.role_of(target_id)][0]}**",
+                    f"💀 **{victim.display_name}** je linčovan glasanjem ({top} glasova).\nUloga: **{ROLE_INFO[victim_role][0]}**",
                     color=COLORS["error"],
                 ))
+                # Šaljivdžija pobjeđuje ako bude izglasan!
+                if victim_role == "saljivdzija":
+                    g.jester_lynched = target_id
+                    return await mafia_end(g, "saljivdzija")
             else:
                 await g.channel.send(embed=em(
                     "⚖️ PRESUDA", "Nema dovoljno glasova — niko nije linčovan.", color=COLORS["info"]))
@@ -8851,8 +9327,14 @@ async def mafia_loop(g: MafiaGame):
 
 async def mafia_end(g: MafiaGame, winner: str):
     g.phase = "over"
-    title, color = (("🔪 MAFIA POBJEDJUJE!", COLORS["error"]) if winner == "mafia"
-                    else ("👨‍🌾 CIVILI POBJEDJUJU!", COLORS["success"]))
+    if winner == "mafia":
+        title, color = "🔪 MAFIA POBJEDJUJE!", COLORS["error"]
+    elif winner == "civili":
+        title, color = "👨‍🌾 CIVILI POBJEDJUJU!", COLORS["success"]
+    elif winner == "saljivdzija":
+        title, color = "🃏 ŠALJIVDŽIJA POBJEDJUJE!", COLORS["gold"]
+    else:
+        title, color = f"🏁 KRAJ — {winner}", COLORS["info"]
     revealed = "\n".join(f"{ROLE_INFO[g.role_of(p.id)][0]} — {p.mention}" for p in g.players)
     await g.channel.send(embed=em(
         title,

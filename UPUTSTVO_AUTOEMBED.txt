@@ -1,0 +1,73 @@
+══════════════════════════════════════════════════════════════
+  GIANNI BOT — UPUTSTVO ZA NOVE PROMJENE
+  (auto-embed + Among Us + Mafia + Poker upgrade)
+══════════════════════════════════════════════════════════════
+
+1) AUTO-EMBED (sve poruke bez embeda automatski dobijaju embed)
+───────────────────────────────────────────────────────────────
+   Pokriveno (monkey-patch ~linije 737–865):
+     • InteractionResponse.send_message
+     • InteractionResponse.edit_message
+     • Interaction.edit_original_response
+     • Webhook.send
+     • Messageable.send
+     • Message.edit
+     • Message.reply
+   Helper `_aembed_should_wrap()` preskače poruke koje već imaju
+   embed/file/view/modal/sticker/reference.
+
+2) AMONG US — DINAMIČKI ZADACI (6 KATEGORIJA)
+───────────────────────────────────────────────────────────────
+   Nova funkcija: `generate_amogus_task(fake=False)` (~linija 3021)
+   Generiše random zadatak iz 6 kategorija:
+     🧮 math   — sabiranje/oduzimanje/množenje/dijeljenje
+     ⌨️ typing — RANDOM_KOMANDA_42 stringovi
+     🧩 logic  — niz brojeva po formuli (n², 2n, n+2n…)
+     🧠 memory — zapamti 4–6 cifara
+     ⚡ speed  — brza riječ (GO, FAST, ZAP…)
+     🔧 repair — sastavi ispremještanu riječ (KABEL, REAKTOR…)
+
+   LAŽNI ZADACI ZA IMPOSTORE:
+     Impostori dobijaju zadatke koji izgledaju identično, ali NE
+     povećavaju globalni progress bar kad se "završe". Tako mogu
+     glumiti rad i obmanjivati crewmate-e.
+
+   Progress bar (postojeći `_task_bar`) i dalje pokazuje
+   `🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜  6/24` u glavnom embedu igre.
+
+3) MAFIA — 2 NOVE ULOGE
+───────────────────────────────────────────────────────────────
+   👮 ŠERIF (od 6+ igrača)
+     • Ima 1 hitac za cijelu igru.
+     • Noću dobija DM s metom (ili može preskočiti).
+     • Pogodi mafiju → eliminira je.
+     • Pogodi civila → ŠERIF SAM UMIRE od kazne!
+     • Hitac NE može blokirati doktor.
+
+   🃏 ŠALJIVDŽIJA / JESTER (od 8+ igrača)
+     • Cilj: BUDI IZGLASAN na danu!
+     • Ako ga linčuju → ON pobjeđuje, igra se završava.
+     • Inače je obična meta.
+
+   Dodatno:
+     • Jutro embed sad ima polje 📊 Stanje (broj živih).
+     • Lobby embed prikazuje sve nove uloge.
+
+4) POKER — RAISE + ALL-IN
+───────────────────────────────────────────────────────────────
+   Nove akcije u toku igre (PokerActionView):
+     💰 Raise — modal za unos iznosa, oduzima sa računa,
+                dodaje u pot, resetuje needs_action svima ostalim
+     🔥 ALL-IN — bacaš cijeli balans u pot odjednom
+   Min raise: 10 💶. Provjerava balans prije akcije.
+
+5) ŠTO NE TREBA DIRATI
+───────────────────────────────────────────────────────────────
+   • oleun_data.json (postojeći podaci ostaju netaknuti)
+   • COG/komande izvan navedenih nisu mijenjane
+
+══════════════════════════════════════════════════════════════
+   Pokretanje:
+     pip install -r requirements.txt
+     python bot.py
+══════════════════════════════════════════════════════════════
