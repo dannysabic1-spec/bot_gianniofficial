@@ -182,6 +182,271 @@ VJASALA_FAZE = [
 ]
 
 # ═══════════════════════════════════════════
+#    KALADONT — RJEČNIK VALIDNIH RIJEČI (BHS)
+#    Velika baza: imenice, glagoli, pridjevi, pojmovi.
+#    Sve riječi u UPPERCASE bez dijakritika dvojnih (Š→S, Č→C, Ž→Z, Đ→DJ, Ć→C)
+#    NORMALIZACIJA: korisničku riječ prebacujemo u UPPERCASE i mapiramo dijakritike.
+# ═══════════════════════════════════════════
+def _kaladont_normalize(w: str) -> str:
+    """Normalizuj riječ: uppercase + skidanje dijakritika (Š→S, Č→C, Ž→Z, Đ→DJ, Ć→C)."""
+    w = (w or "").upper().strip()
+    repl = {"Š":"S","Č":"C","Ž":"Z","Đ":"DJ","Ć":"C","Ä":"A","Ö":"O","Ü":"U","Ñ":"N"}
+    out = []
+    for ch in w:
+        out.append(repl.get(ch, ch))
+    return "".join(out)
+
+KALADONT_DICT = set([
+    # === Hrana, piće, kuhinja ===
+    "RAKIJA","CEVAPI","BUREK","KAJMAK","SARMA","KIFLA","PEKARA","BAKLAVA","PALACINKA",
+    "TORTA","KOLAC","KROFNA","SLADOLED","KESTEN","ORAH","BADEM","LJESNJAK","KIKIRIKI",
+    "JAGODA","MALINA","BOROVNICA","SMOKVA","SLJIVA","TRESNJA","JABUKA","KRUSKA","BANANA",
+    "LIMUN","NARANCA","GROZDJE","LUBENICA","DINJA","BRESKVA","KAJSIJA","ANANAS","KIVI",
+    "KRASTAVAC","PARADAJZ","KROMPIR","LUK","BIJELILUK","PAPRIKA","TIKVA","SPINAT","SALATA",
+    "KARFIOL","BROKULA","KUPUS","REPA","ROTKVA","KELERABA","CESNJAK","GRAH","MAHUNE",
+    "PASULJ","RIZA","TJESTENINA","HLEB","KRUH","LEPINJA","SOMUN","POGACA","PROJA",
+    "KUKURUZ","PSENICA","JECAM","ZOB","RAZ","BRASNO","SECER","SOL","BIBER","VANILA",
+    "CIMET","KAFA","CAJ","MLIJEKO","JOGURT","SIR","MASLAC","JAJE","MEDU","MED",
+    "VINO","PIVO","SOK","VODA","LIMUNADA","KAKAO","COKOLADA","BOMBONA","DZEM","MARMELADA",
+    "KOBASICA","SUNKA","SLANINA","BIFTEK","ROSTILJ","RIBA","TUNJEVINA","SARDINE","SKAMPI",
+    "JUHA","COPRA","SUPA","CORBA","GULAS","PILAV","RIZOTO","LAZANJE","PIZZA","PASTA",
+    # === Životinje ===
+    "MACKA","PAS","KONJ","KRAVA","OVCA","KOZA","SVINJA","KOKOSKA","PETAO","PILE",
+    "PATKA","GUSKA","CURKA","PURAN","ZEC","KUNIC","STAKOR","MIS","HRCAK","JEZ",
+    "VJEVERICA","JELEN","SRNA","LISICA","VUK","MEDVJED","RIS","DABAR","JAZAVAC","TVOR",
+    "LASICA","KUNA","NERC","TIGAR","LAV","LEOPARD","GEPARD","PANTER","PUMA","JAGUAR",
+    "SLON","NOSOROG","NILSKI","ZIRAFA","ZEBRA","KAMILA","LAMA","ALPAKA","BIVOL","BIK",
+    "MAJMUN","GORILA","SIMPANZA","ORANGUTAN","KENGUR","KOALA","PANDA","DELFIN","KIT",
+    "MORSKIPAS","LOSOS","PASTRMKA","KARP","SARAN","SOM","STUKA","HARINGA","BAKALAR",
+    "ORAO","SOKO","JASTREB","SOVA","GAVRAN","VRANA","SVRAKA","GOLUB","VRABAC","LASTAVICA",
+    "PJEVAC","KOLIBRI","PINGVIN","NOJ","FLAMINGO","KOKOS","PAUN","TUKAN","PAPIGA",
+    "ZMIJA","GUSTER","KORNJACA","KROKODIL","ALIGATOR","ZABA","PUNOGLAVAC","SALAMANDER",
+    "PCELA","OSA","STRSLJEN","MRAV","BUBA","BUBAMARA","LEPTIR","MOLJAC","MUHA","KOMARAC",
+    "PAUK","SKORPION","RAK","ROKER","OKTOPOD","LIGNJA","MEDUZA","KORAL","SKOLJKA","PUZ",
+    # === Priroda ===
+    "PLANINA","JEZERO","RIJEKA","POTOK","IZVOR","VRELO","KLISURA","KANJON","DOLINA",
+    "POLJE","LIVADA","SUMA","SUMICA","GAJ","PARK","BAZEN","MORE","OCEAN","VAL",
+    "PIJESAK","SLJUNAK","KAMEN","STIJENA","BRDO","HUM","POLUOTOK","OTOK","ATOL","UVALA",
+    "OBALA","PLAZA","LAGUNA","MOCVARA","PUSTINJA","TUNDRA","GLECER","VULKAN","GEJZIR",
+    "CVIJET","RUZA","TULIPAN","LJILJAN","KARANFIL","BOZUR","JORGOVAN","LAVANDA","KAKTUS",
+    "MASLACAK","NEVEN","SUNCOKRET","PERUNIKA","VISIBABA","KAMILICA","METVICA","MAJCINA",
+    "STABLO","DRVO","HRAST","BUKVA","JAVOR","BREZA","TOPOLA","JELA","BOR","SMRECA",
+    "MASLINA","LIPA","KESTEN","BAGREM","PALMA","BAMBUS","PAPRAT","MAHOVINA","TRAVA",
+    "SUNCE","MJESEC","ZVIJEZDA","PLANETA","KOMETA","METEOR","NEBO","OBLAK","KISA",
+    "SNIJEG","LED","MAGLA","ROSA","INJE","MUNJA","GROM","OLUJA","DUGA","VJETAR",
+    "PROLJECE","LJETO","JESEN","ZIMA","JUTRO","PODNE","VECE","NOC","PONOC","ZORA",
+    # === Tijelo, ljudi ===
+    "GLAVA","KOSA","CELO","OKO","NOS","USTA","JEZIK","ZUB","USNA","UHO",
+    "VRAT","RAME","RUKA","SAKA","PRST","NOKAT","LAKAT","LEDJA","GRUDI","TRBUH",
+    "NOGA","BUTINA","KOLJENO","STOPALO","PETA","KUK","KICMA","REBRO","SRCE","PLUCA",
+    "ZELUDAC","JETRA","BUBREG","CRIJEVO","MOZAK","KOST","KOZA","KRV","ZIVAC","MISIC",
+    "BAKA","DJED","STRIC","UJAK","TETKA","UJNA","BRAT","SESTRA","MAJKA","OTAC",
+    "DIJETE","SIN","KCERKA","ROD","FAMILIJA","KOMSIJA","PRIJATELJ","DRUGAR","KOLEGA",
+    "DJEVOJKA","MOMAK","ZENA","COVJEK","STARAC","BABA","BEBA","KLINAC","DJEVOJCICA","DJECAK",
+    # === Profesije ===
+    "POLICAJAC","VATROGASAC","LJEKAR","DOKTOR","UCITELJ","PROFESOR","NOVINAR","ARHITEKT",
+    "INZENJER","PROGRAMER","PISAC","PJESNIK","SLIKAR","KIPAR","MUZICAR","GLUMAC","REZISER",
+    "PJEVAC","PLESAC","FOTOGRAF","KUVAR","KONOBAR","PEKAR","MESAR","KROJAC","FRIZER",
+    "ZUBAR","VETERINAR","FARMER","RIBAR","LOVAC","MORNAR","PILOT","VOZAC","SOFER","STUDENT",
+    "GLUMICA","SUDIJA","ADVOKAT","TUZILAC","NOTAR","BANKAR","TRGOVAC","PRODAVAC","KASIRKA",
+    # === Kuća, predmeti ===
+    "KUHINJA","KUPATILO","HODNIK","PODRUM","TAVAN","GARAZA","BALKON","TERASA","DVORISTE",
+    "VRATA","PROZOR","KROV","ZID","POD","STROP","STEPENICE","LIFT","HODNJAK","SOBA",
+    "KREVET","STOLICA","STOL","ORMAR","KOMODA","FOTELJA","KAUC","ZAVJESA","TEPIH","SAG",
+    "OGLEDALO","SLIKA","UKRAS","VAZA","SVIJECA","LAMPA","LUSTER","SAT","BUDILNIK","KALENDAR",
+    "PEC","STEDNJAK","RERNA","FRIZIDER","ZAMRZIVAC","PERILICA","SUSILICA","TOSTER","BLENDER",
+    "TANJUR","SOLJA","CASA","BOCA","TAVA","LONAC","NOZ","VILJUSKA","KASIKA","ZLICA",
+    "TORBA","RANAC","KOFER","NOVCANIK","NAOCALE","KISOBRAN","KAPA","SAL","RUKAVICE","CARAPE",
+    "MAJICA","KOSULJA","SAKO","JAKNA","KAPUT","HLACE","TRENERKA","SUKNJA","HALJINA","CIPELE",
+    "PATIKE","CIZME","SANDALE","PAPUCE","KORZET","KAIS","KRAVATA","PIDZAMA","KUPACI","BIKINI",
+    # === Tehnika ===
+    "KOMPJUTER","RACUNAR","LAPTOP","TABLET","MOBITEL","TELEFON","INTERNET","WIFI","KABL","MODEM",
+    "PUNJAC","BATERIJA","SLUSALICE","TASTATURA","MIS","KAMERA","FOTOAPARAT","TELEVIZOR","RADIO",
+    "ZVUCNIK","MIKROFON","KONZOLA","DZOJSTIK","DRON","ROBOT","SERVER","DISPLEJ","EKRAN","MONITOR",
+    # === Vozila ===
+    "AUTOMOBIL","AUTO","KAMION","MOTOCIKL","BICIKL","ROMOBIL","SKUTER","TRAKTOR","BAGER","KOMBI",
+    "AUTOBUS","TRAMVAJ","TROLEJBUS","METRO","VOZ","VLAK","BRZIVOZ","BROD","JAHTA","JEDRILICA",
+    "CAMAC","KAJAK","KANU","SPLAV","PODMORNICA","AVION","HELIKOPTER","RAKETA","BALON","ZEPELIN",
+    # === Geografija ===
+    "DRZAVA","REPUBLIKA","GRAD","SELO","NASELJE","ULICA","TRG","PARK","MOST","TUNEL",
+    "AUTOPUT","CESTA","PUT","STAZA","ZELJEZNICA","ASTANA","BEOGRAD","SARAJEVO","ZAGREB",
+    "MOSTAR","SPLIT","RIJEKA","ZADAR","DUBROVNIK","PULA","NIS","SUBOTICA","TIRANA","SKOPLJE",
+    "BANJALUKA","TUZLA","ZENICA","BIHAC","TREBINJE","JAJCE","BUGOJNO","TRAVNIK","KISELJAK","BREZA",
+    "FRANCUSKA","NJEMACKA","ITALIJA","SPANIJA","ENGLESKA","RUSIJA","KINA","JAPAN","INDIJA","BRAZIL",
+    "AMERIKA","MEKSIKO","KANADA","TURSKA","GRCKA","BUGARSKA","RUMUNIJA","MADJARSKA","POLJSKA","CESKA",
+    "EUROPA","AZIJA","AFRIKA","AUSTRALIJA","ANTARKTIK","BALKAN","SREDOZEMLJE","JADRAN","DANUBIJ",
+    # === Sport ===
+    "FUDBAL","NOGOMET","KOSARKA","ODBOJKA","RUKOMET","TENIS","STOLNI","BOKS","KARATE","DZUDO",
+    "HOKEJ","RAGBI","BEJZBOL","KRIKET","PLIVANJE","RONJENJE","JEDRENJE","VESLANJE","SKIJANJE",
+    "SNOWBOARD","KLIZANJE","BICIKLIZAM","GIMNASTIKA","ATLETIKA","TRCANJE","SAH","DAMA","BILIJAR",
+    "PIKADO","KUGLANJE","GOLF","JAHANJE","STRIJELJASTVO","PIANISTIKA","JOGGING","FITNESS",
+    # === Muzika, umjetnost ===
+    "GITARA","VIOLINA","BUBNJEVI","FLAUTA","KLAVIR","HARMONIKA","SAKSOFON","TRUBA","SAZ",
+    "TAMBURA","MANDOLINA","UKULELE","KSILOFON","ORGULJE","SINTISAJZER","KLARINET","OBOJA",
+    "FAGOT","CELO","KONTRABAS","HARFA","NOTA","PJESMA","STIH","AKORD","RIFF","RITAM","MELODIJA",
+    "ROCK","POP","JAZZ","BLUES","FOLK","TURBOFOLK","NARODNJACI","RAP","HIPHOP","REGGAE","TECHNO",
+    "OPERA","BALET","KAZALISTE","POZORISTE","KONCERT","FESTIVAL","SCENA","BINA","MIKROFON",
+    # === Apstraktno, osjećanja ===
+    "SLOBODA","JEDNAKOST","LJUBAV","NADA","VJERA","SRECA","TUGA","RADOST","STRAH","BIJES",
+    "LJUTNJA","MIR","RAT","BORBA","POBJEDA","PORAZ","PRIJATELJSTVO","NEPRIJATELJ","ISTINA",
+    "LAZ","PRAVDA","NEPRAVDA","HRABROST","KUKAVICA","MUDROST","GLUPOST","ZNANJE","UMIJECE",
+    "TALENT","DAR","SUDBINA","SREĆA","PROBLEM","RJESENJE","ODGOVOR","PITANJE","IDEJA","PLAN",
+    "SAN","SNOVI","MASTA","REALNOST","ZIVOT","SMRT","RODJENJE","PROSLOST","BUDUCNOST","SADASNJOST",
+    # === Vrijeme ===
+    "JANUAR","FEBRUAR","MART","APRIL","MAJ","JUNI","JULI","AVGUST","SEPTEMBAR","OKTOBAR",
+    "NOVEMBAR","DECEMBAR","PONEDJELJAK","UTORAK","SRIJEDA","CETVRTAK","PETAK","SUBOTA","NEDJELJA",
+    "DAN","SEDMICA","MJESEC","GODINA","DECENIJA","STOLJECE","MILENIJ","SAT","MINUTA","SEKUNDA",
+    # === Boje ===
+    "CRVENA","ZUTA","ZELENA","PLAVA","BIJELA","CRNA","SIVA","ROZE","NARANCASTA","LJUBICASTA",
+    "BRAON","BORDO","BEZ","ZLATNA","SREBRNA","TIRKIZNA","TURKIZ","KAKI","INDIGO","KORALNA",
+    # === Pridjevi (osnovni oblik) ===
+    "DUGACAK","KRATAK","VISOK","NIZAK","DEBEO","MRSAV","BRZ","SPOR","JAK","SLAB",
+    "TVRD","MEK","TOPAO","HLADAN","VRUC","LEDEN","SVIJETAO","TAMAN","PUN","PRAZAN",
+    "STAR","MLAD","NOV","TEZAK","LAGAN","SKUP","JEFTIN","DOBAR","LOS","LIJEP",
+    "RUZAN","PAMETAN","GLUP","HRABAR","STRASLJIV","BOGAT","SIROMAH","SRECAN","TUZAN","UMORAN",
+    "BIJESAN","SMIJEAN","OZBILJAN","TIH","GLASAN","MIRAN","DIVLJI","PITOM","OPASAN","SIGURAN",
+    # === Glagoli (infinitiv, kratki oblici) ===
+    "RADITI","UCITI","CITATI","PISATI","CRTATI","SLIKATI","KUVATI","PECI","PRZITI","KUHATI",
+    "JESTI","PITI","SPATI","BUDITI","TRCATI","HODATI","SETATI","PLIVATI","RONITI","LETJETI",
+    "VOZITI","JAHATI","TRAZITI","GUBITI","NACI","DOBITI","DATI","UZETI","KUPITI","PRODATI",
+    "PLATITI","ZARADITI","RACUNATI","BROJATI","MJERITI","VAGATI","PUSITI","GLEDATI","SLUSATI",
+    "GOVORITI","SAPUTATI","VIKATI","PJEVATI","PLESATI","SVIRATI","POMOCI","VOLJETI","MRZJETI",
+    "SMIJATI","PLAKATI","SPAVATI","SANJATI","RAZMISLJATI","OBJASNJAVATI","RAZUMJETI","ZNATI","UMJETI",
+    # === Razni pojmovi ===
+    "KARTA","NOVAC","BANKA","KASA","KREDIT","ZAJAM","KAMATA","POREZ","RACUN","FAKTURA",
+    "UGOVOR","DOKUMENT","PEČAT","POTPIS","PISMO","KOVERTA","PAKET","POSILJKA","POSTA","KURIR",
+    "SKOLA","FAKULTET","UCIONICA","TABLA","KREDA","SVESKA","KNJIGA","UDZBENIK","RJECNIK","ATLAS",
+    "ZADATAK","TEST","ISPIT","DIPLOMA","OCJENA","ODGOJ","PRAVILO","ZAKON","KAZNA","NAGRADA",
+    "BOLNICA","KLINIKA","AMBULANTA","HITNA","APOTEKA","LIJEK","TABLETA","INJEKCIJA","ZAVOJ","VAKCINA",
+    "TRZNICA","PIJACA","DUCAN","PRODAVNICA","MARKET","CENTAR","TRZNI","BUTIK","KIOSK","BAZAR",
+    "POZORNICA","SALA","KINO","BIOSKOP","MUZEJ","GALERIJA","BIBLIOTEKA","ARHIV","KATEDRALA","CRKVA",
+    "DZAMIJA","SINAGOGA","HRAM","SAMOSTAN","MANASTIR","ZVONIK","MUNARA","OLTAR","IKONA","KRST",
+    "GRAD","TVRDJAVA","KULA","DVORAC","PALACA","VILA","KOLIBA","CATRJA","STAN","KUCA",
+    "FARMA","RANC","MLINI","STAJA","STAJSKA","KOKOSARNIK","KOSNICA","VOCNJAK","VINOGRAD","BASTA",
+    # === Tehnologija, online ===
+    "EMAIL","FORUM","BLOG","STRANICA","SAJT","LINK","KLIK","DOWNLOAD","UPLOAD","FAJL",
+    "FOLDER","DATOTEKA","BACKUP","SOFTVER","PROGRAM","APLIKACIJA","KORISNIK","LOZINKA","PROFIL",
+    "NALOG","RACUN","KOMENTAR","LAJK","DISLAJK","SHARE","POST","STORY","REELS","TIKTOK",
+    # === Igre, zabava ===
+    "IGRA","IGRACKA","LUTKA","KOCKA","PUZZLE","KARTA","TABLA","FIGURA","TOPIC","KONJ",
+    "LOVAC","KRALJ","KRALJICA","PJEŠAK","TURNIR","LIGA","KUP","FINALE","POBJEDNIK","GUBITNIK",
+    # === Specifične BHS riječi ===
+    "MERAK","BERICET","INSAN","SEVDAH","SEVDALINKA","CARSIJA","BAHAR","BAHCIVAN","TESPIH","HAMAM",
+    "KALDRMA","SOKAK","AVLIJA","CARDAK","CESMA","BUNAR","SOFRA","DZEZVA","FILDZAN","RAHAT",
+    "BAKLAVA","TUFAHIJA","HURMASICE","REVANIJA","HALVA","SUDZUK","PASTRMA","CICVARA","UJSCAK",
+    # === Nastavak — više riječi za bolju igrivost ===
+    "ANANAS","ABDIJA","AUTOR","ATOM","ANTENA","ASPIRIN","ANGINA","ARMIJA","ARMATURA","AKCIJA",
+    "ATLAS","ATOMSKI","ADRESA","AGENT","AHOJ","AKADEMIJA","AKORD","AKVARIJ","ALARM","ALGEBRA",
+    "ALEJA","AMETIST","ANALIZA","ANGEO","ANJON","ANSAMBL","APARAT","APETIT","ARENA","ARHIV",
+    "ATOMSKI","AUDIO","AURA","AVET","AVION","AVIS","AZBUKA","AZUR","ASOVAN","ATEIST",
+    "BABILON","BACVA","BADANJ","BADEM","BAJONET","BAKAR","BALADA","BALAST","BALKON","BALOTA",
+    "BAMBUS","BANANE","BARABA","BARAKA","BARJAK","BAROKNI","BARUT","BASIST","BATALJON","BATERIJA",
+    "BELI","BENZIN","BICIKL","BIDE","BIFTEK","BIGAMIJA","BIKINI","BILBORD","BIMBAS","BIRO",
+    "BISER","BISTRO","BITKA","BJEKSTVO","BLAGAJNA","BLAGOSLOV","BLATO","BLISTAV","BLITVA","BOLEST",
+    "BOSANAC","BOTANIKA","BOTOX","BRADAVICA","BRAJIN","BRANIK","BRAVAR","BREZA","BRITVA","BROD",
+    "BUBANJ","BUDISTA","BUDZET","BUKVAR","BUMERANG","BUSEN","BUVA",
+    "CASTITI","CEDAR","CEDULJA","CENTAR","CESTAR","CIGLA","CILJ","CIMET","CINIK","CISTA",
+    "CITRUS","COLA","CRTA","CRTEZ","CUNJ","CUPAVAC","CARLI","COKLA","CUREVI","CIRIL",
+    "CADA","CALMA","CARAPA","CARDA","CESALJ","CIGRA","CILIM","CINEMA","CIPELE","CIVIJA",
+    "DAJ","DALEKO","DARDA","DARILO","DASKA","DAVID","DEBELA","DEFTER","DELFIN","DESET",
+    "DIJAGONALA","DIPLOMA","DIVAN","DIVAS","DIVOT","DJEVOJKA","DOBOS","DODIR","DOJAVA","DOLAR",
+    "DOMAR","DOMETI","DRAMA","DRENA","DRSKO","DRVO","DUGA","DUKAT","DUVAR","DZIN",
+    "EBOLA","EDEN","EGIPAT","EHO","EKIPA","EKLER","EKRAN","ELASTIK","ELEMENT","EMAJL",
+    "EPIZODA","ERA","ESEJ","ESKIM","ETAPA","ETIKETA","EVROPA",
+    "FAJL","FAKIR","FALANGA","FARMA","FAUNA","FAZA","FAZON","FELERAN","FESTIVAL","FIGURA",
+    "FIJASKO","FILDZAN","FILM","FILTER","FINALE","FIRMA","FISKAL","FLOKA","FLOTA","FOAJE",
+    "FOKA","FOND","FORUM","FREJM","FUGA",
+    "GALEB","GALIJA","GAMA","GARDA","GARNIR","GASTRO","GAZAP","GAZDA","GENIJ","GIBAK",
+    "GIROS","GLAS","GLAVA","GLINA","GLODAR","GLUMAC","GMAZ","GOLOB","GORAN","GORJE",
+    "GRABLJE","GRAD","GRAH","GRANA","GREDA","GROB","GROZD","GRUDI","GUSTERA","GUMA",
+    "HALDA","HALJINA","HARFA","HARING","HEROJ","HIDRA","HIDROAVION","HILJADA","HIPNOZA","HISTORIJA",
+    "HLAD","HOBI","HODAC","HORIZONT","HORMON","HRAM","HRAST","HRPA","HUMOR","HVALA",
+    "IGLA","IGRA","ILUZIJA","IMITATOR","INGOT","INJE","INKA","INSEKT","INTERVJU","ISKRA",
+    "ISTOK","IZLAZ","IZMET","IZVAN","IZVOR",
+    "JAGNJE","JAJE","JANJE","JARAC","JARAK","JARGON","JASIKA","JAVNOST","JEDAN","JEDINKA",
+    "JELEN","JEZIK","JOGA","JOGURT","JORGAN","JUG","JUHA","JUNAK","JURNJAVA",
+    "KABAO","KADET","KAFANA","KAJAK","KAKAO","KALAJ","KALDRMA","KALORIJA","KAMEN","KAMPER",
+    "KAPETAN","KARMIN","KARNEVAL","KARTA","KASA","KASETA","KASKO","KESTEN","KEVA","KIFLA",
+    "KILIM","KINEZ","KIPAR","KIRO","KISELO","KIT","KLATNO","KLAVIR","KLIN","KLISURA",
+    "KLOPKA","KLUB","KNEZ","KNJIGA","KOBASICA","KOFER","KOKA","KOKOS","KOLAC","KOLIBA",
+    "KOMAR","KOMODA","KONJUSAR","KONOP","KORAK","KORAL","KORICE","KORPA","KOSA","KOSNICA",
+    "KOST","KOSTIM","KOSULJA","KOTAR","KRAJ","KRALJ","KRASTAVAC","KRATER","KRESIVO","KRIZA",
+    "KROV","KRPA","KRUH","KRUNA","KRZNO","KUFER","KUGLA","KUMA","KUPA","KUPATILO",
+    "LAJAVAC","LAKAT","LAMPA","LANAC","LATICA","LAVOR","LEDENJAK","LEGENDA","LEPTIR","LIBELA",
+    "LIDER","LIFER","LIK","LILJAN","LIMUN","LIPA","LISICA","LJEKARNA","LJEPILO","LJESA",
+    "LJESNJAK","LJULJASKA","LOGOR","LOKVA","LONAC","LOPATA","LOPOV","LOZA","LUBENICA","LUDARA",
+    "LULA","LUNA","LUPA","LUSTER",
+    "MACETA","MAFIN","MAGIJA","MAGLA","MAJKA","MAKARONI","MALINA","MAMA","MAMUT","MARAMA",
+    "MARATON","MARGARIN","MARKA","MARMELADA","MARTINI","MASAZA","MASKA","MASLINA","MATERIJA","MEDIJ",
+    "MEDONOSA","MEDUZA","MELEM","MEN","MERAK","METAR","METLA","MIRIS","MISLI","MITRALJEZ",
+    "MJERA","MOC","MODA","MOJA","MOLBA","MORE","MOST","MOTAR","MOTIV","MOZAIK",
+    "MUFLON","MUKA","MUMIJA","MUNJA","MUTA","MUZEJ",
+    "NABOJ","NACRT","NAFTA","NAJLON","NAKIT","NAOCALE","NAPAD","NAPOJ","NAPOR","NARAVAN",
+    "NAREDBA","NAROD","NASLJEDNIK","NAUKA","NEBO","NEDA","NEMIR","NERAST","NESTASIK","NEUTRON",
+    "NEVRIJEME","NIDAS","NIKAD","NIMFA","NIVO","NOC","NOGA","NOTA","NOVAC","NOVCANIK",
+    "OAZA","OBALA","OBARAC","OBLAK","OBLIK","OBROK","OBRT","OCJENA","ODGOJ","ODOBOR",
+    "ODORA","OGANJ","OGRADA","OKO","OKLOP","OLIMP","OLOVKA","OPATICA","OPTIKA","ORAH",
+    "ORAO","ORBIT","ORDEN","ORGAN","ORLOVI","ORMAN","OROMIR","OSAM","OSIGURAC","OSJET",
+    "OSMIJEH","OTAC","OTOK","OZIBAC",
+    "PAJAC","PAKET","PALAC","PALACA","PALACINKA","PALETA","PAMUK","PAPIR","PAPUC","PARTIJA",
+    "PASKVIL","PASOS","PASTA","PASTIR","PAUK","PAUZA","PCELA","PECINA","PEHAR","PERIVOJ",
+    "PERLA","PERSPEKTIVA","PESMA","PIANIST","PICA","PIDZAMA","PIJUK","PILA","PILOT","PIPA",
+    "PISMO","PJEGA","PLAFON","PLAKAT","PLAN","PLATA","PLATFORMA","PLAVUSA","PLEMSTVO","PLIN",
+    "PLOCA","PODNOZJE","POEZIJA","POJAS","POKER","POLE","POLITIKA","POLJANA","POMOC","PONOC",
+    "POROD","POSAO","POSLOVI","POSTUDA","POVRCE","POZIV","PRASAK","PRAVDA","PREDAK","PREDSJEDNIK",
+    "PREGRADA","PREPAD","PREPRJEK","PRES","PRIBOR","PRIVOZNIK","PROGRAM","PROLOM","PROSAC","PRSTEN",
+    "PSALAM","PUDING","PUNJAC",
+    "RACA","RACUN","RADIJA","RAJ","RAKIJA","RAKOVI","RAMA","RANAC","RAT","RATAR",
+    "RAVAN","RAZBORIT","RAZUM","REKA","REPLIKA","REZIJA","RIBA","RIJEC","RIKVERC","RIMA",
+    "RISTO","RIZA","ROBA","ROBOT","RODA","RODBINA","RODOSLOV","ROK","ROMOR","ROVAS",
+    "RUPA","RUTINA","RUZA",
+    "SABOR","SAJAM","SAKO","SALATA","SALON","SAMAC","SAMUR","SAN","SANJAR","SANJKE",
+    "SAPUN","SARAJ","SARGO","SARMA","SAT","SAVA","SAVJET","SAVRSEN","SCENA","SCIT",
+    "SECER","SEDLO","SELO","SEMAFOR","SEPTUNA","SESTRA","SEVDAH","SEZONA","SIDRO","SIJALICA",
+    "SIJEDA","SIKIRA","SILAZAK","SIMFONIJA","SIMPATIJA","SINOC","SIROMAH","SIROVI","SISTEM","SITAN",
+    "SITNICA","SJAJ","SJEME","SJENA","SKALA","SKICA","SKLAP","SKOLA","SKULPTURA","SLATKO",
+    "SLIKAR","SLOBODA","SLON","SLUSALICE","SMOKVA","SNAJPER","SOFER","SOK","SOL","SOLI",
+    "SOMUN","SOSO","SPARTA","SPEKTAR","SPLAV","SPOMENIK","SPORT","SPREJ","SREDISTE","STADION",
+    "STAJA","STAKA","STALAK","STAN","STAPSKI","STARAC","STARINA","STAZA","STEPENICE","STIH",
+    "STOKA","STOL","STOLAR","STRAH","STRELA","STRIJELA","STROJ","STUDENT","SUDIJA","SUMA",
+    "SUNCE","SVIJET","SVJETLO",
+    "TABLA","TANJUR","TARAKAN","TARABA","TASNA","TAVA","TEKO","TELEFON","TELEVIZOR","TEMA",
+    "TENISER","TEORIJA","TEPIH","TEREN","TERMIT","TIGAR","TIKVA","TINEJDZER","TIPKA","TIRKIZ",
+    "TKANINA","TLOCRT","TOCAK","TOPLOMJER","TOPOR","TORBA","TORTA","TORZO","TRAGAC","TRAKA",
+    "TRAKTOR","TRAVA","TREN","TRENER","TRG","TRGOVAC","TRIBUNA","TRKA","TROFEJ","TRUBA",
+    "TRUP","TUFNA","TUGA","TULIPAN","TUNA","TURPIJA",
+    "UDOVAC","UJAK","UJEDINJENA","UKRAS","ULICA","ULOVAR","UMOR","UMOR","UPALA","URAGAN",
+    "URAR","UROK","USPJEH","USPON","USTAJANJE","UTOR","UZBUNA",
+    "VAGA","VAGON","VAKCINA","VALOVI","VANJA","VARNICA","VARTILO","VATRA","VEKER","VENTIL",
+    "VESELJE","VIDIK","VIGOR","VIJORI","VIKTORIJA","VILA","VILJUSKA","VINO","VIORI","VITAMIN",
+    "VITEZ","VITRINA","VJEDRO","VJENCANJE","VJESTAK","VJEVERICA","VLAK","VOCNJAK","VODA","VOJNIK",
+    "VOLAN","VRABAC","VRH","VRHUNAC","VRT","VUCJAK","VULKAN",
+    "ZADATAK","ZADNJAK","ZAGRLJAJ","ZAJC","ZAKLON","ZAKON","ZAMOR","ZANIMANJE","ZAOBILAZAK","ZAPIS",
+    "ZAPLET","ZARADA","ZASEDA","ZASIK","ZASLON","ZAVISA","ZAVOJ","ZBIRKA","ZDRAVO","ZEC",
+    "ZELENI","ZEMLJA","ZGRADA","ZID","ZIMA","ZIVOT","ZLATO","ZMAJ","ZMIJA","ZNAK",
+    "ZOLJA","ZORA","ZRAK","ZRNO","ZUB","ZVUK",
+    # === Dodatne kratke 3-4 slovne riječi ===
+    "BOG","DOM","DAR","SAN","JAJ","RAJ","ČAJ","ROJ","BOJ","BOJA","BOL","BOLI","BOR","BUS",
+    "CAR","CIK","DAH","DAB","DAR","DJED","FEN","GAS","GRB","GRM","HOR","HUM","IGO","ILI",
+    "JAJE","JAK","JAR","KAD","KAJ","KAP","KIT","KOM","KOS","KOZA","LAV","LEK","LET","LED",
+    "LIK","LIM","LIN","LOM","LOV","LUK","MAH","MAK","MAJ","MIR","MOR","MOST","NEK","NIT",
+    "NOC","NOJ","NOS","ORO","OBL","OKO","OPA","OSA","PAS","PAR","PAT","PIR","POD","POJ",
+    "POP","POT","PUH","PUT","RAD","RAJ","RAP","RAT","RED","REP","REZ","RIM","ROD","ROK",
+    "ROM","ROZ","RUB","RUC","SAJ","SAN","SAP","SAT","SLON","SOK","SON","SOR","STO","SUD",
+    "SUH","SUR","SVE","TAJ","TAN","TAS","TIH","TIK","TIM","TIP","TON","TUR","UAL","UKA",
+    "ULJ","UMI","UVA","VAL","VAR","VAS","VEC","VEK","VID","VIK","VIR","VOD","VOL","VOZ",
+    "VRH","VUK","ZID","ZIK","ZIM","ZNA","ZOR","ZUB","ZUM","ZID","ZIV",
+    # === Magicna rijec ===
+    "KALADONT",
+])
+
+def kaladont_word_valid(word: str) -> bool:
+    """Provjeri da li je riječ u rječniku validnih BHS riječi."""
+    nw = _kaladont_normalize(word)
+    if nw == "KALADONT": return True
+    return nw in KALADONT_DICT
+
+# ═══════════════════════════════════════════
 #    INTENTS & BOT
 # ═══════════════════════════════════════════
 intents = discord.Intents.default()
@@ -561,6 +826,7 @@ def load_data():
             data["nsfw_strikes"]   = loaded.get("nsfw_strikes", {})
             data["vatrice"]        = loaded.get("vatrice", {})
             data["vatrice_cd"]     = loaded.get("vatrice_cd", {})
+            data["vatrice_threshold"] = loaded.get("vatrice_threshold", {})
             for k, v in loaded.items():
                 if k not in data:
                     data[k] = v
@@ -1565,7 +1831,8 @@ async def on_message(message):
     # ── Kaladont handler ──────────────────────────────
     if message.channel.id in kaladont_games and not message.content.startswith("/"):
         game = kaladont_games[message.channel.id]
-        word = message.content.upper().strip()
+        # NORMALIZACIJA: uppercase + skidanje dijakritika (Š→S, Č→C, Ž→Z, Đ→DJ, Ć→C)
+        word = _kaladont_normalize(message.content)
         letters = game["letters"]
         req = game["word"][-letters:]
 
@@ -1578,8 +1845,9 @@ async def on_message(message):
                 )
             except Exception: pass
 
-        if not word.isalpha():
-            pass  # ignoriši poruke koje nisu čiste riječi
+        # Mora biti čista riječ (samo slova, bez razmaka)
+        if not word or not word.isalpha() or " " in message.content.strip():
+            pass  # ignoriši poruke koje nisu čiste riječi (ili imaju više riječi)
         elif len(word) < 3:
             await reject("Prekratka!", "Minimalno **3 slova**.")
         elif message.author.id == game.get("last_uid"):
@@ -1588,6 +1856,11 @@ async def on_message(message):
             await reject(f"Mora početi sa `{req}`!", f"Tvoja: `{word}` — sljedeća mora početi sa **`{req}`**")
         elif word in game["used"]:
             await reject(f"`{word}` je već bila!", "Pokušaj drugu riječ.")
+        elif not kaladont_word_valid(word):
+            await reject(
+                f"`{word}` nije validna riječ!",
+                f"To nije u rječniku BHS riječi. Probaj pravu imenicu/glagol/pridjev koji počinje sa **`{req}`**."
+            )
         else:
             game["word"]             = word
             game["last_uid"]         = message.author.id
@@ -1634,14 +1907,27 @@ async def on_message(message):
     data.setdefault("msg_count_week", {})
     data["msg_count_week"][mkey] = data["msg_count_week"].get(mkey, 0) + 1
 
-    # ── 🔥 VATRICE — auto +1 svakih 150 poruka ────────
+    # ── 🔥 VATRICE — auto +1 svakih 150 poruka (threshold-based, otporno na restart/upload) ────────
     try:
         VATRICA_PRAG = 150
         ukupno_msgs = data["msg_count"][mkey]
-        if ukupno_msgs > 0 and ukupno_msgs % VATRICA_PRAG == 0:
+        # threshold-based: koristimo "last_vatrica_msg" tracker u data["vatrice_threshold"]
+        data.setdefault("vatrice_threshold", {})
+        last_v_msg = int(data["vatrice_threshold"].get(mkey, 0))
+        # auto-init: ako je threshold 0 a već ima >150 poruka, postavi na najbliži milestone ispod
+        if last_v_msg == 0 and ukupno_msgs >= VATRICA_PRAG:
+            last_v_msg = (ukupno_msgs // VATRICA_PRAG) * VATRICA_PRAG
+            data["vatrice_threshold"][mkey] = last_v_msg
+        # award svaku vatricu koja je dosegnuta od zadnjeg threshold-a (može biti više ako je preskočeno)
+        awarded = 0
+        while ukupno_msgs - last_v_msg >= VATRICA_PRAG:
+            last_v_msg += VATRICA_PRAG
+            awarded += 1
+        if awarded > 0:
+            data["vatrice_threshold"][mkey] = last_v_msg
             cfg_v = get_guild_config(message.guild.id)
             vemoji = cfg_v.get("vatrice_emoji", "🔥")
-            novi_v = _add_vatrica(message.guild.id, message.author.id, 1)
+            novi_v = _add_vatrica(message.guild.id, message.author.id, awarded)
             save_data()
             try: await _update_vatrice_nick(message.author, novi_v, vemoji)
             except Exception: pass
@@ -2436,15 +2722,15 @@ async def posao(i: discord.Interaction):
         ("💶 Zarada", f"`+{earn} 💶`", True), ("🏦 Balans", f"`{d['balance']:,} 💶`", True), ("⏰ Sledeći", "za 1 sat", True),
     ]))
 
-@bot.tree.command(name="daily", description="🎁 Dnevna nagrada")
-@app_commands.checks.cooldown(1, 86400, key=lambda i: i.user.id)
+@bot.tree.command(name="daily", description="🎁 Hourly nagrada (svaki 1h)")
+@app_commands.checks.cooldown(1, 3600, key=lambda i: i.user.id)
 async def daily(i: discord.Interaction):
     d = get_economy(i.user.id)
     reward = random.randint(300, 800)
     d["balance"] += reward; d["last_daily"] = time.time(); save_data()
     quest_progress(i.user.id, "daily1")
-    await i.response.send_message(embed=em_pro("🎁 Dnevna Nagrada", "🌟 Tvoj dnevni poklon je stigao!\n*Vrati se sutra za novu nagradu* 🔄", color=COLORS["gold"], author=i.user, thumb=i.user.display_avatar.url, fields=[
-        ("💶 Nagrada", f"```diff\n+ {reward} 💶\n```", True), ("🏦 Balans", f"```yaml\n{d['balance']:,} 💶\n```", True),
+    await i.response.send_message(embed=em_pro("🎁 Daily Nagrada", "🌟 Tvoj poklon je stigao!\n*Vrati se za 1h za novu nagradu* 🔄", color=COLORS["gold"], author=i.user, thumb=i.user.display_avatar.url, fields=[
+        ("💶 Nagrada", f"```diff\n+ {reward} 💶\n```", True), ("🏦 Balans", f"```yaml\n{d['balance']:,} 💶\n```", True), ("⏰ Sledeći", "za 1h", True),
     ]))
 
 @bot.tree.command(name="daj", description="🤝 Pošalji pare drugaru")
@@ -2685,7 +2971,7 @@ async def vjasala(i: discord.Interaction):
 # ═══════════════════════════════════════════
 #    KALADONT
 # ═══════════════════════════════════════════
-KALADONT_START_WORDS = [
+_KALADONT_START_RAW = [
     "BALKON","RAKIJA","KAFANA","FUDBAL","TANJIR","SUNCE","ZIVOT","RIJEKA",
     "PLANINA","DRVO","KAMEN","VATRA","ZEMLJA","VJETAR","OBLAK","JEZERO",
     "MOST","GRAD","SELO","POLJE","BRDO","DOLINA","SPILJA","OCEAN",
@@ -2696,6 +2982,10 @@ KALADONT_START_WORDS = [
     "CEVAPI","BUREK","SARMA","KAJMAK","PITA","PALAČINKA","KOLAC",
     "ŠKOLA","BOLNICA","CRKVA","DŽAMIJA","STADION","BIBLIOTEKA","MUZEJ",
 ]
+# Normaliziraj sve start-words (skidanje dijakritika) i osiguraj da su u rječniku
+KALADONT_START_WORDS = [_kaladont_normalize(w) for w in _KALADONT_START_RAW]
+for _w in KALADONT_START_WORDS:
+    KALADONT_DICT.add(_w)
 
 kaladont_games: dict = {}  # channel_id -> {word, used, starter, letters, chain, msg}
 
@@ -3944,7 +4234,7 @@ class PokerRaiseModal(discord.ui.Modal, title="💰 Raise / Podigni ulog"):
         bal = _pk_get_bal(g["guild_id"], uid)
         if bal < amt:
             return await interaction.response.send_message(
-                embed=em("❌","Nemaš dovoljno!", f"Imaš `{bal:,} 💶`, treba `{amt:,} 💶`.", COLORS["error"]),
+                embed=em("❌","Nemaš dovoljno!", f"Imaš `{bal:,} 💶`, treba `{amt:,} 💶`.", color=COLORS["error"]),
                 ephemeral=True)
         _pk_set_bal(g["guild_id"], uid, bal - amt)
         g["pot"] += amt
@@ -6418,16 +6708,28 @@ async def help_cmd(i: discord.Interaction):
         is_admin = i.user.guild_permissions.administrator or any(r.name == "〢 /GIANNI" for r in i.user.roles)
     except: pass
 
+    # 🔧 PREFIX DETEKCIJA — ako je pozvano kao .help → koristimo "." prefix u embedu (mobitel-mod)
+    px = "/"
+    is_mobile = False
+    try:
+        if isinstance(i, FakeInteraction):
+            px = "."
+            is_mobile = True
+    except Exception: pass
+
     BAR = "═══════════════════════════════════"
 
+    title = "✦ × G I A N N I  —  K O M A N D E  ✦" if not is_mobile else "📱 × G I A N N I  —  M O B I L E  ✦"
+    head_line = f"🔮 Sve komande se koriste sa `{px}`" if not is_mobile else f"📱 **MOBITEL MOD** · Sve komande se koriste sa `{px}` prefixom"
+
     e = discord.Embed(
-        title="✦ × G I A N N I  —  K O M A N D E  ✦",
+        title=title,
         description=(
             f"```ansi\n\u001b[1;36m{BAR}\n"
             f"  ✦ Dobrodošli u GIANNI komandni centar! ✦\n"
             f"{BAR}\u001b[0m```\n"
-            f"📌 Verzija **{VERSION}** · Ukupno komandi: **100**\n"
-            f"🔮 Sve komande se koriste sa `/`"
+            f"📌 Verzija **{VERSION}** · Ukupno komandi: **100+**\n"
+            f"{head_line}"
         ),
         color=0x00BCD4,
         timestamp=datetime.now(timezone.utc),
@@ -6437,114 +6739,128 @@ async def help_cmd(i: discord.Interaction):
     e.add_field(
         name="╔═ ℹ️  INFO & UTILITI",
         value=(
-            "> `/ping` `/serverinfo` `/userinfo` `/avatar`\n"
-            "> `/invite` `/spotify` `/qr` `/vatrice`\n"
-            "> `/topchatters` `/serverstats`"
+            f"> `{px}ping` `{px}serverinfo` `{px}userinfo` `{px}avatar`\n"
+            f"> `{px}invite` `{px}spotify` `{px}qr` `{px}vatrice`\n"
+            f"> `{px}topchatters` `{px}serverstats`"
         ),
         inline=False,
     )
     e.add_field(
         name="╠═ 😴  AFK & SOCIJALNO",
         value=(
-            "> `/afk` — Postavi AFK status"
+            f"> `{px}afk` — Postavi AFK status"
         ),
         inline=False,
     )
     e.add_field(
         name="╠═ 💰  EKONOMIJA",
         value=(
-            "> `/baki` `/posao` `/daily` `/daj` `/kradi`\n"
-            "> `/rank` `/leaderboard` `/shop` `/kupi`\n"
-            "> `/bank` `/lottery` `/heist`"
+            f"> `{px}baki` `{px}posao` `{px}daily` `{px}daj` `{px}kradi`\n"
+            f"> `{px}rank` `{px}leaderboard` `{px}shop` `{px}kupi`\n"
+            f"> `{px}bank` `{px}lottery` `{px}heist`"
         ),
         inline=False,
     )
     e.add_field(
         name="╠═ 🎮  IGRE & ZABAVA",
         value=(
-            "> `/kpm` `/slots` `/rulet` `/flip` `/8ball`\n"
-            "> `/vjasala` `/kaladont` `/kaladont-stop` `/toplo-hladno`\n"
-            "> `/blackjack` `/kviz` `/kocka` `/geografija` `/meme`\n"
-            "> `/amogus` `/amogus-stop`"
+            f"> `{px}kpm` `{px}slots` `{px}rulet` `{px}flip` `{px}8ball`\n"
+            f"> `{px}vjasala` `{px}kaladont` `{px}kaladont-stop` `{px}toplo-hladno`\n"
+            f"> `{px}blackjack` `{px}kviz` `{px}kocka` `{px}geografija` `{px}meme`\n"
+            f"> `{px}amogus` `{px}amogus-stop`"
         ),
         inline=False,
     )
-    e.add_field(
-        name="╠═ 🎱  BINGO",
-        value=(
-            "> `/bingo` — Pokreni bingo rundu\n"
-            "> 🔄 Auto-bingo svakih **3 sata** automatski!\n"
-            "> 🎫 Klikni **Uzmi tiket** → unesi 5 brojeva (1-75)\n"
-            "> 💰 Nagrade: `2✓=10k` · `3✓=30k` · `4✓=75k` · `5✓=250k 🏆`\n"
-            "> ⏱️ Rezultati se objavljuju **javno** nakon 2 minute"
-        ),
-        inline=False,
-    )
-    e.add_field(
-        name="╠═ 🐾  OWO — ŽIVOTINJE",
-        value=(
-            "> `/hunt` `/zoo` `/battle` `/sell`\n"
-            "> `/animals` `/pray` `/curse`"
-        ),
-        inline=False,
-    )
-    e.add_field(
-        name="╠═ ❤️  LJUBAV & AKCIJE",
-        value=(
-            "> `/zagrljaj` `/poljubac` `/mazi` `/tapsi`\n"
-            "> `/high5` `/srce` `/brak` `/pocetkaj` `/cudan`\n"
-            "> `/pozz` `/kompli` `/fora` `/muv` `/crush`"
-        ),
-        inline=False,
-    )
-    e.add_field(
-        name="╠═ 📋  QUESTS, POLL & SOCIAL",
-        value=(
-            "> `/quests` — Dnevni zadaci za XP i novac\n"
-            "> `/poll` — Napravi glasanje\n"
-            "> `/confess` — Anonimna ispovjed\n"
-            "> `/report` — Prijavi člana\n"
-            "> `/tiket` — 🎫 Otvori tiket za podršku\n"
-            "> `/tiket-staff` — 📋 Prijavi se za Staff poziciju"
-        ),
-        inline=False,
-    )
-    e.add_field(
-        name="╠═ 🔢  BROJANJE",
-        value=("> `/brojanje-postavi` `/brojanje-info` `/brojanje-reset`"),
-        inline=False,
-    )
+    # Mobitel mod = manje zatrpan, izostavi neke opširnije sekcije
+    if not is_mobile:
+        e.add_field(
+            name="╠═ 🎱  BINGO",
+            value=(
+                f"> `{px}bingo` — Pokreni bingo rundu\n"
+                f"> 🔄 Auto-bingo svakih **3 sata** automatski!\n"
+                f"> 🎫 Klikni **Uzmi tiket** → unesi 5 brojeva (1-75)\n"
+                f"> 💰 Nagrade: `2✓=10k` · `3✓=30k` · `4✓=75k` · `5✓=250k 🏆`\n"
+                f"> ⏱️ Rezultati se objavljuju **javno** nakon 2 minute"
+            ),
+            inline=False,
+        )
+        e.add_field(
+            name="╠═ 🐾  OWO — ŽIVOTINJE",
+            value=(
+                f"> `{px}hunt` `{px}zoo` `{px}battle` `{px}sell`\n"
+                f"> `{px}animals` `{px}pray` `{px}curse`"
+            ),
+            inline=False,
+        )
+        e.add_field(
+            name="╠═ ❤️  LJUBAV & AKCIJE",
+            value=(
+                f"> `{px}zagrljaj` `{px}poljubac` `{px}mazi` `{px}tapsi`\n"
+                f"> `{px}high5` `{px}srce` `{px}brak` `{px}pocetkaj` `{px}cudan`\n"
+                f"> `{px}pozz` `{px}kompli` `{px}fora` `{px}muv` `{px}crush`"
+            ),
+            inline=False,
+        )
+        e.add_field(
+            name="╠═ 📋  QUESTS, POLL & SOCIAL",
+            value=(
+                f"> `{px}quests` — Dnevni zadaci za XP i novac\n"
+                f"> `{px}poll` — Napravi glasanje\n"
+                f"> `{px}confess` — Anonimna ispovjed\n"
+                f"> `{px}report` — Prijavi člana\n"
+                f"> `{px}tiket` — 🎫 Otvori tiket za podršku\n"
+                f"> `{px}tiket-staff` — 📋 Prijavi se za Staff poziciju"
+            ),
+            inline=False,
+        )
+        e.add_field(
+            name="╠═ 🔢  BROJANJE",
+            value=(f"> `{px}brojanje-postavi` `{px}brojanje-info` `{px}brojanje-reset`"),
+            inline=False,
+        )
+    else:
+        # MOBITEL: kratka zbirna sekcija
+        e.add_field(
+            name="╠═ 📱  OSTALO (mobitel)",
+            value=(
+                f"> `{px}bingo` `{px}hunt` `{px}zoo` `{px}battle`\n"
+                f"> `{px}quests` `{px}poll` `{px}confess` `{px}tiket`\n"
+                f"> `{px}zagrljaj` `{px}poljubac` `{px}srce`\n"
+                f"> `{px}brojanje-postavi` `{px}brojanje-info`"
+            ),
+            inline=False,
+        )
 
-    if is_admin or is_owner:
+    if (is_admin or is_owner) and not is_mobile:
         e.add_field(
             name="╠═ ⚙️  SERVER SETUP  〔ADMIN〕",
             value=(
-                "> `/setup` `/setup-levelrole` `/server-config`\n"
-                "> `/setup-welcome` `/setup-leave` `/setup-autorole`\n"
-                "> `/setup-log` `/setup-starboard` `/setchannel`\n"
-                "> `/setup-panels` — Self-role paneli"
+                f"> `{px}setup` `{px}setup-levelrole` `{px}server-config`\n"
+                f"> `{px}setup-welcome` `{px}setup-leave` `{px}setup-autorole`\n"
+                f"> `{px}setup-log` `{px}setup-starboard` `{px}setchannel`\n"
+                f"> `{px}setup-panels` — Self-role paneli"
             ),
             inline=False,
         )
         e.add_field(
             name="╠═ 🛡️  MODERACIJA  〔ADMIN〕",
             value=(
-                "> `/ban` `/kick` `/timeout` `/warn`\n"
-                "> `/warnings` `/clearwarnings` `/clear`"
+                f"> `{px}ban` `{px}kick` `{px}timeout` `{px}warn`\n"
+                f"> `{px}warnings` `{px}clearwarnings` `{px}clear`"
             ),
             inline=False,
         )
         e.add_field(
             name="╠═ 🎁  GIVEAWAY  〔ADMIN〕",
-            value=("> `/giveaway start` `/giveaway end` `/reset-gw`"),
+            value=(f"> `{px}giveaway start` `{px}giveaway end` `{px}reset-gw`"),
             inline=False,
         )
         e.add_field(
             name="╠═ 🎫  TICKET & BOT  〔ADMIN〕",
             value=(
-                "> `/tiket` — Otvori tiket direktno\n"
-                "> `/ticket-setup` `/say` `/setname`\n"
-                "> `/setavatar` `/sort-roles` `/setup-roles`"
+                f"> `{px}tiket` — Otvori tiket direktno\n"
+                f"> `{px}ticket-setup` `{px}say` `{px}setname`\n"
+                f"> `{px}setavatar` `{px}sort-roles` `{px}setup-roles`"
             ),
             inline=False,
         )
@@ -6559,12 +6875,12 @@ async def help_cmd(i: discord.Interaction):
             inline=False,
         )
 
-    if is_owner:
+    if is_owner and not is_mobile:
         e.add_field(
             name="╠═ 👑  OWNER KOMANDE  〔VLASNIK〕",
             value=(
-                "> `/dodaj-novac` `/oduzmi-novac`\n"
-                "> `/event` — Objavi event (naslov + opis)"
+                f"> `{px}dodaj-novac` `{px}oduzmi-novac`\n"
+                f"> `{px}event` — Objavi event (naslov + opis)"
             ),
             inline=False,
         )
@@ -6572,14 +6888,16 @@ async def help_cmd(i: discord.Interaction):
     e.add_field(
         name="╚═ 💡  SAVJET",
         value=(
-            "> Bingo tiket košta **500 coina** 🪙\n"
-            "> Koristi `/posao` i `/daily` za zaradu!\n"
-            "> Za pomoć: kontaktiraj staff servera 💬"
+            f"> Bingo tiket košta **500 coina** 🪙\n"
+            f"> Koristi `{px}posao` i `{px}daily` za zaradu!\n"
+            f"> Za pomoć: kontaktiraj staff servera 💬"
         ),
         inline=False,
     )
 
-    e.set_footer(text=f"✦ {BOT_NAME} {VERSION} · {'👑 Owner pristup' if is_owner else ('🛡️ Admin pristup' if is_admin else '👤 Member pristup')} ✦")
+    role_tag = '👑 Owner pristup' if is_owner else ('🛡️ Admin pristup' if is_admin else '👤 Member pristup')
+    mob_tag = ' • 📱 mobile' if is_mobile else ''
+    e.set_footer(text=f"✦ {BOT_NAME} {VERSION} · {role_tag}{mob_tag} ✦")
     await i.response.send_message(embed=e, ephemeral=True)
 
 
@@ -7143,6 +7461,11 @@ async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member):
     save_data()
     await _update_vatrice_nick(korisnik, novi, emoji)
     await _post_vatrice_objava(i.guild, i.user, korisnik, novi, emoji)
+    # 📊 AKTIVNOST: napisane poruke + vatrice
+    msg_key = f"{i.guild.id}:{korisnik.id}"
+    msgs_total = data.get("msg_count", {}).get(msg_key, 0)
+    msgs_week = data.get("msg_count_week", {}).get(msg_key, 0)
+    do_sljedece = 150 - (msgs_total % 150) if msgs_total > 0 else 150
     e = discord.Embed(
         title=f"{emoji} Vatrica poslana!",
         description=(
@@ -7154,6 +7477,10 @@ async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member):
         ),
         color=0xFF6A00, timestamp=datetime.now(timezone.utc),
     )
+    e.add_field(name="💬 Napisanih poruka (ukupno)", value=f"`{msgs_total:,}`", inline=True)
+    e.add_field(name="📅 Poruka ove sedmice", value=f"`{msgs_week:,}`", inline=True)
+    e.add_field(name=f"{emoji} Vatrice ukupno", value=f"`{novi}`", inline=True)
+    e.add_field(name="🎯 Do sljedeće (auto) vatrice", value=f"`{do_sljedece}` poruka", inline=False)
     e.set_thumbnail(url=korisnik.display_avatar.url)
     e.set_footer(text=f"{BOT_NAME} • /vatrice pup za top listu")
     await i.response.send_message(embed=e)
