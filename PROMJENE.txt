@@ -1,58 +1,78 @@
 ═══════════════════════════════════════════════════════════════
-  GIANNI Custom v2.0 — POPRAVKE (uplod paket)
+  GIANNI Custom v2.0 — POPRAVKE v3 (uplod paket)
 ═══════════════════════════════════════════════════════════════
 
-✅ 1) KALADONT — riječi se sad PROVJERAVAJU u rječniku
-   • Dodan veliki BHS rječnik (preko 700 riječi: hrana, životinje,
-     priroda, profesije, sport, geografija, glagoli, pridjevi…).
-   • "KT", "QU" i sl. gluposti se ODBIJAJU sa porukom.
-   • Riječ se normalizuje (Š→S, Č→C, Ž→Z, Đ→DJ, Ć→C) pa nema
-     problema sa dijakritikom.
-   • Magična riječ "KALADONT" i dalje radi kao pobjeda.
+✅ 1) KALADONT — POJEDNOSTAVLJEN! (BHS rječnik UKLONJEN)
+   • Više NEMA stroge provjere "u rječniku" — sve normalne riječi
+     prolaze (ona, online, onomatopeja, ontagon, onako, onda…
+     SVE prolazi).
+   • Blokiramo SAMO:
+       ❌ Imena (Marko, Ana, Stefan, Ivan, Ivana, Lejla… — lista)
+       ❌ Riječi koje završavaju na NEMOGUĆ završetak:
+           KT, QU, MK, NJ, GH, ZH, MJ, BJ, CJ, FJ, HJ, KJ, LJ,
+           PJ, SJ, TJ, VJ, ZJ
+         (jer niko ne može nastaviti riječ koja počinje sa npr "KT")
+   • Ostala pravila i dalje važe: prva 2 slova moraju biti zadnja
+     2 slova prethodne riječi, ne može isti igrač dva puta zaredom,
+     riječ ne smije biti već korištena.
+   • Magična riječ "KALADONT" i dalje pobjeđuje.
 
-✅ 2) .HELP prikazuje "." prefix kad se pozove sa "."
-   • Detektuje da li je pozvano kao slash (/) ili prefix (.).
-   • Ako je .help → embed je u "MOBITEL MODU": kompaktniji,
-     manje sekcija, sve komande pišu sa "." umjesto "/".
+✅ 2) VATRICE — sad svakih 100 poruka (umjesto 150)
+   • Konstanta `VATRICA_PRAG = 100`.
+   • THRESHOLD logika ostala — ne gubi vatrice nakon
+     restart/upload, dosegnuti milestone se pamti u
+     `data["vatrice_threshold"]`.
 
-✅ 3) VATRICE +1 svakih 150 poruka — robusno (radi i nakon uploada)
-   • Umjesto "msg_count % 150 == 0" (koje gubi vatrice ako se broj
-     poruka prebroji ili preskoči), sada koristi THRESHOLD logiku:
-     prati `data["vatrice_threshold"][user]` i dodjeljuje sve
-     vatrice koje su zaslužene od zadnjeg threshold-a.
-   • Nakon uploada/restarta: bot automatski podesi threshold
-     na trenutni najbliži milestone (npr. ako član ima 470
-     poruka → threshold 450, sljedeća vatrica na 600).
+✅ 3) /vatrice ember — DODANA opcija KOLIČINA
+   • `/vatrice ember @član kolicina:5` → daje 5 vatrica odjednom
+   • Default = 1 (ako preskočiš parametar)
+   • Max = 100 (sigurnosni limit po komandi)
+   • Embed sad pokazuje: poruke (ukupno + sedmica), vatrice,
+     ⭐ Level, ✨ XP, 🎯 do sljedeće auto-vatrice.
 
-✅ 4) PERZISTENCIJA tickets/staff/giveaways
-   • Već je bilo dobro postavljeno (TicketOpenView, TicketCloseView,
-     StaffVoteView, GiveawayView svi imaju `custom_id` i registruju se
-     preko `bot.add_view()` u on_ready).
-   • Aktivni giveawayi se restoruju iz `data["giveaways"]` u on_ready.
-   • Brojanje, vatrice, ekonomija itd. se spašavaju u oleun_data.json
+✅ 4) /help — zaključano na 100 komandi
+   • Prikaz "Ukupno komandi: **100**" (ne više "100+").
+   • Ako se kasnije doda 101+ komandi, broj ostaje 100.
+
+✅ 5) PERZISTENCIJA — radi 100% (provjereno još jednom!)
+   • Tickets: `TicketOpenView` i `TicketCloseView` imaju
+     `custom_id="ticket_open"` i `"ticket_close"`, registrovani
+     preko `bot.add_view(...)` u `on_ready` → DUGMAD RADE i
+     POSLIJE RESTARTA (ne moraš ponovo `/tiket-panel`).
+   • Staff prijava: `StaffVoteView` (custom_id sv_prihvati,
+     sv_odbij, sv_cekanje) — isto registrovan u on_ready.
+     `TiketStaffView` (ts_god, ts_isk, ts_mot, ts_igr, ts_akt,
+     ts_send, ts_reset) — perzistentan.
+   • Brojanje: `data["counting"]` u oleun_data.json se snima
      atomski (temp + rename + .bak).
-   • Cloud backup se uploaduje na Discord kanal (BACKUP_CHANNEL_ID)
-     i automatski restoruje pri restartu — preporučeno postaviti
-     env var BACKUP_CHANNEL_ID za 100% sigurnost.
+   • Vatrice: `data["vatrice"]`, `data["vatrice_threshold"]`,
+     `data["msg_count"]`, `data["msg_count_week"]` — sve
+     perzistentno.
+   • Giveaways: `data["active_giveaways"]` se restoruje u
+     on_ready (recovery loop ~L1269).
+   • Cloud backup: postavi env var BACKUP_CHANNEL_ID (ID kanala
+     sa Send + Attach Files dozvolama) → bot automatski upload-a
+     `oleun_data.json` na Discord svakih ~90s i restoruje pri
+     restartu — 100% sigurnost čak i ako hosting briše fajl
+     sistem (npr. besplatni Render, Railway free tier).
 
-✅ 5) AKTIVNOST u VATRICE EMBER
-   • `/vatrice ember @član` sada prikazuje:
-       💬 Napisanih poruka (ukupno)
-       📅 Poruka ove sedmice
-       🔥 Vatrice ukupno
-       🎯 Do sljedeće auto-vatrice (X poruka)
+✅ 6) .DAILY — 1h cooldown (PERZISTENTNO, preživljava restart)
+   • `data["economy"][uid]["last_daily"]` provjera umjesto
+     in-memory dekoratora.
 
-✅ 6) BROJANJE — ne resetuje se nakon uploada
-   • `data["counting"]` se već spašava u oleun_data.json i učitava
-     pri restartu (kroz fallback `for k,v in loaded.items()` u
-     load_data()), ali sada je i eksplicitno dodano u rječnik
-     `vatrice_threshold` slot.
-   • Ako KORISTITE Discord cloud backup — postavi env var
-     BACKUP_CHANNEL_ID da bot automatski povuče backup pri restartu.
-
-✅ 7) .DAILY cooldown 24h → 1h
-   • `/daily` sada radi svakih **1 sat** umjesto svakih 24h.
-   • Embed i opis komande ažurirani (Hourly nagrada).
+═══════════════════════════════════════════════════════════════
+  KAKO RADI NOVI KALADONT
+═══════════════════════════════════════════════════════════════
+Primjer (zadnje 2 slova "ON"):
+  ✅ ONA           — prolazi (počinje sa ON, nije ime, kraj NA → OK)
+  ✅ ONLINE        — prolazi
+  ✅ ONOMATOPEJA   — prolazi (kraj JA → OK)
+  ✅ ONAKO         — prolazi (kraj KO → OK)
+  ✅ ONDA          — prolazi
+  ❌ ONA Marko     — više riječi, ignoriše se
+  ❌ MARKO         — IME, blokirano
+  ❌ FOOZUKT       — kraj KT → blokirano
+  ❌ ANJSKMK       — kraj MK → blokirano
 
 ═══════════════════════════════════════════════════════════════
   KAKO INSTALIRATI
@@ -60,8 +80,25 @@
 1) Zamijeni stari bot.py sa ovim novim.
 2) `pip install -r requirements.txt` (ako prvi put).
 3) Postavi env var DISCORD_TOKEN.
-4) (opciono) BACKUP_CHANNEL_ID = ID tvog backup kanala
-   (Bot mora imati Send + Attach Files pristup tu).
+4) (preporučeno!) BACKUP_CHANNEL_ID = ID privatnog kanala na
+   tvom serveru gdje bot ima Send + Attach Files dozvole —
+   tako se sve podatke spašava na Discord cloud i preživljava
+   100% restart/upload.
 5) Pokreni: `python3 bot.py`
 
+═══════════════════════════════════════════════════════════════
+  PODSJETNIK — KANALI
+═══════════════════════════════════════════════════════════════
+Ove komande RADE SAMO u kanalu sa odgovarajućim imenom:
+  • .daily, .baki, .posao, .daj, .shop, .kupi, .bank, .lottery, .heist
+    → kanal #economics
+  • .kaladont, .kaladont-stop → kanal #kaladont
+  • .vjasala → kanal #vješalo (ili #vjesalo)
+  • .kpm → kanal #kamen-papir
+  • .blackjack, .slots, .rulet, .flip, .kocka, .kradi, .bingo → kanal #casino
+
+Slobodne zone (sve radi): #komande, #komanda, #comanda, #bot-spam,
+#bot-commands, #giveaways, #events.
+
+ADMIN-i preskaču ovu provjeru.
 ═══════════════════════════════════════════════════════════════

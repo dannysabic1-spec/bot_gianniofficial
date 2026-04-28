@@ -440,11 +440,47 @@ KALADONT_DICT = set([
     "KALADONT",
 ])
 
-def kaladont_word_valid(word: str) -> bool:
-    """Provjeri da li je riječ u rječniku validnih BHS riječi."""
+# ── KALADONT — laka pravila: BLOKIRAMO SAMO IMENA i nemoguće završetke ──
+# Korisnik je tražio: NEMA strogog rječnika.
+#   • blokiraj imena (lista najčešćih balkanskih imena)
+#   • blokiraj završetke koji nemaju nastavak (KT, QU, MK, NJ, GH, ZH, MJ, NJ, BJ)
+#   • SVE OSTALO PROLAZI (nema više "nije u rječniku" greške)
+KALADONT_NAMES = set([
+    # muška
+    "MARKO","IVAN","STEFAN","NIKOLA","PETAR","LUKA","FILIP","DUSAN","MIHAJLO","MILOS",
+    "ALEKSA","LAZAR","DJORDJE","BORIS","DAVID","DANIEL","NEMANJA","UROS","STRAHINJA",
+    "VUK","RADOMIR","BRANIMIR","MILAN","BOJAN","ZORAN","DRAGAN","GORAN","SLAVKO",
+    "MILOVAN","RANKO","ZELJKO","MLADEN","NENAD","SASA","PREDRAG","DRAGOMIR","NEBOJSA",
+    "EMIR","HARIS","FARUK","ADNAN","KENAN","TARIK","AMAR","DENIS","ARMIN","HAMZA",
+    "MUHAMED","MUHAMMAD","ALMIR","ELVIS","EDIN","ENES","SEMIR","SENAD","DAMIR","NEDIM",
+    "SAMIR","MIRZA","MIRSAD","FUAD","DZENAN","HARUN","BAKIR","SULEJMAN","IBRAHIM",
+    "AMER","JASMIN","SEAD","KEMAL","DARKO","DALIBOR","DRAZEN","NIKOLINA","TIN","IVO",
+    "IGOR","TOMA","MATE","MATEJ","MATEO","ANTE","JOSIP","ANDRIJA","HRVOJE","MISLAV",
+    "DOMAGOJ","ZVONIMIR","BORNA","LOVRO","KRESIMIR","SINISA","RAJKO",
+    # ženska
+    "ANA","MARIJA","JELENA","MILICA","TIJANA","TAMARA","SANJA","JOVANA","KATARINA",
+    "ANDJELA","ANDREJA","ANDREA","SARA","NADJA","SELMA","HANA","MELISA","AMINA",
+    "LEJLA","EMINA","ALMA","MEDINA","ELMA","LAMIJA","DZENANA","MERIMA","IVANA",
+    "MARIJANA","BILJANA","SNEZANA","DANIJELA","DRAGANA","GORDANA","SLOBODANKA",
+    "DJURDJA","DJURDJICA","SLAVICA","MILENA","NEVENA","DUNJA","TEODORA","ELENA",
+    "VESNA","JASMINA","JADRANKA","BOSILJKA","MARTA","NIKA","LANA","MIA","NORA",
+    "EMA","DORA","PETRA","IVA","MAJA","LUCIJA","KARMELA","KLARA","MATEJA","ROZA",
+    "TINA","ANJA","KIKO","DANNY","ALEKSA","YUGO","GIANNI",
+])
+
+KALADONT_BAD_END = ("KT","QU","MK","NJ","GH","ZH","MJ","BJ","CJ","FJ","HJ","KJ","LJ","NJ","PJ","SJ","TJ","VJ","ZJ")
+
+def kaladont_word_valid(word: str):
+    """Vraća (ok, razlog). NE provjeravamo rječnik — samo imena i nemoguće završetke."""
     nw = _kaladont_normalize(word)
-    if nw == "KALADONT": return True
-    return nw in KALADONT_DICT
+    if nw == "KALADONT":
+        return True, ""
+    if nw in KALADONT_NAMES:
+        return False, "ime"
+    # provjera završetka — uzima zadnja 2 slova
+    if len(nw) >= 2 and nw[-2:] in KALADONT_BAD_END:
+        return False, "kraj"
+    return True, ""
 
 # ═══════════════════════════════════════════
 #    INTENTS & BOT
@@ -1856,12 +1892,18 @@ async def on_message(message):
             await reject(f"Mora početi sa `{req}`!", f"Tvoja: `{word}` — sljedeća mora početi sa **`{req}`**")
         elif word in game["used"]:
             await reject(f"`{word}` je već bila!", "Pokušaj drugu riječ.")
-        elif not kaladont_word_valid(word):
-            await reject(
-                f"`{word}` nije validna riječ!",
-                f"To nije u rječniku BHS riječi. Probaj pravu imenicu/glagol/pridjev koji počinje sa **`{req}`**."
-            )
         else:
+            ok, why = kaladont_word_valid(word)
+            if not ok:
+                if why == "ime":
+                    await reject(f"`{word}` je ime!", "Imena (osoba) nisu dozvoljena u kaladontu. Pokušaj imenicu, glagol ili pridjev.")
+                    return
+                elif why == "kraj":
+                    await reject(
+                        f"`{word}` ima nemoguć završetak!",
+                        f"Niko ne može nastaviti sa **`{word[-2:]}`**. Probaj drugu riječ koja počinje sa **`{req}`**."
+                    )
+                    return
             game["word"]             = word
             game["last_uid"]         = message.author.id
             game["last_player_name"] = message.author.display_name
@@ -1907,9 +1949,9 @@ async def on_message(message):
     data.setdefault("msg_count_week", {})
     data["msg_count_week"][mkey] = data["msg_count_week"].get(mkey, 0) + 1
 
-    # ── 🔥 VATRICE — auto +1 svakih 150 poruka (threshold-based, otporno na restart/upload) ────────
+    # ── 🔥 VATRICE — auto +1 svakih 100 poruka (threshold-based, otporno na restart/upload) ────────
     try:
-        VATRICA_PRAG = 150
+        VATRICA_PRAG = 100
         ukupno_msgs = data["msg_count"][mkey]
         # threshold-based: koristimo "last_vatrica_msg" tracker u data["vatrice_threshold"]
         data.setdefault("vatrice_threshold", {})
@@ -2723,14 +2765,29 @@ async def posao(i: discord.Interaction):
     ]))
 
 @bot.tree.command(name="daily", description="🎁 Hourly nagrada (svaki 1h)")
-@app_commands.checks.cooldown(1, 3600, key=lambda i: i.user.id)
 async def daily(i: discord.Interaction):
+    # 🔒 PERZISTENTNI cooldown — koristi data["economy"][uid]["last_daily"] umjesto in-memory dekoratora.
+    # Ovo preživljava restart bota.
+    DAILY_COOLDOWN = 3600  # 1h u sekundama
     d = get_economy(i.user.id)
+    now = time.time()
+    last = float(d.get("last_daily", 0) or 0)
+    elapsed = now - last
+    if elapsed < DAILY_COOLDOWN:
+        remaining = int(DAILY_COOLDOWN - elapsed)
+        mins, secs = divmod(remaining, 60)
+        wait_text = f"{mins}min {secs}s" if mins else f"{secs}s"
+        return await i.response.send_message(
+            embed=em("⏳ Cooldown!", f"Već si uzeo daily!\n\n⏰ Sačekaj još **{wait_text}**.", color=COLORS["warning"]),
+            ephemeral=True
+        )
     reward = random.randint(300, 800)
-    d["balance"] += reward; d["last_daily"] = time.time(); save_data()
+    d["balance"] += reward
+    d["last_daily"] = now
+    save_data()
     quest_progress(i.user.id, "daily1")
     await i.response.send_message(embed=em_pro("🎁 Daily Nagrada", "🌟 Tvoj poklon je stigao!\n*Vrati se za 1h za novu nagradu* 🔄", color=COLORS["gold"], author=i.user, thumb=i.user.display_avatar.url, fields=[
-        ("💶 Nagrada", f"```diff\n+ {reward} 💶\n```", True), ("🏦 Balans", f"```yaml\n{d['balance']:,} 💶\n```", True), ("⏰ Sledeći", "za 1h", True),
+        ("💶 Nagrada", f"```diff\n+ {reward} 💶\n```", True), ("🏦 Balans", f"```yaml\n{d['balance']:,} 💶\n```", True), ("⏰ Sljedeći", "za 1h", True),
     ]))
 
 @bot.tree.command(name="daj", description="🤝 Pošalji pare drugaru")
@@ -6728,7 +6785,7 @@ async def help_cmd(i: discord.Interaction):
             f"```ansi\n\u001b[1;36m{BAR}\n"
             f"  ✦ Dobrodošli u GIANNI komandni centar! ✦\n"
             f"{BAR}\u001b[0m```\n"
-            f"📌 Verzija **{VERSION}** · Ukupno komandi: **100+**\n"
+            f"📌 Verzija **{VERSION}** · Ukupno komandi: **100**\n"
             f"{head_line}"
         ),
         color=0x00BCD4,
@@ -7442,9 +7499,9 @@ async def _post_vatrice_objava(guild: discord.Guild, davalac: discord.Member | N
     except (discord.Forbidden, discord.HTTPException):
         pass
 
-@vatrice_group.command(name="ember", description="🔥 [VLASNIK] Daj vatricu članu — ažurira nick i šalje objavu")
-@app_commands.describe(korisnik="Kome daješ vatricu?")
-async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member):
+@vatrice_group.command(name="ember", description="🔥 [VLASNIK] Daj vatricu(e) članu — ažurira nick i šalje objavu")
+@app_commands.describe(korisnik="Kome daješ vatricu?", kolicina="Koliko vatrica dati (default 1, max 100)")
+async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member, kolicina: int = 1):
     if not _vatrice_owner_only(i):
         return await i.response.send_message(
             embed=em("❌ Samo vlasnik", "Samo vlasnik bota može davati vatrice.", color=COLORS["error"]),
@@ -7455,22 +7512,33 @@ async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member):
             embed=em("🔥 Vatrice", "Botovima ne dajemo vatrice!", color=COLORS["error"]),
             ephemeral=True,
         )
+    # 🔢 sigurno ograniči količinu
+    try:
+        kolicina = int(kolicina)
+    except Exception:
+        kolicina = 1
+    if kolicina < 1: kolicina = 1
+    if kolicina > 100: kolicina = 100
     cfg = get_guild_config(i.guild.id)
     emoji = cfg.get("vatrice_emoji", "🔥")
-    novi = _add_vatrica(i.guild.id, korisnik.id, 1)
+    novi = _add_vatrica(i.guild.id, korisnik.id, kolicina)
     save_data()
     await _update_vatrice_nick(korisnik, novi, emoji)
     await _post_vatrice_objava(i.guild, i.user, korisnik, novi, emoji)
-    # 📊 AKTIVNOST: napisane poruke + vatrice
+    # 📊 AKTIVNOST: napisane poruke + vatrice + level/XP
     msg_key = f"{i.guild.id}:{korisnik.id}"
     msgs_total = data.get("msg_count", {}).get(msg_key, 0)
     msgs_week = data.get("msg_count_week", {}).get(msg_key, 0)
-    do_sljedece = 150 - (msgs_total % 150) if msgs_total > 0 else 150
+    PRAG = 100
+    do_sljedece = PRAG - (msgs_total % PRAG) if msgs_total > 0 else PRAG
+    xp_info = get_xp(korisnik.id)
+    lvl = xp_info.get("level", 0)
+    xp_v = xp_info.get("xp", 0)
     e = discord.Embed(
-        title=f"{emoji} Vatrica poslana!",
+        title=f"{emoji} Vatrice poslane!",
         description=(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{i.user.mention} je dao vatricu {korisnik.mention}!\n\n"
+            f"{i.user.mention} je dao **+{kolicina}** {emoji} {korisnik.mention}!\n\n"
             f"{emoji} Ukupno vatrica: **{novi}**\n"
             f"📛 Nick ažuriran: `{korisnik.display_name}`\n"
             f"━━━━━━━━━━━━━━━━━━━━━━"
@@ -7480,7 +7548,9 @@ async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member):
     e.add_field(name="💬 Napisanih poruka (ukupno)", value=f"`{msgs_total:,}`", inline=True)
     e.add_field(name="📅 Poruka ove sedmice", value=f"`{msgs_week:,}`", inline=True)
     e.add_field(name=f"{emoji} Vatrice ukupno", value=f"`{novi}`", inline=True)
-    e.add_field(name="🎯 Do sljedeće (auto) vatrice", value=f"`{do_sljedece}` poruka", inline=False)
+    e.add_field(name="⭐ Level", value=f"`{lvl}`", inline=True)
+    e.add_field(name="✨ XP", value=f"`{xp_v:,}`", inline=True)
+    e.add_field(name="🎯 Do sljedeće auto-vatrice", value=f"`{do_sljedece}` poruka", inline=True)
     e.set_thumbnail(url=korisnik.display_avatar.url)
     e.set_footer(text=f"{BOT_NAME} • /vatrice pup za top listu")
     await i.response.send_message(embed=e)
