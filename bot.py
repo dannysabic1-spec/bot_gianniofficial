@@ -10016,9 +10016,12 @@ async def mafia_stop_cmd(i: discord.Interaction):
     await i.response.send_message(embed=em("🛑 Mafia prekinuta", "Igra je nasilno zaustavljena.", color=COLORS["error"]))
 
 # ═══════════════════════════════════════════
-#    💾 RUČNI CLOUD BACKUP / RESTORE — slash komande
+#    💾 CLOUD BACKUP — /backup grupa (now/restore/status)
+#    Spojeno u JEDNU grupu da ne probijemo 100-cmd Discord limit.
 # ═══════════════════════════════════════════
-@bot.tree.command(name="backup-now", description="💾 [VLASNIK] Forsiraj odmah upload backupa na Discord")
+backup_group = app_commands.Group(name="backup", description="💾 [VLASNIK] Cloud backup sistem")
+
+@backup_group.command(name="now", description="💾 [VLASNIK] Forsiraj odmah upload backupa na Discord")
 async def backup_now_cmd(i: discord.Interaction):
     if i.user.id not in OWNER_IDS:
         return await i.response.send_message(
@@ -10041,7 +10044,7 @@ async def backup_now_cmd(i: discord.Interaction):
         ephemeral=True,
     )
 
-@bot.tree.command(name="backup-restore", description="💾 [VLASNIK] Vrati podatke iz zadnjeg backupa sa Discorda")
+@backup_group.command(name="restore", description="💾 [VLASNIK] Vrati podatke iz zadnjeg backupa sa Discorda")
 async def backup_restore_cmd(i: discord.Interaction):
     if i.user.id not in OWNER_IDS:
         return await i.response.send_message(
@@ -10081,7 +10084,7 @@ async def backup_restore_cmd(i: discord.Interaction):
             ephemeral=True,
         )
 
-@bot.tree.command(name="backup-status", description="💾 [VLASNIK] Status cloud backup sistema")
+@backup_group.command(name="status", description="💾 [VLASNIK] Status cloud backup sistema")
 async def backup_status_cmd(i: discord.Interaction):
     if i.user.id not in OWNER_IDS:
         return await i.response.send_message(
@@ -10106,6 +10109,8 @@ async def backup_status_cmd(i: discord.Interaction):
         embed=em("💾 Cloud Backup status", desc, color=COLORS["info"]),
         ephemeral=True,
     )
+
+bot.tree.add_command(backup_group)
 
 # ═══════════════════════════════════════════
 #    POKRETANJE

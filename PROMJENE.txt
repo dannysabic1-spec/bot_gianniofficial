@@ -152,3 +152,16 @@ v3.2 — ANTI-INVITE NA SVE SLASH KOMANDE
    Vlasnici (OWNER_IDS) su izuzeti.
 
    Ranije je samo .prefix imao tu zaštitu — sad je i / pokriven.
+
+═══════════════════════════════════════════════════════════
+v3.3 — FIX 100-CMD LIMIT (Discord ne dozvoljava više od 100)
+═══════════════════════════════════════════════════════════
+
+🔧  Bot je dosegao Discord global slash limit (100). Tri
+    backup komande spojene u jednu /backup grupu:
+       /backup-now      →  /backup now
+       /backup-restore  →  /backup restore
+       /backup-status   →  /backup status
+
+    Funkcionalnost identična, samo sintaksa kraća.
+    Sad ima točno 100 (97 cmd + 3 grupe), bot startuje. ✅
