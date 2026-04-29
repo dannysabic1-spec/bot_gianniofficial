@@ -165,3 +165,13 @@ v3.3 — FIX 100-CMD LIMIT (Discord ne dozvoljava više od 100)
 
     Funkcionalnost identična, samo sintaksa kraća.
     Sad ima točno 100 (97 cmd + 3 grupe), bot startuje. ✅
+
+═══════════════════════════════════════════════════════════
+v3.4 — /vers ember sređen (manji + ljepši)
+═══════════════════════════════════════════════════════════
+🎤  Vers card sad mali i čist:
+   • Bez ogromnog ASCII naslova
+   • Bez velikih ▰▰▰ bannera
+   • Samo: avatar + ime, blockquote sa stihovima
+     između 🎙️ i 🎤, ljubičasti rub, mini footer.
+   • Daleko elegantniji u chatu.

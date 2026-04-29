@@ -2912,26 +2912,16 @@ async def vers(i: discord.Interaction, text: str):
     if not raw_lines:
         raw_lines = [text]
 
-    bar_top = "▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰"
-    sep     = "─────────────────────"
-    stihovi = "\n".join(f"> 🎙️  *{ln}*" for ln in raw_lines)
+    # mali, čist hip-hop card — bez ogromnih bannera
+    stihovi = "\n".join(f"*{ln}*" for ln in raw_lines)
+    desc = f"> 🎙️\n> {stihovi}\n> 🎤"
 
-    desc = (
-        f"```\n  🎤  V  E  R  S    O  F    T  H  E    N  I  G  H  T  🎤\n```\n"
-        f"{bar_top}\n"
-        f"{stihovi}\n"
-        f"{bar_top}\n"
-        f"💿 *— {i.user.display_name}*  •  🔥 *#GIANNI HipHop*"
-    )
     e = discord.Embed(
-        title="🎧  ʜɪᴘ-ʜᴏᴘ  ᴠᴇʀs  🎧",
         description=desc,
         color=0x9B30FF,
-        timestamp=datetime.now(timezone.utc)
     )
-    e.set_author(name=f"🎤  {i.user.display_name}  ·  bacio bars", icon_url=i.user.display_avatar.url)
-    e.set_thumbnail(url=i.user.display_avatar.url)
-    e.set_footer(text=f"🔊 {BOT_NAME} • RAP STAGE • drop the mic 🎙️")
+    e.set_author(name=f"{i.user.display_name}", icon_url=i.user.display_avatar.url)
+    e.set_footer(text="🎧 vers • drop the mic")
 
     target_ch = i.guild.get_channel(VERS_CHANNEL_ID) if i.guild else None
     if target_ch is None:
