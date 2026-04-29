@@ -1,0 +1,76 @@
+══════════════════════════════════════════════
+  GIANNI BOT — PROMJENE (verzija 2.1 dark)
+══════════════════════════════════════════════
+
+🎨 STIL — sve poruke u istom dark/clean stilu
+   • Boja embeda:  0x2B2D31  (Discord dark)
+   • Bez fielda — sav sadržaj u description, quote-block (>) stil
+   • Naslov:       "✧ <ime> /gian"
+   • Sub-headeri:  "### ✧ ..."
+   • Sparkle bullet (✧) sa indentom (\u2003)
+   • Footer:       "🔵 X članova  ·  /gian  ·  datum"
+
+✨ ŠTA JE NOVO
+
+1) DOBRODOŠLICA (welcome embed)
+   • Redizajn po prilozenom screenshotu
+   • Sparkle bullets:
+        ✧ image perms — ★ 100 poruka
+            ✧ custom voices — chat
+            ✧ status roles — vibe
+   • "Glasanje voice eventova → <#voice-link>"
+   • "Fora dobrodošlice" (random šala) iz nove FORE liste
+   • Footer sadrži "/gian"
+   • 3 dugmeta ispod: ℹ️ info  · 💬 ask  · 🎉 gws
+        info  → 1496860023093989475
+        ask   → 1496860023706488885
+        gws   → 1496860023480127505
+        voice → 1496860023480127498  (fallback chat)
+
+2) /pravila
+   • Potpuno redizajnirano u dark quote stilu
+   • Bez fielda — sve u jednom description bloku
+
+3) /pravila-voice
+   • Dark stil + ispod 3 dugmeta:
+        🔊 Kreiraj voice  · 👮 Staff  · 🔒 DM-Locked Voice
+   • Staff dugme: tagne staff/mod ulogu sa kratkim pozivom
+   • DM-Locked Voice dugme: otvara modal (naziv + razlog),
+     pravi privatni text kanal "lockvc-<user>" vidljiv samo
+     vlasniku + adminima (zatvara se klikom 🔒)
+
+4) KALADONT
+   • word_card / start / active embeds u dark stilu — bez fielda
+   • Novo dugme:  💡 Pomoć
+        – cooldown 5h po useru po kanalu
+        – predlozi nasumicnu valjanu rijec iz rjecnika
+          koja pocinje sa traženim slovima
+
+5) /event
+   • Manji, dark embed — bez fielda
+   • Sav sadržaj u description (### naslov + > detalji)
+
+6) /vatrice ember
+   • Dark embed, sve u jednom description bloku
+   • Footer sa /gian + brojem članova
+
+7) /vatrice pup
+   • Dark, bez fielda
+   • Quote-block podij + ostali top 10 + tvoje mjesto
+
+8) /setup-panels (self-roles)
+   • Embed redizajniran u dark stilu
+   • Dodan novi panel: Punoletan / Maloletan
+        – Punoletan: 1496860022083424348
+        – Maloletan: 1496860022066385025
+   • Matchanje uloga sada gleda i ID, ne samo ime
+
+══════════════════════════════════════════════
+  POKRETANJE
+══════════════════════════════════════════════
+  pip install -r requirements_1777501088888.txt
+  python bot_1777501088887.py
+
+  Postavke u .env:
+    DISCORD_TOKEN=...
+    OWNER_ID=...
