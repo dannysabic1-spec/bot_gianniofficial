@@ -609,7 +609,7 @@ CHANNEL_RULES = {
     "amogus": "among-us", "amogus-stop": "among-us",
     # Casino
     "blackjack": "casino", "slots": "casino", "rulet": "casino",
-    "flip": "casino", "kocka": "casino", "kradi": "casino",
+    "kocka": "casino", "kradi": "casino",
     "bingo": "casino",
     # Ekonomija
     "baki": "economics", "posao": "economics", "daily": "economics",
@@ -623,7 +623,7 @@ CHANNEL_RULES = {
     "srce": "zagrljaji", "high5": "zagrljaji", "tapsi": "zagrljaji",
     "cudan": "zagrljaji", "pocetkaj": "zagrljaji", "curse": "zagrljaji",
     # Fun
-    "meme": "zabava", "8ball": "zabava",
+    "meme": "zabava",
 }
 # Ove komande RADE SVUDA (ne ograničavamo)
 CMDS_ANYWHERE = {
@@ -1970,58 +1970,62 @@ async def on_message(message):
             cfg_v = get_guild_config(message.guild.id)
             vemoji = cfg_v.get("vatrice_emoji", "🔥")
             novi_v = _add_vatrica(message.guild.id, message.author.id, awarded)
+
+            # ── XP / LEVEL — sve zaključano na 100 poruka ──
+            # Svakih 100 poruka = +1 vatrica + +1 LEVEL + +100 XP
+            xp_d = get_xp(message.author.id)
+            xp_d["level"] = xp_d.get("level", 1) + awarded
+            xp_d["xp"]    = xp_d.get("xp", 0) + (awarded * 100)
+            novi_lvl = xp_d["level"]
             save_data()
+
             try: await _update_vatrice_nick(message.author, novi_v, vemoji)
             except Exception: pass
             try: await _post_vatrice_objava(message.guild, None, message.author, novi_v, vemoji)
             except Exception: pass
-    except Exception as _e: print(f"[vatrica-500] {_e}")
 
-    # ── XP ────────────────────────────────────────────
-    if random.random() < 0.55:
-        if add_xp(message.author.id, random.randint(15, 40)):
-            save_data()
-            lvl = get_xp(message.author.id)["level"]
-            cfg = get_guild_config(message.guild.id)
-            lr = cfg.get("level_roles", {})
-            new_role = None
-            if str(lvl) in lr:
-                lvl_role = message.guild.get_role(lr[str(lvl)])
-                if lvl_role:
-                    try:
-                        await message.author.add_roles(lvl_role)
-                        new_role = lvl_role
-                    except: pass
-            # Šalji u dedicated level-up kanal ako je postavljen, inače fallback
-            lvl_ch_id = cfg.get("levelup_channel") or 1494043957242495107
-            lvl_ch = message.guild.get_channel(lvl_ch_id) or message.channel
-            sep = "━━━━━━━━━━━━━━━━━━━━━━"
-            desc = (
-                f"{sep}\n"
-                f"🎉 Čestitamo {message.author.mention}!\n"
-                f"Dostigao/la si **`★ LEVEL {lvl} ★`**\n"
-                f"{sep}\n"
-                f"💬 Nastavi pisati i osvajati još više XP-a!\n"
-            )
-            if new_role:
-                desc += f"🏷️ **Otključana uloga:** {new_role.mention}\n"
-            desc += f"\n📊 Provjeri statistiku sa `/rank`"
-            lv_em = discord.Embed(
-                title="🌟 ʟᴇᴠᴇʟ ᴜᴘ! 🌟",
-                description=desc,
-                color=0xFFD700,
-                timestamp=datetime.now(timezone.utc)
-            )
-            lv_em.set_thumbnail(url=message.author.display_avatar.url)
-            lv_em.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
-            lv_em.set_footer(text=f"⚡ {BOT_NAME} • XP Sistem")
+            # ── Level-up notifikacija (uloge + embed) ──
             try:
+                lr = cfg_v.get("level_roles", {})
+                new_role = None
+                if str(novi_lvl) in lr:
+                    lvl_role = message.guild.get_role(lr[str(novi_lvl)])
+                    if lvl_role:
+                        try:
+                            await message.author.add_roles(lvl_role)
+                            new_role = lvl_role
+                        except: pass
+                lvl_ch_id = cfg_v.get("levelup_channel") or cfg_v.get("aktivnost_channel") or 1494043957242495107
+                lvl_ch = message.guild.get_channel(lvl_ch_id) or message.channel
+                sep = "━━━━━━━━━━━━━━━━━━━━━━"
+                desc = (
+                    f"{sep}\n"
+                    f"🎉 Čestitamo {message.author.mention}!\n"
+                    f"Dostigao/la si **`★ LEVEL {novi_lvl} ★`**\n"
+                    f"{sep}\n"
+                    f"💬 **+100 XP** • {vemoji} **+{awarded} vatrica**\n"
+                    f"📨 Sljedeći level: još `100` poruka!\n"
+                )
+                if new_role:
+                    desc += f"🏷️ **Otključana uloga:** {new_role.mention}\n"
+                desc += f"\n📊 Provjeri statistiku sa `/aktivnost` ili `/rank`"
+                lv_em = discord.Embed(
+                    title="🌟 ʟᴇᴠᴇʟ ᴜᴘ! 🌟",
+                    description=desc,
+                    color=0xFFD700,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                lv_em.set_thumbnail(url=message.author.display_avatar.url)
+                lv_em.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
+                lv_em.set_footer(text=f"⚡ {BOT_NAME} • XP Sistem (svakih 100 poruka)")
                 if lvl_ch.id == message.channel.id:
                     await lvl_ch.send(content=message.author.mention, embed=lv_em, delete_after=15)
                 else:
                     await lvl_ch.send(content=message.author.mention, embed=lv_em)
             except Exception as _e:
                 print(f"[level-up] {_e}")
+    except Exception as _e: print(f"[vatrica-500] {_e}")
+
     await bot.process_commands(message)
 
 @bot.event
@@ -2835,6 +2839,120 @@ async def rank(i: discord.Interaction, korisnik: discord.Member = None):
     await i.response.send_message(embed=em_pro(f"📈 Rank Profil", f"{bar}\n`{'▰'*filled}{'▱'*(10-filled)}` **{pct}%**", color=COLORS["purple"], thumb=u.display_avatar.url, author=u, fields=[
         ("🏆 Level", f"```fix\n{d['level']}\n```", True), ("⭐ XP", f"```py\n{d['xp']}/{needed}\n```", True), ("📊 Progres", f"```css\n[{pct}%]\n```", True),
     ]))
+
+# ═══════════════════════════════════════════
+#    /aktivnost — prikaz LVL / XP / poruke
+# ═══════════════════════════════════════════
+@bot.tree.command(name="aktivnost", description="📊 Tvoja aktivnost: level, XP i broj poruka")
+@discord.app_commands.describe(korisnik="Čija statistika? (default: ti)")
+async def aktivnost(i: discord.Interaction, korisnik: discord.Member = None):
+    u = korisnik or i.user
+    gid = i.guild.id if i.guild else 0
+    mkey = f"{gid}:{u.id}"
+    msgs = int(data.get("msg_count", {}).get(mkey, 0))
+    xp_d = get_xp(u.id)
+    lvl  = int(xp_d.get("level", 1))
+    xp   = int(xp_d.get("xp", 0))
+    vat  = _get_vatrice(gid, u.id) if gid else 0
+
+    # Napredak do sljedećeg levela (svakih 100 poruka)
+    do_sljedeceg = 100 - (msgs % 100) if msgs % 100 != 0 else 100
+    proslo = msgs % 100
+    filled = min(proslo // 10, 10)
+    bar = "🟧" * filled + "⬛" * (10 - filled)
+
+    sep = "━━━━━━━━━━━━━━━━━━━━"
+    desc = (
+        f"{sep}\n"
+        f"👤 **{u.display_name}**\n"
+        f"{sep}\n"
+        f"{bar}  `{proslo}/100`\n"
+        f"⏳ Još **`{do_sljedeceg}`** poruka do sljedećeg levela!\n"
+    )
+    e = discord.Embed(
+        title="📊 ᴀᴋᴛɪᴠɴᴏsᴛ",
+        description=desc,
+        color=0xFFA500,
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.set_thumbnail(url=u.display_avatar.url)
+    e.add_field(name="🏆 Level",    value=f"```fix\n★ {lvl} ★\n```", inline=True)
+    e.add_field(name="⭐ XP",       value=f"```py\n{xp:,}\n```",      inline=True)
+    e.add_field(name="💬 Poruke",   value=f"```css\n{msgs:,}\n```",   inline=True)
+    e.add_field(name="🔥 Vatrice",  value=f"```yaml\n{vat}\n```",     inline=True)
+    e.add_field(name="📈 Sistem",   value="```ini\n[100 poruka = 1 LVL + 1 vatrica + 100 XP]\n```", inline=False)
+    e.set_footer(text=f"⚡ {BOT_NAME} • Aktivnost • Svakih 100 poruka novi level!")
+    await i.response.send_message(embed=e)
+
+# ═══════════════════════════════════════════
+#    /vers — hip-hop rima u stylish embedu
+# ═══════════════════════════════════════════
+VERS_CHANNEL_ID = 1498983966005268520
+
+@bot.tree.command(name="vers", description="🎤 Pošalji rimu / vers u hip-hop stylish embedu")
+@discord.app_commands.describe(text="Tvoj vers / rima / lyrics — može i u navodnicima")
+async def vers(i: discord.Interaction, text: str):
+    text = (text or "").strip().strip('"').strip("'").strip("-").strip()
+    if not text:
+        return await i.response.send_message(
+            embed=em("❌ Prazan vers", "Napiši tekst rime, npr:\n`.vers \"lolo ako odem odavde...\"`", color=COLORS["error"]),
+            ephemeral=True
+        )
+    # razlomi po zarezima/tačkama u stihove
+    raw_lines = []
+    cur = ""
+    for ch in text:
+        cur += ch
+        if ch in ",.!?":
+            raw_lines.append(cur.strip(" ,.!?").strip())
+            cur = ""
+    if cur.strip():
+        raw_lines.append(cur.strip(" ,.!?").strip())
+    raw_lines = [l for l in raw_lines if l]
+    if not raw_lines:
+        raw_lines = [text]
+
+    bar_top = "▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰"
+    sep     = "─────────────────────"
+    stihovi = "\n".join(f"> 🎙️  *{ln}*" for ln in raw_lines)
+
+    desc = (
+        f"```\n  🎤  V  E  R  S    O  F    T  H  E    N  I  G  H  T  🎤\n```\n"
+        f"{bar_top}\n"
+        f"{stihovi}\n"
+        f"{bar_top}\n"
+        f"💿 *— {i.user.display_name}*  •  🔥 *#GIANNI HipHop*"
+    )
+    e = discord.Embed(
+        title="🎧  ʜɪᴘ-ʜᴏᴘ  ᴠᴇʀs  🎧",
+        description=desc,
+        color=0x9B30FF,
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.set_author(name=f"🎤  {i.user.display_name}  ·  bacio bars", icon_url=i.user.display_avatar.url)
+    e.set_thumbnail(url=i.user.display_avatar.url)
+    e.set_footer(text=f"🔊 {BOT_NAME} • RAP STAGE • drop the mic 🎙️")
+
+    target_ch = i.guild.get_channel(VERS_CHANNEL_ID) if i.guild else None
+    if target_ch is None:
+        target_ch = i.channel
+    try:
+        await target_ch.send(embed=e)
+    except Exception as _e:
+        return await i.response.send_message(
+            embed=em("❌ Greška", f"Ne mogu slati u <#{VERS_CHANNEL_ID}>.\n`{_e}`", color=COLORS["error"]),
+            ephemeral=True
+        )
+    if target_ch.id != (i.channel.id if i.channel else 0):
+        await i.response.send_message(
+            embed=em("✅ Vers objavljen!", f"Tvoja rima je otišla u {target_ch.mention} 🎤🔥", color=COLORS["success"]),
+            ephemeral=True
+        )
+    else:
+        await i.response.send_message(
+            embed=em("🎤 Drop the mic!", "Vers postavljen iznad 🔥", color=COLORS["success"]),
+            ephemeral=True
+        )
 
 @bot.tree.command(name="leaderboard", description="🏅 Top lista servera")
 @app_commands.choices(tip=[app_commands.Choice(name="XP & Leveli", value="xp"), app_commands.Choice(name="Novac 💶", value="novac")])
@@ -5237,6 +5355,47 @@ INVITE_REGEX = re.compile(
 
 ALLOWED_UPLOAD_EXTS = {".gif", ".png", ".jpg", ".jpeg", ".webp", ".apng"}
 
+# ── Globalna anti-invite zaštita za SVE slash (/) komande ─────────────────
+# Svaki tekstualni argument na slash komandi se skenira; ako ima invite link,
+# komanda se odbija sa ephemeral upozorenjem. (Vlasnici su izuzeti.)
+async def _global_invite_check(interaction: discord.Interaction) -> bool:
+    try:
+        if interaction.type != discord.InteractionType.application_command:
+            return True
+        u = interaction.user
+        if u and getattr(u, "id", None) in OWNER_IDS:
+            return True
+        ns = getattr(interaction, "namespace", None)
+        if ns is None:
+            return True
+        for _k, _v in vars(ns).items():
+            if isinstance(_v, str) and INVITE_REGEX.search(_v):
+                try:
+                    await interaction.response.send_message(
+                        embed=em(
+                            "🚫 Reklama zabranjena",
+                            f"{u.mention if u else ''} — **invite linkovi nisu dozvoljeni** ni na slash komandama!\n"
+                            f"Probaj ponovo bez `discord.gg/...` / `.gg/...` linka.",
+                            color=COLORS["error"]
+                        ),
+                        ephemeral=True
+                    )
+                except Exception:
+                    try:
+                        await interaction.followup.send(
+                            embed=em("🚫 Reklama zabranjena",
+                                     "Invite linkovi nisu dozvoljeni!",
+                                     color=COLORS["error"]),
+                            ephemeral=True
+                        )
+                    except Exception: pass
+                return False
+    except Exception as _e:
+        print(f"[global-invite-check] {_e}")
+    return True
+
+bot.tree.interaction_check = _global_invite_check
+
 async def check_automod(message) -> bool:
     if message.author.guild_permissions.administrator:
         return False
@@ -6821,10 +6980,10 @@ async def help_cmd(i: discord.Interaction):
     e.add_field(
         name="╠═ 🎮  IGRE & ZABAVA",
         value=(
-            f"> `{px}kpm` `{px}slots` `{px}rulet` `{px}flip` `{px}8ball`\n"
+            f"> `{px}kpm` `{px}slots` `{px}rulet` `{px}vers`\n"
             f"> `{px}vjasala` `{px}kaladont` `{px}kaladont-stop` `{px}toplo-hladno`\n"
             f"> `{px}blackjack` `{px}kviz` `{px}kocka` `{px}geografija` `{px}meme`\n"
-            f"> `{px}amogus` `{px}amogus-stop`"
+            f"> `{px}amogus` `{px}amogus-stop` `{px}aktivnost`"
         ),
         inline=False,
     )
@@ -7090,13 +7249,6 @@ GAMES_CATALOG = [
         "desc": "Za hrabre — povuci obarač i pomoli se!",
         "kako": "1/6 šanse za 'metak'. Preživi i uzmi pare.",
         "nagrada": "Preživiš = veliki dobitak, padneš = timeout!"
-    },
-    {
-        "emoji": "🪙", "name": "Novčić", "cmd": "/flip",
-        "img": "attached_assets/games/flip.png", "color": COLORS["gold"],
-        "desc": "Bacanje novčića — pismo ili glava?",
-        "kako": "Postaviš ulog i pogađaš stranu.",
-        "nagrada": "Pogodak = 2x uloga."
     },
     {
         "emoji": "🏹", "name": "Lov", "cmd": "/hunt",
@@ -9000,15 +9152,13 @@ async def info_cmd(i: discord.Interaction):
         "🪨 `/kpm` `.kpm` — Kamen, Papir, Makaze\n"
         "🎰 `/slots` `.slots` — Slot mašina\n"
         "🔫 `/rulet` `.rulet` — Ruski rulet, za hrabre!\n"
-        "🪙 `/flip` `.flip` — Bacanje novčića, sa opcijom oklade\n"
         "🃏 `/blackjack` `.blackjack` — Blackjack protiv dilera\n"
         "🎲 `/kocka` `.kocka` — Baci kocku protiv nekog igrača"
     ), inline=False)
 
     e.add_field(name=f"{BAR}\n🧠 ═╡ T R I V I A  &  Z N A N J E ╞═ 🧠", value=(
         "❓ `/kviz` `.kviz` — Balkan kviz, sa combo multiplierom!\n"
-        "🌐 `/geografija` `.geografija` — Geografski kviz sa combo sistemom\n"
-        "🎱 `/8ball` `.8ball` — Postavi pitanje magičnoj kugli"
+        "🌐 `/geografija` `.geografija` — Geografski kviz sa combo sistemom"
     ), inline=False)
 
     e.add_field(name=f"{BAR}\n📝 ═╡ R I J E Č I  &  L O G I K A ╞═ 📝", value=(

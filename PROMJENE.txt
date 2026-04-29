@@ -102,3 +102,53 @@ Slobodne zone (sve radi): #komande, #komanda, #comanda, #bot-spam,
 
 ADMIN-i preskaču ovu provjeru.
 ═══════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════
+v3.1 — UKLONJEN .flip / .8ball + /vers + /aktivnost + LVL fix
+═══════════════════════════════════════════════════════════
+
+🗑️  UKLONJENO IZ KOMANDI:
+   • .flip / /flip — sve reference izbrisane (CHANNEL_RULES,
+     .help, lista igara, igraonica karte)
+   • .8ball / /8ball — isto (CHANNEL_RULES, .help, kviz lista)
+   • Same komande su već bile izbrisane iz tree (v2.2),
+     sad više NEMA spomena nigdje.
+
+🎤  NOVO: /vers  (i .vers prefix)
+   • Šalje hip-hop styled embed sa tvojim rimama
+   • Format: .vers "tvoj tekst rime"  ili  .vers - tekst
+   • Stih se automatski lomi po , . ! ?
+   • Embed ide u kanal ID 1498983966005268520 (hip-hop kanal)
+   • Ako kanal ne postoji u serveru → ide u trenutni
+   • Ljubičasti embed sa avatarom i “drop the mic” footerom
+
+📊  NOVO: /aktivnost  (i .aktivnost prefix)
+   • Prikazuje: 🏆 Level, ⭐ XP, 💬 Poruke, 🔥 Vatrice
+   • Progress bar “🟧🟧🟧⬛⬛⬛⬛⬛⬛⬛  30/100”
+   • Kaže koliko još poruka do sljedećeg levela
+   • Radi i za druge: /aktivnost korisnik:@neko
+
+⚡ XP / LEVEL — POPRAVLJENO (zaključano na 100):
+   • Stari sistem: random 15-40 XP po poruci → izbrisan
+   • Novi sistem: SVAKIH 100 PORUKA →
+       +1 LEVEL  +  +1 VATRICA  +  +100 XP
+   • Sve trojica idu istovremeno na 100-msg threshold
+   • Level-up notifikacija dodaje da je otišlo i 1 vatrica + 100 XP
+   • Sljedeći level eksplicitno kaže “još 100 poruka”
+
+🎮  HELP TEXT:
+   • U .help → IGRE & ZABAVA: dodano `.vers` i `.aktivnost`
+   • Iz svih lista igara izbačeni .flip i .8ball
+
+═══════════════════════════════════════════════════════════
+v3.2 — ANTI-INVITE NA SVE SLASH KOMANDE
+═══════════════════════════════════════════════════════════
+
+🚫 Globalna provjera: bot sad skenira SVAKI tekstualni argument
+   poslan na BILO KOJU /slash komandu (uključujući /vers, /say,
+   /poll, /confess, /report, /warn, /remind...). Ako ima
+   discord.gg / .gg / discord.com/invite link → komanda se
+   ODBIJA i korisnik dobija ephemeral upozorenje.
+   Vlasnici (OWNER_IDS) su izuzeti.
+
+   Ranije je samo .prefix imao tu zaštitu — sad je i / pokriven.
