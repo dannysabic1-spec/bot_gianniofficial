@@ -1249,24 +1249,28 @@ async def on_ready():
         print("  ✔ Persistent views aktivni (giveaway / ticket / staff-vote / privatni VC)")
     except Exception as e:
         print(f"  ✘ Persistent views: {e}")
-    # ── Smart sync: samo ako je broj komandi promijenjen ──
+    # ── ČIST SYNC: samo globalno (per-guild kopije pravile dvostruke komande) ──
     cur_cmds = len(bot.tree.get_commands())
     last_cmds = data.get("_last_synced_count", -1)
+    needs_dedup = data.get("_needs_guild_dedup", True)  # jednokratno čišćenje guild-specifičnih duplikata
+    if needs_dedup:
+        for guild in bot.guilds:
+            try:
+                bot.tree.clear_commands(guild=guild)
+                await bot.tree.sync(guild=guild)
+                print(f"  🧹 Očišćene guild komande: {guild.name}")
+            except Exception as e:
+                print(f"  ✘ Dedup {guild.name}: {e}")
+        data["_needs_guild_dedup"] = False
+        save_data()
     if cur_cmds != last_cmds:
         try:
             synced = await bot.tree.sync()
             data["_last_synced_count"] = len(synced)
             save_data()
-            print(f"  ✔ Globalni sync: {len(synced)} komandi (promijenjeno)")
+            print(f"  ✔ Globalni sync: {len(synced)} komandi")
         except Exception as e:
             print(f"  ✘ Globalni sync error: {e}")
-        for guild in bot.guilds:
-            try:
-                bot.tree.copy_global_to(guild=guild)
-                await bot.tree.sync(guild=guild)
-                print(f"  ✔ {guild.name} ({guild.member_count} članova)")
-            except Exception as e:
-                print(f"  ✘ {guild.name}: {e}")
     else:
         print(f"  ⚡ Sync preskočen — komande nepromijenjene ({cur_cmds})")
     print(f"{'═'*45}\n")
@@ -3225,10 +3229,82 @@ def kaladont_word_card(word: str, player: str, req: str, count: int):
     e.set_footer(text=f"🔤 GIANNI Kaladont  •  #{count}")
     return e
 
+# ── KALADONT pomoć (5h cooldown po useru, predloži valjanu riječ) ──
+KALADONT_HELP_COOLDOWN = 5 * 60 * 60  # 5 sati
+_kaladont_help_used: dict = {}  # f"{channel_id}:{user_id}" -> ts
+
+def _suggest_kaladont_word(req: str, used: set):
+    """Vrati nasumičnu valjanu riječ iz rječnika koja počinje sa `req`,
+    nije u `used`, i nema nemoguć završetak."""
+    cands = []
+    req_n = _kaladont_normalize(req)
+    for w in KALADONT_DICT:
+        if not w.startswith(req_n): continue
+        if w in used: continue
+        ok, _ = kaladont_word_valid(w)
+        if not ok: continue
+        cands.append(w)
+        if len(cands) >= 60: break
+    if not cands: return None
+    return random.choice(cands)
+
+
 class KaladontView(discord.ui.View):
     def __init__(self, channel_id: int):
         super().__init__(timeout=None)
         self.channel_id = channel_id
+
+    @discord.ui.button(label="Pomoć", emoji="💡", style=discord.ButtonStyle.primary)
+    async def pomoc(self, i: discord.Interaction, b: discord.ui.Button):
+        game = kaladont_games.get(self.channel_id)
+        if not game:
+            return await i.response.send_message(
+                embed=em("❌", "Nema aktivne igre u ovom kanalu.", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        # cooldown 5h po useru
+        key = f"{self.channel_id}:{i.user.id}"
+        now = time.time()
+        last = _kaladont_help_used.get(key, 0)
+        if now - last < KALADONT_HELP_COOLDOWN:
+            ostalo = int(KALADONT_HELP_COOLDOWN - (now - last))
+            h, m = divmod(ostalo // 60, 60)
+            return await i.response.send_message(
+                embed=em(
+                    "⏳ Cooldown",
+                    f"Pomoć već iskoristio/la. Sljedeća za **{h}h {m}min**.",
+                    color=COLORS["warning"],
+                ),
+                ephemeral=True,
+            )
+        letters = game["letters"]
+        req = game["word"][-letters:]
+        suggestion = _suggest_kaladont_word(req, game["used"])
+        if not suggestion:
+            return await i.response.send_message(
+                embed=em(
+                    "🤷 Nema prijedloga",
+                    f"Ne mogu naći valjanu riječ koja počinje sa **`{req}`**. Probaj sam/a!",
+                    color=COLORS["warning"],
+                ),
+                ephemeral=True,
+            )
+        _kaladont_help_used[key] = now
+        e = discord.Embed(
+            title="💡  Kaladont — pomoć",
+            description=(
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"Riječ mora počinjati sa **`{req}`**\n\n"
+                f"💡 Prijedlog: ## **`{suggestion}`**\n"
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"*upiši je sam/a kad si na redu — ne kopiraj automatski*\n"
+                f"🕒 Sljedeća pomoć za **5 sati**"
+            ),
+            color=KALADONT_COLOR,
+            timestamp=datetime.now(timezone.utc),
+        )
+        e.set_footer(text=f"🔤 GIANNI Kaladont  •  Pomoć ({i.user.display_name})")
+        await i.response.send_message(embed=e, ephemeral=True)
 
     @discord.ui.button(label="Završi igru", emoji="🏁", style=discord.ButtonStyle.danger)
     async def zavrsi(self, i: discord.Interaction, b: discord.ui.Button):
@@ -6862,6 +6938,14 @@ PANEL_PRESETS = [
             {"name": "〢 Main Permission",  "label": "Main Permission",  "emoji": "✅"},
         ],
     },
+    {
+        "title": "Godine — Punoletan / Maloletan",
+        "description": "Klikni dugme da dobiješ/skineš ulogu!",
+        "roles": [
+            {"name": "〢 Punoletan", "label": "Punoletan", "emoji": "🔞", "id": 1496860022083424348},
+            {"name": "〢 Maloletan", "label": "Maloletan", "emoji": "🧒", "id": 1496860022066385025},
+        ],
+    },
 ]
 
 @bot.tree.command(name="setup-panels", description="🏷️ [ADMIN] Auto-kreiraj sva 3 self-role panela odjednom")
@@ -6877,7 +6961,11 @@ async def setup_panels_cmd(i: discord.Interaction, kanal: discord.TextChannel = 
         # pronađi uloge po imenu (probaj tačan match, pa case-insensitive)
         roles_found = []
         for r in preset["roles"]:
-            role = discord.utils.get(i.guild.roles, name=r["name"])
+            role = None
+            if r.get("id"):
+                role = i.guild.get_role(int(r["id"]))
+            if not role:
+                role = discord.utils.get(i.guild.roles, name=r["name"])
             if not role:
                 role = next((rr for rr in i.guild.roles if rr.name.lower().strip() == r["name"].lower().strip()), None)
             if not role:
@@ -9330,8 +9418,87 @@ async def pravila_cmd(i: discord.Interaction):
 
 
 # ─── 🔊 PRAVILA VOICE (privatni voice kanali) ───
+class DMLockedVoiceModal(discord.ui.Modal, title="DM-Locked Voice — zahtjev"):
+    """Modal: korisnik upiše ime kanala i razlog za privatni lock voice."""
+    naziv = discord.ui.TextInput(
+        label="Naziv kanala (npr. 🔒 ime)",
+        placeholder="🔒 moj-privatni",
+        max_length=40,
+    )
+    razlog = discord.ui.TextInput(
+        label="Razlog / detalji",
+        style=discord.TextStyle.paragraph,
+        placeholder="Zašto želiš lock voice? Sa kim ćeš biti?",
+        required=False,
+        max_length=400,
+    )
+
+    async def on_submit(self, i: discord.Interaction):
+        await i.response.defer(ephemeral=True, thinking=True)
+        guild = i.guild
+        member = i.user
+        # privatni kanal — vidljiv samo vlasniku + adminima
+        safe = "".join(c for c in member.name.lower() if c.isalnum() or c in "-_")[:18] or str(member.id)
+        existing = discord.utils.get(guild.text_channels, name=f"lockvc-{safe}")
+        if existing:
+            return await i.followup.send(
+                embed=em("⚠️ Već imaš zahtjev", f"Otvori: {existing.mention}", color=COLORS["warning"]),
+                ephemeral=True,
+            )
+        if not guild.me.guild_permissions.manage_channels:
+            return await i.followup.send(
+                embed=em("❌", "Bot nema **Manage Channels** permisiju!", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            member:             discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
+            guild.me:           discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True),
+        }
+        for role in guild.roles:
+            if role.permissions.administrator:
+                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        category = (
+            discord.utils.get(guild.categories, name="Tickets")
+            or discord.utils.get(guild.categories, name="tickets")
+        )
+        try:
+            chan = await guild.create_text_channel(
+                f"lockvc-{safe}",
+                overwrites=overwrites,
+                category=category,
+                reason=f"DM-Locked Voice zahtjev — {member}",
+                topic=f"DM-Locked Voice — vlasnik {member} ({member.id})",
+            )
+        except Exception as ex:
+            return await i.followup.send(
+                embed=em("❌", f"Greška: `{ex}`", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        e = discord.Embed(
+            title="🔒 DM-Locked Voice — zahtjev",
+            description=(
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"{member.mention} traži **privatni lock voice**\n\n"
+                f"🔊 **Naziv:** {self.naziv.value}\n"
+                f"📝 **Razlog:** {self.razlog.value or '*nije naveden*'}\n\n"
+                f"👮 Staff će ti odgovoriti uskoro — strpi se 🙏\n"
+                f"━━━━━━━━━━━━━━━━━━━━━"
+            ),
+            color=COLORS.get("balkan", 0x9B59B6),
+            timestamp=datetime.now(timezone.utc),
+        )
+        e.set_thumbnail(url=member.display_avatar.url)
+        e.set_footer(text=f"{BOT_NAME} • Zatvori klikom na 🔒")
+        await chan.send(content=member.mention, embed=e, view=TicketCloseView())
+        await i.followup.send(
+            embed=em("✅ Zahtjev poslat", f"Tvoj kanal: {chan.mention}", color=COLORS["success"]),
+            ephemeral=True,
+        )
+
+
 class VoiceCreateButton(discord.ui.View):
-    """Dugme ispod /pravila-voice — kreira privatni VC na klik."""
+    """Dugmad ispod /pravila-voice — kreira privatni VC, zove staff, ili otvara DM-Locked Voice."""
     def __init__(self):
         super().__init__(timeout=None)
 
@@ -9414,6 +9581,41 @@ class VoiceCreateButton(discord.ui.View):
                 embed=em("❌ Greška", f"`{type(ex).__name__}: {ex}`", color=COLORS["error"]),
                 ephemeral=True,
             )
+
+    @discord.ui.button(label="👮 Staff", style=discord.ButtonStyle.secondary, custom_id="vc_staff_btn")
+    async def staff_btn(self, i: discord.Interaction, b):
+        # nađi staff/mod ulogu pa je tagni
+        guild = i.guild
+        staff_role = (
+            discord.utils.get(guild.roles, name="〢 /GIANNI")
+            or discord.utils.get(guild.roles, name="Staff")
+            or discord.utils.get(guild.roles, name="staff")
+            or discord.utils.get(guild.roles, name="Mod")
+            or next((r for r in guild.roles if r.permissions.manage_messages and not r.is_bot_managed()), None)
+        )
+        e = discord.Embed(
+            title="👮 Staff poziv",
+            description=(
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"{i.user.mention} traži **staff** u voice sekciji.\n"
+                f"👮 Staff će se javiti uskoro — strpi se 🙏\n"
+                f"━━━━━━━━━━━━━━━━━━━━━"
+            ),
+            color=COLORS.get("warning", 0xF39C12),
+            timestamp=datetime.now(timezone.utc),
+        )
+        e.set_footer(text=f"{BOT_NAME} • Voice Staff")
+        await i.response.send_message(
+            content=staff_role.mention if staff_role else None,
+            embed=e,
+            ephemeral=False,
+            allowed_mentions=discord.AllowedMentions(roles=True),
+        )
+
+    @discord.ui.button(label="🔒 DM-Locked Voice", style=discord.ButtonStyle.primary, custom_id="vc_dm_lock_btn")
+    async def dm_lock_btn(self, i: discord.Interaction, b):
+        # otvori modal za DM-Locked Voice zahtjev
+        await i.response.send_modal(DMLockedVoiceModal())
 
 
 @bot.tree.command(name="pravila-voice", description="🔊 Postavi embed sa pravilima privatnih voice kanala [samo vlasnik]")
