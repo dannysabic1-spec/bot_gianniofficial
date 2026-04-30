@@ -1179,6 +1179,97 @@ async def get_gif(action: str) -> str | None:
     return None
 
 # ═══════════════════════════════════════════
+#    INSTANCE LOCK — sprječava da dva ista bota rade istovremeno
+# ═══════════════════════════════════════════
+INSTANCE_LOCK_TAG      = "🔒__GIANNI_INSTANCE_LOCK__🔒"
+INSTANCE_LOCK_INTERVAL = 30   # sekundi — koliko često bot update-a heartbeat
+INSTANCE_LOCK_TIMEOUT  = 75   # sekundi — heartbeat stariji od ovog smatra se mrtvim
+INSTANCE_LOCK_CH_ID    = int(os.environ.get("INSTANCE_LOCK_CHANNEL_ID", "0") or "0")
+_instance_lock_msg     = None  # discord.Message ref
+
+async def _get_instance_lock_channel():
+    """Vraća kanal koji se koristi za heartbeat lock."""
+    if INSTANCE_LOCK_CH_ID:
+        ch = bot.get_channel(INSTANCE_LOCK_CH_ID)
+        if ch:
+            return ch
+    if BACKUP_CHANNEL_ID:
+        ch = bot.get_channel(BACKUP_CHANNEL_ID)
+        if ch:
+            return ch
+    # fallback: prvi writable text kanal u prvom guildu
+    for g in bot.guilds:
+        for c in g.text_channels:
+            try:
+                if c.permissions_for(g.me).send_messages:
+                    return c
+            except Exception:
+                continue
+    return None
+
+async def _check_other_instance_alive() -> bool:
+    """True ako u lock-kanalu postoji nedavni heartbeat od ovog bota (drugi proces)."""
+    ch = await _get_instance_lock_channel()
+    if not ch:
+        return False
+    try:
+        now_ts = datetime.now(timezone.utc).timestamp()
+        async for msg in ch.history(limit=30):
+            if msg.author.id != bot.user.id:
+                continue
+            if INSTANCE_LOCK_TAG not in (msg.content or ""):
+                continue
+            ref_ts = (msg.edited_at or msg.created_at).timestamp()
+            age = now_ts - ref_ts
+            if age < INSTANCE_LOCK_TIMEOUT:
+                return True
+    except Exception as e:
+        print(f"  ✘ Instance lock check: {e}")
+    return False
+
+async def _post_instance_lock():
+    """Postavi novi heartbeat message i pokreni periodični update task."""
+    global _instance_lock_msg
+    ch = await _get_instance_lock_channel()
+    if not ch:
+        print("  ⚠ Instance lock: nema dostupnog kanala — preskačem")
+        return
+    try:
+        # Cleanup starih lock poruka od sebe
+        async for msg in ch.history(limit=50):
+            if msg.author.id == bot.user.id and INSTANCE_LOCK_TAG in (msg.content or ""):
+                try: await msg.delete()
+                except Exception: pass
+        _instance_lock_msg = await ch.send(
+            f"{INSTANCE_LOCK_TAG} | pid={os.getpid()} | start={datetime.now(timezone.utc).isoformat()}"
+        )
+        if not instance_lock_heartbeat.is_running():
+            instance_lock_heartbeat.start()
+        print(f"  🔒 Instance lock postavljen u #{ch.name} (pid={os.getpid()})")
+    except Exception as e:
+        print(f"  ✘ Instance lock post: {e}")
+
+@tasks.loop(seconds=INSTANCE_LOCK_INTERVAL)
+async def instance_lock_heartbeat():
+    global _instance_lock_msg
+    if not _instance_lock_msg:
+        return
+    try:
+        await _instance_lock_msg.edit(
+            content=f"{INSTANCE_LOCK_TAG} | pid={os.getpid()} | hb={datetime.now(timezone.utc).isoformat()}"
+        )
+    except Exception:
+        # poruka možda obrisana — pokušaj re-post
+        try:
+            ch = _instance_lock_msg.channel
+            _instance_lock_msg = await ch.send(
+                f"{INSTANCE_LOCK_TAG} | pid={os.getpid()} | hb={datetime.now(timezone.utc).isoformat()}"
+            )
+        except Exception:
+            pass
+
+
+# ═══════════════════════════════════════════
 #    EVENTI
 # ═══════════════════════════════════════════
 async def _license_check_and_shutdown_if_clone():
@@ -1231,6 +1322,20 @@ async def on_ready():
     # ── 🔐 Licencna provjera — gasi se ako je kopija ──
     if not await _license_check_and_shutdown_if_clone():
         return
+    # ── 🔒 INSTANCE LOCK — spriječi da dva bota sa istim tokenom rade istovremeno ──
+    if await _check_other_instance_alive():
+        print(f"\n{'═'*60}")
+        print(f"  ⛔ DRUGA INSTANCA BOTA JE VEĆ AKTIVNA!")
+        print(f"  Ovaj proces se gasi da spriječi DUPLO odgovaranje na komande.")
+        print(f"  Ugasi staru instancu, sačekaj 90s pa restartuj.")
+        print(f"{'═'*60}\n")
+        try:
+            await bot.close()
+        except Exception:
+            pass
+        import sys; sys.exit(0)
+        return
+    await _post_instance_lock()
     # ── 💾 CLOUD RESTORE — ako je oleun_data.json nestao poslije uploada ──
     try:
         restored = await _discord_backup_restore()
