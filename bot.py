@@ -1249,20 +1249,28 @@ async def on_ready():
         print("  ✔ Persistent views aktivni (giveaway / ticket / staff-vote / privatni VC)")
     except Exception as e:
         print(f"  ✘ Persistent views: {e}")
-    # ── ČIST SYNC: samo globalno (per-guild kopije pravile dvostruke komande) ──
-    cur_cmds = len(bot.tree.get_commands())
-    last_cmds = data.get("_last_synced_count", -1)
-    needs_dedup = data.get("_needs_guild_dedup", True)  # jednokratno čišćenje guild-specifičnih duplikata
-    if needs_dedup:
-        for guild in bot.guilds:
-            try:
+    # ── ČIST SYNC: UVIJEK obriši guild-specifične komande (sprječava DUPLIKATE u UI) ──
+    # Discord prikazuje i globalne i guild komande zasebno — ako su iste, vidi ih dvostruko.
+    # Zato pri SVAKOM startu obrišemo guild kopije, pa ostavimo samo globalne (jedna instanca).
+    for guild in bot.guilds:
+        try:
+            existing = await bot.tree.fetch_commands(guild=guild)
+            if existing:
                 bot.tree.clear_commands(guild=guild)
                 await bot.tree.sync(guild=guild)
-                print(f"  🧹 Očišćene guild komande: {guild.name}")
-            except Exception as e:
-                print(f"  ✘ Dedup {guild.name}: {e}")
-        data["_needs_guild_dedup"] = False
+                print(f"  🧹 Očišćeno {len(existing)} guild komandi: {guild.name}")
+            else:
+                print(f"  ✓ {guild.name} — nema guild duplikata")
+        except Exception as e:
+            print(f"  ✘ Dedup {guild.name}: {e}")
+    # Samo globalni sync — jedna instanca svake komande
+    # Jednokratni reset nakon upload-a v2.1 (dedup fix) — natjeraj fresh global sync
+    if data.get("_dedup_v2_done") is not True:
+        data["_last_synced_count"] = -1
+        data["_dedup_v2_done"] = True
         save_data()
+    cur_cmds = len(bot.tree.get_commands())
+    last_cmds = data.get("_last_synced_count", -1)
     if cur_cmds != last_cmds:
         try:
             synced = await bot.tree.sync()
@@ -1272,7 +1280,7 @@ async def on_ready():
         except Exception as e:
             print(f"  ✘ Globalni sync error: {e}")
     else:
-        print(f"  ⚡ Sync preskočen — komande nepromijenjene ({cur_cmds})")
+        print(f"  ⚡ Globalni sync preskočen — komande nepromijenjene ({cur_cmds})")
     print(f"{'═'*45}\n")
     # Cache invites
     for guild in bot.guilds:
