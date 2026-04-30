@@ -22,12 +22,12 @@ OFFICIAL_INVITE   = "gian"               # discord.gg/gian
 OFFICIAL_GUILD_ID = 1494043955980140754  # ID zvaničnog GIANNI servera
 
 COLORS = {
-    "default": 0x00BCD4, "success": 0x00E5FF, "error":   0xE74C3C,
-    "warning": 0xF39C12, "info":    0x00BCD4, "gold":    0xF1C40F,
-    "balkan":  0x00BCD4, "purple":  0x00BCD4, "fun":     0x00BCD4,
-    "dark":    0x2C2F33, "teal":    0x00BCD4, "love":    0xFF4D6D,
-    "pink":    0x00BCD4,
-    "aqua":    0x00BCD4,
+    "default": 0x2B2D31, "success": 0x57F287, "error":   0xED4245,
+    "warning": 0xFEE75C, "info":    0x2B2D31, "gold":    0xFFD166,
+    "balkan":  0x2B2D31, "purple":  0xB37FFF, "fun":     0x2B2D31,
+    "dark":    0x1E1F22, "teal":    0x5EE0FF, "love":    0xFF7A9C,
+    "pink":    0xEB459E,
+    "aqua":    0x2B2D31,
 }
 
 JOBS = [
@@ -1027,11 +1027,20 @@ def get_warnings(guild_id, uid):
 #    EMBED HELPER
 # ═══════════════════════════════════════════
 def em(title, desc="", color=COLORS["balkan"], fields=None, footer=None, thumb=None, image=None):
-    e = discord.Embed(title=title, description=desc, color=color, timestamp=datetime.now(timezone.utc))
+    # ── DARK GLOW-UP: sparkle prefix u naslovu + čisti dark footer (sve embede izjednačava) ──
+    pretty_title = None
+    if title:
+        t = str(title).strip()
+        # ne dupliraj prefix ako naslov već ima dekoraciju
+        if t and t[0] not in "✧✦⛧✨💎⟢⟡⌬◈◆◇★⭐🔥💜💙❤️💚💛🧡":
+            pretty_title = f"✧ {t}"
+        else:
+            pretty_title = t
+    e = discord.Embed(title=pretty_title, description=desc, color=color, timestamp=datetime.now(timezone.utc))
     if fields:
         for n, v, inline in fields:
             e.add_field(name=n, value=v or "\u200b", inline=inline)
-    e.set_footer(text=footer or f"{BOT_NAME} {VERSION}")
+    e.set_footer(text=footer or f"✦ {BOT_NAME} {VERSION}  ·  /gian")
     if thumb:  e.set_thumbnail(url=thumb)
     if image:  e.set_image(url=image)
     return e
@@ -1547,137 +1556,106 @@ async def on_member_join(member):
     chan = member.guild.get_channel(ch_id) if ch_id else discord.utils.get(member.guild.text_channels, name="welcome")
     if not chan: return
 
-    WELCOME_PORUKE = [
-        f"Hej {member.mention}! Drago nam je što si stigao/la! Upoznaj se, ispoštuj pravila i uživaj! 🍻",
-        f"Evo ga/je {member.mention}! Server tek sad može početi! 🎉",
-        f"Pazi ekipa, {member.mention} je stigao/la! Dobrodošao/la u porodicu! 🏠❤️",
-        f"{member.mention} se pojavio/la! Bio/la si tu negdje, a? Dobrodošao/la! 👀",
-        f"Naš/a novi/a prijatelj/ica {member.mention} je stigao/la! Sretno i uživaj! 🌟",
-        f"{member.mention} je ušao/la u chat! Čaj ili kafa? ☕",
-        f"Legenda stiže! Dobrodošao/la {member.mention}, nadam se da si spreman/a na zabavu! 🎮",
-        f"Pssst... {member.mention} je upravo stigao/la. Recite tiho — iznenadite ih! 🤫🎊",
-        f"Alarm! Alarm! {member.mention} je upravo sletio/la na server! Dobrodošao/la! 🚨🎊",
-        f"Oh, ko je ovo? {member.mention}! Baš si nam nedostajao/la, a ni ne znamo te još! 😂❤️",
-        f"Ekipa, pažnja! {member.mention} je odlučio/la da nam se pridruži. Mudra odluka! 😎✨",
-        f"Novi/a član/ica detected! {member.mention} je ušao/la u zgradu. Dobrodošao/la! 🏢🎉",
-        f"{member.mention} je stigao/la! Sjedni, opusti se, ti si sada dio GIANNI familije! 👑",
-        f"Čekali smo te, {member.mention}! Dobrodošao/la, nadam se da ćeš ostati zauvijek! 🥰",
-        f"Server +1! {member.mention} se pridružio/la! Dobrodošao/la među naše! 💪🎉",
-        f"Jel to {member.mention}?! Ma daj, dobrodošao/la! Počasti nas prisustvom! 🍾✨",
-        f"{member.mention} je kucao/la na vrata — otvorili smo! Dobrodošao/la u GIANNI! 🚪🎊",
-        f"Evo novog/e! {member.mention} — nadam se da voliš zabavu jer smo ovdje puni toga! 🎮🔥",
-        f"Hej hej hej! {member.mention} je ovdje! Server upravo dobio upgrade! ⬆️😄",
-        f"Dobrodošao/la {member.mention}! Zapni se, bit će zabavno! 🎢❤️",
-    ]
-
-    WELCOME_SALE = [
-        "😄 Zašto programeri vole prirodu? Jer nema bugova! 🐛",
-        "😂 Šta kaže nula osmici? 'Lijepo ti stoji kaiš!' 😂",
-        "🤣 Zašto je kompjuter uvijek hladan? Jer ima puno Windows! 🪟",
-        "😄 Kako se zove Eskimo koji sjedi na stolici? Polarna sjednica! 🧊",
-        "😂 Zašto ribe ne igraju tenis? Jer se boje mreže! 🎾🐟",
-        "🤣 Šta kaže jedan zid drugom? 'Vidimo se na uglu!' 🧱",
-        "😄 Zašto matematičari nikad ne idu na plažu? Jer imaju previše problema s brojevima! 🏖️",
-        "😂 Kako se zove snjegović koji leži na suncu? Lokva! ☀️💧",
-        "🤣 Zašto banane nose sunčane naočale? Jer se ne žele oguliti od sunca! 🍌😎",
-        "😄 Šta kaže jedan lift drugom? 'Mene diže ovo što tebe spušta!' 🛗",
-        "😂 Kako se zove majmun bez banane? Majmun! Banana nije sastavni dio naziva! 🐒",
-        "🤣 Zašto je škola poput zatvora? Uniforme, mreže na prozorima i niko ne želi ići! 🏫",
-        "😄 Šta kaže tava tiganju? 'Hej, daj mi prostora, sav si se raspalio!' 🍳",
-        "😂 Zašto slon ne može koristiti kompjuter? Jer se boji miša! 🐘🖱️",
-        "🤣 Koliko treba da se promijeni sijalica? Niti jedna — ona se mijenja sama kad je sprema! 💡",
-        "😄 Šta kaže more plaži? Ništa, samo maše! 🌊👋",
-        "😂 Zašto krava nosi zvonce? Jer joj rogovi ne rade! 🐄🔔",
-        "🤣 Kako se zove pas koji voli magiju? Labra-kadabra-dor! 🐕✨",
-        "😄 Zašto je knjiga uvijek tužna? Jer ima previše stranica iza sebe! 📚😢",
-        "😂 Šta kaže jedna vrata drugima? 'Ključ je da se ne zaključaš u sebi!' 🚪🔑",
-    ]
-
-    sala = random.choice(WELCOME_SALE)
-    custom_msg = cfg.get("welcome_message",
-        random.choice(WELCOME_PORUKE))
-
     # ── Kanali po guild_config (sa fallback na GIANNI default ID-eve) ──
     GIANNI_CHANNELS = {
         "informacije": cfg.get("info_channel",    1496860023093989475),
-        "selfroles":   cfg.get("roles_channel",   1496860023480127502),
+        "ask":         cfg.get("ask_channel",     1496860023706488885),
+        "gws":         cfg.get("gws_channel",     1496860023480127505),
         "chat":        cfg.get("chat_channel",    1496860023480127498),
-        "rank":        cfg.get("levelup_channel", 1496860023480127499),
-        "aktivnost":   cfg.get("aktivnost_channel", 1496860024121852090),
+        "selfroles":   cfg.get("roles_channel",   1496860023480127502),
+        "voice":       cfg.get("voice_channel",   1496860023480127498),
     }
-    def ch_link(key):
-        c = member.guild.get_channel(GIANNI_CHANNELS[key])
-        return c.mention if c else "#—"
 
-    # ── Podaci za embed ──
-    now_ts    = int(datetime.now(timezone.utc).timestamp())
-    acct_days = (datetime.now(timezone.utc) - member.created_at).days
-    personal  = custom_msg.replace("{user}", member.mention).replace("{server}", member.guild.name)
+    def ch_url(key):
+        cid = GIANNI_CHANNELS[key]
+        return f"https://discord.com/channels/{member.guild.id}/{cid}"
 
-    # ── Divider ──
-    DIV = "▬" * 28
-
-    desc = (
-        f"## 🎊  Dobrodošao/la, {member.mention}!\n"
-        f"{DIV}\n"
-        f"{personal}\n\n"
-
-        f"✦  **Gdje početi?**\n\n"
-        f"ℹ️  **Informacije & Pravila**  ·  {ch_link('informacije')}\n"
-        f"🏷️  **Uzmi uloge**             ·  {ch_link('selfroles')}\n"
-        f"💬  **Kreni chatati**          ·  {ch_link('chat')}\n"
-        f"📈  **XP napredovanje**        ·  {ch_link('rank')}\n"
-        f"📊  **Aktivnost**               ·  {ch_link('aktivnost')}\n\n"
-
-        f"{DIV}\n"
-        f"🔗  **discord.gg/gian**  ·  👥 Si nam **#{member.guild.member_count}**. član!"
-    )
-
-    WELCOME_GIFS = [
-        "https://media.tenor.com/M0vSf9CGHoEAAAAC/celebration.gif",
-        "https://media.tenor.com/SoQgOZMVWKoAAAAC/welcome-hi.gif",
-        "https://media.tenor.com/bTFOnAa2HTEAAAAC/welcome-neon.gif",
-        "https://media.tenor.com/Yd1G5y4OIIMAAAAC/fireworks-celebrate.gif",
-        "https://media.tenor.com/YP5R3oMtd3MAAAAC/welcome-party.gif",
+    # ── "Fora dobrodošlice" — random šala ──
+    FORE = [
+        "Zašto programeri vole prirodu? Jer nema bugova! 🐛💻",
+        "Šta kaže nula osmici? 'Lijepo ti stoji kaiš!' ✨🎽",
+        "Kako se zove Eskimo koji sjedi na stolici? Polarna sjednica! 🧊🪑",
+        "Zašto ribe ne igraju tenis? Jer se boje mreže! 🎾🐟",
+        "Šta kaže jedan zid drugom? 'Vidimo se na uglu!' 🧱😄",
+        "Kako se zove snjegović koji leži na suncu? Lokva! ☀️💧",
+        "Zašto banane nose sunčane naočale? Jer se ne žele oguliti! 🍌😎",
+        "Šta kaže more plaži? Ništa, samo maše! 🌊👋",
+        "Kako se zove pas koji voli magiju? Labra-kadabra-dor! ✨🐕",
+        "Zašto je knjiga uvijek tužna? Ima previše stranica iza sebe! 📚😢",
+        "Kako se zove riba koja zna programirati? Tuna-bajt! 🐟💾",
+        "Zašto su pingvini odlični DJ-evi? Imaju cool flow! 🐧🎧",
     ]
+    fora = random.choice(FORE)
 
+    # ── DARK GLOW-UP welcome — puno više emojia, ljepši layout ──
+    member_no = member.guild.member_count
     e = discord.Embed(
-        title=None,
-        description=desc,
-        color=0xFFD700,
-        timestamp=datetime.now(timezone.utc)
+        title=f"˚｡⋆୨୧˚  ✦  𝓦 𝓛 𝓒 𝓜  {member.display_name}  ✦  ˚୨୧⋆｡˚",
+        description=(
+            f"# 🦋  ✦  Dobrodošao na  **GIANNI**  ✦  🦋\n"
+            f"### 💫  {member.mention}  ·  član broj  **#{member_no}**  💫\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"\n"
+            f"> 🌙 ✦ *šta te čeka u ekipi:*\n"
+            f"\u2003\u2003🖼️  ✧  **image perms**  —  ★ pokaži stil sa 100 poruka\n"
+            f"\u2003\u2003🎙️  ✧  **custom voices**  —  napravi svoj kanal jednim klikom\n"
+            f"\u2003\u2003🎭  ✧  **status roles**  —  tvoj vibe = tvoja uloga\n"
+            f"\u2003\u2003🎮  ✧  **igre & vatrice**  —  kaladont · amogus · mafia · poker · vjasala\n"
+            f"\u2003\u2003💸  ✧  **ekonomija**  —  daily · posao · rank · shop\n"
+            f"\u2003\u2003🎁  ✧  **giveawayi & eventi**  —  prati  /gws  za nagrade\n"
+            f"\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"> 🎙️  ✦  *Želiš svoj  **privatan voice kanal**?*\n"
+            f"> 🌟  ↳  [ **klikni ovdje za kreiranje** ]({ch_url('voice')})\n"
+            f"\n"
+            f"> 📜  ✦  *Pravilnik & info:*\n"
+            f"> ⛓️  ↳  pročitaj <#{GIANNI_CHANNELS['informacije']}>  ·  postavi role u <#{GIANNI_CHANNELS['selfroles']}>\n"
+            f"\n"
+            f"> 😄  ✦  *Fora dobrodošlice:*\n"
+            f"> 💬  ↳  *{fora}*\n"
+            f"\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"### 🦋  ✦  uživaj u ekipi & smij se često  ✦  🦋"
+        ),
+        color=0x2B2D31,
     )
-    e.set_author(
-        name=f"✦ GIANNI Community — Nova Akvizicija! ✦",
-        icon_url=member.guild.icon.url if member.guild.icon else None
-    )
+    # mali avatar member-a u desnom ćošku (kao na ss)
     e.set_thumbnail(url=member.display_avatar.url)
-    e.add_field(
-        name="😄  Šala dobrodošlice",
-        value=sala,
-        inline=False
-    )
-    e.add_field(
-        name="👥  Redni broj",
-        value=f"**#{member.guild.member_count}**",
-        inline=True
-    )
-    e.add_field(
-        name="⏰  Pridružio/la",
-        value=f"<t:{now_ts}:R>",
-        inline=True
-    )
-    e.add_field(
-        name="📅  Nalog star",
-        value=f"**{acct_days} dana**",
-        inline=True
-    )
-    e.set_image(url=random.choice(WELCOME_GIFS))
+    # footer: ✦ X članova · /gian · datum
+    today_str = datetime.now(timezone.utc).strftime("%d. %B %Y. %H:%M")
     e.set_footer(
-        text=f"GIANNI (Custom) • Dobrodošlica  |  discord.gg/gian",
-        icon_url=member.display_avatar.url
+        text=f"✦ 🔵 {member_no} članova  ·  🦋 /gian  ·  {today_str} ✦",
+        icon_url=member.guild.icon.url if member.guild.icon else None,
     )
-    await chan.send(content=member.mention, embed=e)
+
+    # ── Dugmad: info · gws · ask · voice (link buttons) ──
+    view = discord.ui.View(timeout=None)
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.link,
+        label="info",
+        emoji="ℹ️",
+        url=ch_url("informacije"),
+    ))
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.link,
+        label="gws",
+        emoji="🎉",
+        url=ch_url("gws"),
+    ))
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.link,
+        label="ask",
+        emoji="💬",
+        url=ch_url("ask"),
+    ))
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.link,
+        label="voice",
+        emoji="🎙️",
+        url=ch_url("voice"),
+    ))
+
+    await chan.send(content=f"🎊 {member.mention} 🎊", embed=e, view=view)
 
 def _find_boost_channel(guild: discord.Guild):
     """Vraća prvi tekstualni kanal koji u imenu sadrži 'boost' (case-insensitive),
@@ -1705,22 +1683,26 @@ async def on_member_update(before, after):
         if not chan:
             return
 
-        # ── MALI, ČIST EMBED ──
+        # ── DARK GLOW-UP BOOST EMBED ──
         e = discord.Embed(
-            title="💜 Novi Boost!",
+            title="˚｡⋆୨୧˚  ✦  💜  N O V I   B O O S T !  💜  ✦  ˚୨୧⋆｡˚",
             description=(
-                f"{after.mention} je upravo **boostovao server**! 🚀\n"
-                f"Hvala ti na podršci — server je sad još jači! 💪"
+                f"# 🚀  ✦  HVALA TI NA PODRŠCI!  ✦  🚀\n"
+                f"### 💫  {after.mention}  je upravo  **boostovao server**!\n"
+                f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+                f"\n"
+                f"> 💜  ✦  *server je sad još jači!  💪 ✨*\n"
+                f"> 🌙  ✦  *zauvijek si dio  **GIANNI**  porodice*  🦋"
             ),
-            color=0xF47FFF,
+            color=0xEB459E,
             timestamp=datetime.now(timezone.utc)
         )
-        e.add_field(name="🚀 Boostova", value=f"`{boosts}`",        inline=True)
-        e.add_field(name="🏅 Tier",     value=f"`Lvl {tier}`",      inline=True)
-        e.add_field(name="🎁 Nagrada",  value=f"`+{BOOST_REWARD:,} 💶`", inline=True)
+        e.add_field(name="🚀  ✦  Boostova",      value=f"`{boosts}`",        inline=True)
+        e.add_field(name="🏅  ✦  Tier",          value=f"`Lvl {tier}`",      inline=True)
+        e.add_field(name="🎁  ✦  Nagrada",       value=f"`+{BOOST_REWARD:,} 💶`", inline=True)
         e.set_thumbnail(url=after.display_avatar.url)
-        e.set_footer(text=f"{BOT_NAME} • Hvala na podršci 💜")
-        await chan.send(content=after.mention, embed=e)
+        e.set_footer(text=f"✦ 🦋 {BOT_NAME}  ·  hvala na podršci  💜  ·  /gian ✦")
+        await chan.send(content=f"🎊 {after.mention} 🎊", embed=e)
 
 @bot.event
 async def on_message(message):
@@ -3161,33 +3143,33 @@ def kaladont_start_embed(game: dict, mention: str):
     word    = game["word"]
     letters = game["letters"]
     req     = word[-letters:]
-    tezina_map = {1: "🟢 Lako · 1 slovo", 2: "🟡 Normalno · 2 slova", 3: "🔴 Teško · 3 slova"}
+    tezina_map = {1: "🟢 lako (1 slovo)", 2: "🟡 normalno (2 slova)", 3: "🔴 teško (3 slova)"}
     tezina = tezina_map.get(letters, f"⚙️ {letters} slova")
     e = discord.Embed(
-        title="🔤  K A L A D O N T",
+        title="˚｡⋆୨୧˚  ✦  🎮  K A L A D O N T   /gian  🎮  ✦  ˚୨୧⋆｡˚",
         description=(
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"✨ Igra je počela! Prva riječ:\n"
-            f"## 💬  **{word}**\n"
-            f"━━━━━━━━━━━━━━━━━━━━━"
+            f"# 🎉  ✦  igra je počela!  ✦  🎉\n"
+            f"### 💫  prva riječ:  **`{word}`**\n"
+            f"### 🔤  sljedeća počinje sa  **`{req}`**\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"\n"
+            f"> ⚙️  ✦  **Težina:**  {tezina}\n"
+            f"> 🔗  ✦  **Niz:**  **#1**\n"
+            f"> 🚀  ✦  **Pokrenuo/la:**  {mention}\n"
+            f"\n"
+            f"> 📜  ✦  **Pravila igre**\n"
+            f"> ✅  svaka riječ počinje traženim slovima\n"
+            f"> 🚫  ista osoba ne može igrati iza sebe\n"
+            f"> 🔁  ponavljanje iste riječi nije dozvoljeno\n"
+            f"> 🏆  upiši  **`KALADONT`**  i osvoji  **1500 🪙 + 200 ✨ XP**\n"
+            f"> 💡  zapeo/la?  klikni  *💡 Pomoć*  (svakih 5h)\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"### 🦋  ✦  sretno  &  smij se često  ✦  🦋"
         ),
-        color=KALADONT_COLOR,
+        color=0x2B2D31,
         timestamp=datetime.now(timezone.utc)
     )
-    e.add_field(name="➡️  Sljedeća počinje sa", value=f"## **`{req}`**",   inline=True)
-    e.add_field(name="⚙️  Težina",              value=tezina,              inline=True)
-    e.add_field(name="🔗  Niz",                 value="**#1**",            inline=True)
-    e.add_field(
-        name="📖  Pravila igre",
-        value=(
-            "✅  Svaka riječ počinje traženim slovima\n"
-            "🚫  Ista osoba **ne može** igrati iza sebe\n"
-            "🔁  Ponavljanje iste riječi nije dozvoljeno\n"
-            "🏆  Upiši **`KALADONT`** i osvoji **1500** 🪙 + **200** ✨ XP!"
-        ),
-        inline=False
-    )
-    e.set_footer(text=f"🔤 Pokrenuo/la: {mention}  •  🏁 Pritisni dugme za kraj")
+    e.set_footer(text=f"✦ 🦋 GIANNI Kaladont  ·  /gian ✦")
     return e
 
 def kaladont_active_embed(game: dict):
@@ -3196,39 +3178,115 @@ def kaladont_active_embed(game: dict):
     req     = word[-letters:]
     count   = len(game["chain"])
     last_player = game.get("last_player_name", "—")
-    icon    = KALADONT_ICONS[(count - 1) % len(KALADONT_ICONS)]
     e = discord.Embed(
-        title="🔤  K A L A D O N T  —  aktivna igra",
-        description=f"━━━━━━━━━━━━━━━━━━━━━",
-        color=KALADONT_COLOR,
+        title="✧ kaladont — aktivna igra",
+        description=(
+            f"### ✧ zadnja riječ:  **`{word}`**\n"
+            f"\u2003\u2003✧ odigrao/la:  *{last_player}*\n"
+            f"\n"
+            f"> ➡️ sljedeća počinje sa  **`{req}`**\n"
+            f"> 🔗 niz  **#{count}**"
+        ),
+        color=0x2B2D31,
         timestamp=datetime.now(timezone.utc)
     )
-    e.add_field(name=f"{icon}  Zadnja riječ",    value=f"**`{word}`**",     inline=True)
-    e.add_field(name="🗣️  Odigrao/la",           value=last_player,         inline=True)
-    e.add_field(name="🔗  Niz",                  value=f"**#{count}**",     inline=True)
-    e.add_field(name="➡️  Sljedeća počinje sa",  value=f"## **`{req}`**",   inline=False)
-    e.set_footer(text="🏁 Pritisni dugme za kraj igre")
+    e.set_footer(text=f"🔵 GIANNI Kaladont  ·  /gian  ·  💡 Pomoć / 🏁 Završi ispod")
     return e
 
 def kaladont_word_card(word: str, player: str, req: str, count: int):
     icon = KALADONT_ICONS[(count - 1) % len(KALADONT_ICONS)]
     e = discord.Embed(
         description=(
-            f"## {icon}  **{word}**\n"
-            f"*🗣️ {player}*"
+            f"### ✧  **{word}**\n"
+            f"*🗣️ {player}*\n"
+            f"\n"
+            f"> ➡️ sljedeća počinje sa  **`{req}`**\n"
+            f"> 🔗 niz  **#{count}**"
         ),
-        color=KALADONT_COLOR,
+        color=0x2B2D31,
         timestamp=datetime.now(timezone.utc)
     )
-    e.add_field(name="➡️  Sljedeća počinje sa",  value=f"## **`{req}`**",   inline=True)
-    e.add_field(name="🔗  Niz",                  value=f"**#{count}**",     inline=True)
-    e.set_footer(text=f"🔤 GIANNI Kaladont  •  #{count}")
+    e.set_footer(text=f"🔵 GIANNI Kaladont  ·  /gian  ·  #{count}")
     return e
+
+# ── KALADONT pomoć (5h cooldown po useru, predloži valjanu riječ) ──
+KALADONT_HELP_COOLDOWN = 5 * 60 * 60  # 5 sati
+_kaladont_help_used: dict = {}  # f"{channel_id}:{user_id}" -> ts
+
+def _suggest_kaladont_word(req: str, used: set) -> str | None:
+    """Vrati nasumičnu valjanu riječ iz rječnika koja počinje sa `req`,
+    nije u `used`, i nema nemoguć završetak."""
+    cands = []
+    req_n = _kaladont_normalize(req)
+    for w in KALADONT_DICT:
+        if not w.startswith(req_n): continue
+        if w in used: continue
+        ok, _ = kaladont_word_valid(w)
+        if not ok: continue
+        cands.append(w)
+        if len(cands) >= 60: break
+    if not cands: return None
+    return random.choice(cands)
+
 
 class KaladontView(discord.ui.View):
     def __init__(self, channel_id: int):
         super().__init__(timeout=None)
         self.channel_id = channel_id
+
+    @discord.ui.button(label="Pomoć", emoji="💡", style=discord.ButtonStyle.primary)
+    async def pomoc(self, i: discord.Interaction, b: discord.ui.Button):
+        game = kaladont_games.get(self.channel_id)
+        if not game:
+            return await i.response.send_message(
+                embed=em("❌", "Nema aktivne igre u ovom kanalu.", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        # cooldown 5h po useru
+        key = f"{self.channel_id}:{i.user.id}"
+        now = time.time()
+        last = _kaladont_help_used.get(key, 0)
+        if now - last < KALADONT_HELP_COOLDOWN:
+            ostalo = int(KALADONT_HELP_COOLDOWN - (now - last))
+            h, m = divmod(ostalo // 60, 60)
+            return await i.response.send_message(
+                embed=em(
+                    "⏳ Cooldown",
+                    f"Pomoć već iskoristio/la. Sljedeća za **{h}h {m}min**.",
+                    color=COLORS["warning"],
+                ),
+                ephemeral=True,
+            )
+        letters = game["letters"]
+        req = game["word"][-letters:]
+        suggestion = _suggest_kaladont_word(req, game["used"])
+        if not suggestion:
+            return await i.response.send_message(
+                embed=em(
+                    "🤷 Nema prijedloga",
+                    f"Ne mogu naći valjanu riječ koja počinje sa **`{req}`**. Probaj sam/a!",
+                    color=COLORS["warning"],
+                ),
+                ephemeral=True,
+            )
+        _kaladont_help_used[key] = now
+        e = discord.Embed(
+            title="✧ Kaladont — pomoć",
+            description=(
+                f"### ✧ {i.user.mention}\n"
+                f"\u2003\u2003✧ predlog za nastavak\n"
+                f"\n"
+                f"> ➡️ riječ mora počinjati sa  **`{req}`**\n"
+                f"> 💡 prijedlog:  **`{suggestion}`**\n"
+                f"\n"
+                f"> *upiši je u kanal kad si na redu — ne kopiraj automatski*\n"
+                f"> 🕒 sljedeća pomoć za **5 sati**"
+            ),
+            color=0x2B2D31,
+            timestamp=datetime.now(timezone.utc),
+        )
+        e.set_footer(text=f"🔵 GIANNI Kaladont  ·  /gian")
+        await i.response.send_message(embed=e, ephemeral=True)
 
     @discord.ui.button(label="Završi igru", emoji="🏁", style=discord.ButtonStyle.danger)
     async def zavrsi(self, i: discord.Interaction, b: discord.ui.Button):
@@ -3241,11 +3299,15 @@ class KaladontView(discord.ui.View):
         del kaladont_games[self.channel_id]
         b.disabled = True
         e = discord.Embed(
-            title="🏁 Kaladont završen!",
-            description=f"Igra gotova! Ukupno izgovoreno **{count}** rijeci. 🎉",
-            color=COLORS["gold"], timestamp=datetime.now(timezone.utc)
+            title="✧ Kaladont završen",
+            description=(
+                f"### ✧ igra gotova\n"
+                f"\u2003\u2003✧ ukupno izgovoreno **{count}** riječi 🎉"
+            ),
+            color=0x2B2D31,
+            timestamp=datetime.now(timezone.utc),
         )
-        e.set_footer(text=f"{BOT_NAME} {VERSION}")
+        e.set_footer(text=f"🔵 GIANNI Kaladont  ·  /gian")
         await i.response.edit_message(embed=e, view=self)
         self.stop()
 
@@ -3577,27 +3639,45 @@ def _ag_player_list(players, show_roles=False):
 
 def _ag_lobby_embed(state):
     players = state["players"]
-    e = discord.Embed(title="🚀 Among Us — Lobby", color=0x1B1B2F,
-                      description="Pridruži se i čekaj da host pokrene igru!\n**Min 4 • Max 10 igrača**",
-                      timestamp=datetime.now(timezone.utc))
-    e.add_field(name=f"👥 Igrači ({len(players)}/10)",
-                value="\n".join(f"{p['color']} {p['name']}" for p in players.values()) or "*Čekamo...*",
-                inline=False)
-    e.set_footer(text="Host: klikni ▶️ Pokreni igru kad ste svi tu!")
+    e = discord.Embed(
+        title="˚｡⋆୨୧˚  ✦  🚀  A M O N G   U S  —  L O B B Y  ✦  ˚୨୧⋆｡˚",
+        color=0x2B2D31,
+        description=(
+            "# 🚀  ✦  pridruži se i čekaj host-a  ✦  🚀\n"
+            "### 👥  **Min 4**  ·  **Max 10**  igrača\n"
+            "`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`"
+        ),
+        timestamp=datetime.now(timezone.utc),
+    )
+    e.add_field(
+        name=f"👥  ✦  Igrači  ({len(players)}/10)",
+        value="\n".join(f"✧ {p['color']} **{p['name']}**" for p in players.values()) or "*🌙 čekamo igrače…*",
+        inline=False,
+    )
+    e.set_footer(text="✦ 🦋 GIANNI Among Us  ·  Host: ▶️ Pokreni igru kad ste svi tu! ✦")
     return e
 
 def _ag_game_embed(state):
     alive = [p for p in state["players"].values() if p["alive"]]
     ac = sum(1 for p in alive if p["role"]=="crewmate")
     ai = sum(1 for p in alive if p["role"]=="impostor")
-    e = discord.Embed(title="🚀 Among Us — U Toku", color=0x1B1B2F, timestamp=datetime.now(timezone.utc))
-    e.add_field(name="👥 Igrači", value=_ag_player_list(state["players"]), inline=False)
-    e.add_field(name="📋 Zadaci", value=_task_bar(state["done_tasks"], state["total_tasks"]), inline=True)
-    e.add_field(name="🎭 Živi", value=f"🔵 {ac} crew | 🔴 {ai} imp", inline=True)
+    e = discord.Embed(
+        title="˚｡⋆୨୧˚  ✦  🚀  A M O N G   U S  —  U   T O K U  ✦  ˚୨୧⋆｡˚",
+        color=0x2B2D31,
+        description="# 🛸  ✦  igra je u toku  —  oprez!  ✦  🛸\n`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`",
+        timestamp=datetime.now(timezone.utc),
+    )
+    e.add_field(name="👥  ✦  Igrači", value=_ag_player_list(state["players"]), inline=False)
+    e.add_field(name="📋  ✦  Zadaci", value=_task_bar(state["done_tasks"], state["total_tasks"]), inline=True)
+    e.add_field(name="🎭  ✦  Živi", value=f"🔵 **{ac}** crew  ·  🔴 **{ai}** imp", inline=True)
     if state.get("reactor"):
         n_fix = len(state["reactor"]["fixers"])
-        e.add_field(name="💥 SABOTAŽA AKTIVNA!", value=f"Reaktor — `{n_fix}/{REACTOR_FIXES_NEEDED}` popravača! ⏱️", inline=False)
-    e.set_footer(text="📋 Zadatak • 🚨 Alarm • 🔪 Akcija • 🛑 Sabotiraj • 🎭 Lažni alarm • 🔫 Šerif • 👻 Ghost")
+        e.add_field(
+            name="💥  ✦  SABOTAŽA AKTIVNA!",
+            value=f"☢️  Reaktor  —  `{n_fix}/{REACTOR_FIXES_NEEDED}`  popravača!  ⏱️",
+            inline=False,
+        )
+    e.set_footer(text="✦ 📋 Zadatak  ·  🚨 Alarm  ·  🔪 Akcija  ·  🛑 Sabotaža  ·  🎭 Fake  ·  🔫 Šerif  ·  👻 Ghost ✦")
     return e
 
 async def _ag_check_win(state, channel) -> bool:
@@ -6818,17 +6898,25 @@ def _build_selfrole_view(key: str) -> discord.ui.View:
     return view
 
 def _selfrole_embed(panel: dict) -> discord.Embed:
-    e = discord.Embed(
-        title=panel.get("title", "🏷️ Self Roles"),
-        description=panel.get("description", "Klikni dugme da dobiješ/skineš ulogu!"),
-        color=0x9B59B6,
-        timestamp=datetime.now(timezone.utc)
-    )
+    title = panel.get("title", "🏷️ Self Roles")
+    desc_top = panel.get("description", "Klikni dugme da dobiješ/skineš ulogu!")
     roles_txt = "\n".join(
-        f"{r.get('emoji', '▸')} **{r['label']}**" for r in panel.get("roles", [])
-    ) or "*Nema uloga. Admin treba dodati `/selfroles-add`.*"
-    e.add_field(name="Dostupne uloge", value=roles_txt, inline=False)
-    e.set_footer(text="Klikni dugme ispod ↓")
+        f"> {r.get('emoji', '▸')} *{r['label']}*" for r in panel.get("roles", [])
+    ) or "> *Nema uloga. Admin: `/selfroles-add`.*"
+    e = discord.Embed(
+        title=f"✧ {title}  /gian",
+        description=(
+            f"### ✧ {title}\n"
+            f"\u2003\u2003✧ {desc_top}\n"
+            f"\n"
+            f"{roles_txt}\n"
+            f"\n"
+            f"> 👇 *klikni dugme ispod*"
+        ),
+        color=0x2B2D31,
+        timestamp=datetime.now(timezone.utc),
+    )
+    e.set_footer(text=f"🔵 GIANNI  ·  /gian")
     return e
 
 # ═══════════════════════════════════════════
@@ -6862,6 +6950,14 @@ PANEL_PRESETS = [
             {"name": "〢 Main Permission",  "label": "Main Permission",  "emoji": "✅"},
         ],
     },
+    {
+        "title": "Godine — Punoletan / Maloletan",
+        "description": "Klikni dugme da dobiješ/skineš ulogu!",
+        "roles": [
+            {"name": "〢 Punoletan", "label": "Punoletan", "emoji": "🔞", "id": 1496860022083424348},
+            {"name": "〢 Maloletan", "label": "Maloletan", "emoji": "🧒", "id": 1496860022066385025},
+        ],
+    },
 ]
 
 @bot.tree.command(name="setup-panels", description="🏷️ [ADMIN] Auto-kreiraj sva 3 self-role panela odjednom")
@@ -6877,7 +6973,11 @@ async def setup_panels_cmd(i: discord.Interaction, kanal: discord.TextChannel = 
         # pronađi uloge po imenu (probaj tačan match, pa case-insensitive)
         roles_found = []
         for r in preset["roles"]:
-            role = discord.utils.get(i.guild.roles, name=r["name"])
+            role = None
+            if r.get("id"):
+                role = i.guild.get_role(int(r["id"]))
+            if not role:
+                role = discord.utils.get(i.guild.roles, name=r["name"])
             if not role:
                 role = next((rr for rr in i.guild.roles if rr.name.lower().strip() == r["name"].lower().strip()), None)
             if not role:
@@ -7121,21 +7221,29 @@ async def event_cmd(i: discord.Interaction, naslov: str, opis: str):
             embed=em("👑 Nemaš pristup!", "Ova komanda je rezervisana samo za **Vlasnika** bota.", color=COLORS["error"]),
             ephemeral=True,
         )
-    BAR = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     e = discord.Embed(
-        title=f"🎪  {naslov}",
-        description=f"{BAR}\n\n{opis}\n\n{BAR}",
-        color=0xFF6B35,
+        title=f"˚｡⋆୨୧˚  ✦  🎪  E V E N T   /gian  🎪  ✦  ˚୨୧⋆｡˚",
+        description=(
+            f"# 🎉  ✦  {naslov}  ✦  🎉\n"
+            f"### 💫 *novi event je objavljen — ne propusti!*\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"\n"
+            f"> 🎪  ✦  **Detalji eventa**\n"
+            f"> 📜  {opis}\n"
+            f"\n"
+            f"> 📢  ✦  **Objavio**\n"
+            f"> 👑  {i.user.mention}\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"### 🎊  ✦  vidimo se na eventu  ✦  🎊"
+        ),
+        color=0x2B2D31,
         timestamp=datetime.now(timezone.utc),
     )
-    e.set_author(
-        name=f"× GIANNI — NOVI EVENT!",
-        icon_url=bot.user.display_avatar.url,
-    )
-    e.set_footer(text=f"📢 Event objavio: {i.user.display_name}  ·  {BOT_NAME}")
     e.set_thumbnail(url=bot.user.display_avatar.url)
+    today_str = datetime.now(timezone.utc).strftime("%d. %B %Y. %H:%M")
+    e.set_footer(text=f"✦ 🦋 GIANNI  ·  /gian  ·  {today_str} ✦")
     await i.response.send_message(embed=e)
-    await i.followup.send(embed=em("✅ Event objavljen!", f"**{naslov}** je uspješno objavljen! 🎪", color=COLORS["success"]), ephemeral=True)
+    await i.followup.send(embed=em("✅ Event objavljen!", f"**{naslov}** je uspješno objavljen!", color=COLORS["success"]), ephemeral=True)
 
 # ═══════════════════════════════════════════
 #    ERROR HANDLING
@@ -7677,24 +7785,35 @@ async def vatrice_ember(i: discord.Interaction, korisnik: discord.Member, kolici
     lvl = xp_info.get("level", 0)
     xp_v = xp_info.get("xp", 0)
     e = discord.Embed(
-        title=f"{emoji} Vatrice poslane!",
+        title=f"˚｡⋆୨୧˚  ✦  🔥  V A T R I C E   —   E M B E R   ✦  ˚୨୧⋆｡˚",
         description=(
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"{i.user.mention} je dao **+{kolicina}** {emoji} {korisnik.mention}!\n\n"
-            f"{emoji} Ukupno vatrica: **{novi}**\n"
-            f"📛 Nick ažuriran: `{korisnik.display_name}`\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━"
+            f"# 🔥  ✦  +{kolicina} {emoji}  za  {korisnik.display_name}  ✦  🔥\n"
+            f"### 💫  {korisnik.mention}  ·  ukupno  **{novi}**  {emoji}\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"\n"
+            f"> 🎁  ✦  **Pokloni**\n"
+            f"> 👑  {i.user.mention}  →  +{kolicina} {emoji}\n"
+            f"\n"
+            f"> 📛  ✦  **Nick**\n"
+            f"> 🏷️  `{korisnik.display_name}`\n"
+            f"\n"
+            f"> 💬  ✦  **Aktivnost**\n"
+            f"> 📝  poruke ukupno  `{msgs_total:,}`   ·   ovaj tjedan  `{msgs_week:,}`\n"
+            f"\n"
+            f"> ⭐  ✦  **Level / XP**\n"
+            f"> 🌙  `Lvl {lvl}`  ·  `{xp_v:,}` XP\n"
+            f"\n"
+            f"> 🎯  ✦  **Do sljedeće auto-vatrice**\n"
+            f"> ⏳  jos  `{do_sljedece}`  poruka\n"
+            f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            f"### 🦋  ✦  čestitamo!  čuvaj  vatrice  ✦  🦋"
         ),
-        color=0xFF6A00, timestamp=datetime.now(timezone.utc),
+        color=0x2B2D31,
+        timestamp=datetime.now(timezone.utc),
     )
-    e.add_field(name="💬 Napisanih poruka (ukupno)", value=f"`{msgs_total:,}`", inline=True)
-    e.add_field(name="📅 Poruka ove sedmice", value=f"`{msgs_week:,}`", inline=True)
-    e.add_field(name=f"{emoji} Vatrice ukupno", value=f"`{novi}`", inline=True)
-    e.add_field(name="⭐ Level", value=f"`{lvl}`", inline=True)
-    e.add_field(name="✨ XP", value=f"`{xp_v:,}`", inline=True)
-    e.add_field(name="🎯 Do sljedeće auto-vatrice", value=f"`{do_sljedece}` poruka", inline=True)
     e.set_thumbnail(url=korisnik.display_avatar.url)
-    e.set_footer(text=f"{BOT_NAME} • /vatrice pup za top listu")
+    today_str = datetime.now(timezone.utc).strftime("%d. %B %Y. %H:%M")
+    e.set_footer(text=f"✦ 🔵 {i.guild.member_count} članova  ·  🦋 /gian  ·  {today_str} ✦")
     await i.response.send_message(embed=e)
 
 @vatrice_group.command(name="kanal", description="🔥 [VLASNIK] Postavi kanal za objave vatrica")
@@ -7726,53 +7845,48 @@ async def vatrice_pup(i: discord.Interaction):
             embed=em(f"{emoji} Top vatrice", "Još niko nema vatrica! Pokreni `/vatrice ember @član`.", color=COLORS["warning"]),
             ephemeral=True,
         )
-    sep = "━━━━━━━━━━━━━━━━━━━━━━"
     medals = ["🥇", "🥈", "🥉"]
-
-    # PODIJ (top 3) — istaknuto
     podij_lines = []
     for idx, (uid, cnt) in enumerate(items[:3]):
         m = i.guild.get_member(uid)
         ime = m.mention if m else f"`{uid}`"
-        podij_lines.append(f"{medals[idx]}  {ime}\n     └─ {emoji} **{cnt}** vatrica")
-    podij_block = "\n".join(podij_lines) if podij_lines else "_još niko nije na podiju_"
-
-    # Mjesta 4–10
+        podij_lines.append(f"> {medals[idx]} {ime}  ·  {emoji} **{cnt}**")
     ostali_lines = []
     for idx, (uid, cnt) in enumerate(items[3:10], start=4):
         m = i.guild.get_member(uid)
         ime = m.mention if m else f"`{uid}`"
-        ostali_lines.append(f"`#{idx:>2}`  {ime} — {emoji} **{cnt}**")
-
-    # Moje mjesto
+        ostali_lines.append(f"> `#{idx:>2}` {ime} — {emoji} **{cnt}**")
     moja = _get_vatrice(i.guild.id, i.user.id)
     moje_mjesto, ukupno = _vatrice_rank(i.guild.id, i.user.id)
     moje_line = (
-        f"📊 Tvoje mjesto: **#{moje_mjesto}** od **{ukupno}**  •  {emoji} **{moja}**"
-        if moje_mjesto else f"📊 Još nemaš vatrica  •  {emoji} **0**"
+        f"> 📊 *Tvoje mjesto:* **#{moje_mjesto}** od **{ukupno}**  ·  {emoji} **{moja}**"
+        if moje_mjesto else f"> 📊 *Još nemaš vatrica*  ·  {emoji} **0**"
     )
 
     desc = (
-        f"{sep}\n"
-        f"**🏆 PODIJ NAJVATRENIJIH** {emoji}\n"
-        f"{sep}\n"
-        f"{podij_block}\n"
+        f"# 🔥  ✦  P U P  —  najpopularniji  {emoji}  ✦  🔥\n"
+        f"### 🏆 top 3 podij  ·  najjača trojka servera\n"
+        f"`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+        f"\n"
+        + "\n".join(podij_lines or ["> *još niko nije na podiju*"])
+        + (
+            f"\n\n> 📋  ✦  **Top 4-10**\n" + "\n".join(ostali_lines)
+            if ostali_lines else ""
+        )
+        + f"\n\n`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+        + f"{moje_line}\n"
+        + f"### 🦋  ✦  pali  vatricu  ·  budi  najpopularniji  ✦  🦋"
     )
-    if ostali_lines:
-        desc += f"\n{sep}\n**Ostali u top 10:**\n" + "\n".join(ostali_lines) + f"\n{sep}\n"
-    else:
-        desc += f"{sep}\n"
-    desc += f"\n{moje_line}"
-
     e = discord.Embed(
-        title=f"{emoji} ᴛᴏᴘ ᴠᴀᴛʀɪᴄᴇ — {i.guild.name} {emoji}",
+        title=f"˚｡⋆୨୧˚  ✦  🔥  V A T R I C E  —  P U P  ✦  ˚୨୧⋆｡˚",
         description=desc,
-        color=0xFF6A00,
+        color=0x2B2D31,
         timestamp=datetime.now(timezone.utc),
     )
     if i.guild.icon:
         e.set_thumbnail(url=i.guild.icon.url)
-    e.set_footer(text=f"🔥 {BOT_NAME} • Vatrice sistem  •  Vatricu zarađuješ svakih 150 poruka")
+    today_str = datetime.now(timezone.utc).strftime("%d. %B %Y. %H:%M")
+    e.set_footer(text=f"✦ 🔵 {i.guild.member_count} članova  ·  🦋 /gian  ·  {today_str} ✦")
     await i.response.send_message(embed=e)
 
 @vatrice_group.command(name="oblik", description="🔥 [VLASNIK] Postavi oblik (emoji) vatrice na serveru")
@@ -9241,80 +9355,53 @@ async def pravila_cmd(i: discord.Interaction):
         )
     await i.response.defer(ephemeral=True)
 
-    BAR  = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
-
     e = discord.Embed(
-        title="📜 ═╡ ＰＲＡＶＩＬＮＩＫ  ＳＥＲＶＥＲＡ  ＧＩＡＮＮＩ ╞═ 📜",
+        title="˚｡⋆୨୧˚  ✦  📜  P R A V I L A   /gian  📜  ✦  ˚୨୧⋆｡˚",
         description=(
-            "╔══════════════════════════════╗\n"
-            "║  Dobrodošli na **GIANNI (Custom)**!  ║\n"
-            "╚══════════════════════════════╝\n\n"
-            "🌟 Cilj servera je dobra atmosfera, zabava i upoznavanje novih ljudi.\n"
-            "📌 Molimo vas da poštujete sljedeća pravila:"
+            "# 🦋  ✦  Dobrodošli na  **GIANNI**  ✦  🦋\n"
+            "### ✧ poštuj sve  ·  smij se često  ·  čuvaj atmosferu\n"
+            "`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            "\n"
+            "> 🤝  ✦  **Poštovanje**\n"
+            "> 💬  bez vrijeđanja, rasizma i provokacije — svi smo ovdje da se družimo\n"
+            "\n"
+            "> 🔇  ✦  **Bez spama**\n"
+            "> 🚫  bez ponavljanja poruka, flood-a, emoji/gif spama i tag-bombe\n"
+            "\n"
+            "> 📢  ✦  **Reklamiranje**\n"
+            "> ⛔  zabranjeno bez odobrenja — ni u kanalima, ni u DM-ovima\n"
+            "\n"
+            "> 🔞  ✦  **Neprikladan sadržaj**\n"
+            "> 🚷  nema NSFW, nasilja ni uznemirujućih sadržaja — TOS Discord-a vrijedi\n"
+            "\n"
+            "> 📁  ✦  **Kanali**\n"
+            "> 🗂️  svaki kanal ima svoju temu — koristi ga za to za što je namijenjen\n"
+            "\n"
+            "> 🛡️  ✦  **Staff**\n"
+            "> 👮  admini i mod-ovi održavaju red — njihove odluke su konačne\n"
+            "\n"
+            "> 😤  ✦  **Bez drame**\n"
+            "> 🕊️  sporove rješavajte mirno, lične stvari ostavite van javnih kanala\n"
+            "\n"
+            "`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            "> ⚠️  ✦  **Kazne — sistem**\n"
+            "> ①  ⚠️ warn   ·   ②  🔇 mute   ·   ③  👢 kick   ·   ④  ⛔ ban\n"
+            "\n"
+            "> ✨  ✦  **Završna riječ**\n"
+            "> 🏠  pravila postoje da se svi osjećamo kao kod kuće — uživaj u ekipi 💖\n"
+            "`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            "### 🦋  ✦  GIANNI  =  najljepša ekipa  ✦  🦋"
         ),
-        color=COLORS["default"],
-        timestamp=datetime.now(timezone.utc),
+        color=0x2B2D31,
     )
-
-    e.add_field(name=f"{BAR}\n🤝 ═╡ POŠTUJTE SVE ČLANOVE ╞═ 🤝", value=(
-        "🚫 Zabranjeno je vrijeđanje, maltretiranje i provociranje\n"
-        "❌ Nema rasizma, diskriminacije i govora mržnje\n"
-        "💬 Poštujte tuđe mišljenje, čak i kad se ne slažete"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n🔇 ═╡ BEZ SPAMA ╞═ 🔇", value=(
-        "🔁 Ne šaljite iste poruke više puta\n"
-        "😶 Ne spamujte emojima, gifovima ili tagovanjem ljudi\n"
-        "🌊 Flood poruke nisu dozvoljene"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n📢 ═╡ REKLAMIRANJE ╞═ 📢", value=(
-        "🔗 Reklamiranje servera, kanala ili društvenih mreža nije dozvoljeno bez odobrenja admina\n"
-        "📩 Zabranjeno je slanje reklama u DM porukama članovima"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n🔞 ═╡ NEPRIKLADAN SADRŽAJ ╞═ 🔞", value=(
-        "🩸 Nema nasilnih, šokantnih ili uznemirujućih slika\n"
-        "🚫 Zabranjen NSFW sadržaj na cijelom serveru\n"
-        "📋 Poštujte pravila Discord platforme i TOS"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n📁 ═╡ KANALI ╞═ 📁", value=(
-        "🎯 Koristite kanale za njihovu predviđenu temu\n"
-        "💬 Ne spamujte i ne off-topic chatujte u pogrešnim kanalima\n"
-        "🤖 Komande za bota koristite u za to određenim kanalima"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n🛡️ ═╡ POŠTUJTE STAFF ╞═ 🛡️", value=(
-        "👮 Admini i moderatori održavaju red na serveru\n"
-        "⚖️ Njihove odluke su konačne i treba ih poštovati\n"
-        "🎫 Za probleme i prijave koristite ticket sistem"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n😤 ═╡ BEZ DRAME ╞═ 😤", value=(
-        "🥊 Svađe, provociranje i pokretanje drama nisu dozvoljeni\n"
-        "🕊️ Sporove rješavajte mirno ili uz pomoć staffa\n"
-        "🔒 Lične razmirice ostavite van javnih kanala"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n⚠️ ═╡ KAZNE ╞═ ⚠️", value=(
-        "Kršenje pravila može dovesti do sljedećih sankcija:\n\n"
-        "📌 `1.` ⚠️ Upozorenje *(warn)*\n"
-        "📌 `2.` 🔇 Mute na određeno vrijeme\n"
-        "📌 `3.` 👢 Kick sa servera\n"
-        "📌 `4.` 🔨 Permanentni ban — bez prava povratka"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n💫 ═╡ ZAVRŠNA RIJEČ ╞═ 💫", value=(
-        "📖 Pravila postoje da bi se svi osjećali dobrodošlo.\n"
-        "🤜🤛 Poštuj druge, čuvaj atmosferu i uživaj u GIANNI ekipi.\n"
-        "🏠 Dobrodošao kući.\n\n"
-        "**✨ Uživaj i budi dio ekipe! ✨**"
-    ), inline=False)
 
     if i.guild and i.guild.icon:
         e.set_thumbnail(url=i.guild.icon.url)
-    e.set_footer(text="📜 GIANNI (Custom) • Pravilnik", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
+    today_str = datetime.now(timezone.utc).strftime("%d. %B %Y. %H:%M")
+    e.set_footer(
+        text=f"🔵 {i.guild.member_count} članova  ·  /gian  ·  {today_str}",
+        icon_url=i.guild.icon.url if i.guild and i.guild.icon else None,
+    )
 
     try:
         await i.channel.send(embed=e)
@@ -9330,13 +9417,136 @@ async def pravila_cmd(i: discord.Interaction):
 
 
 # ─── 🔊 PRAVILA VOICE (privatni voice kanali) ───
-class VoiceCreateButton(discord.ui.View):
-    """Dugme ispod /pravila-voice — kreira privatni VC na klik."""
+class DMLockedVoiceModal(discord.ui.Modal, title="DM-Locked Voice — zahtjev"):
+    """Modal: korisnik upiše ime kanala i razlog za privatni lock voice."""
+    naziv = discord.ui.TextInput(
+        label="Naziv kanala (npr. 🔒 ime)",
+        placeholder="🔒 moj-privatni",
+        max_length=40,
+    )
+    razlog = discord.ui.TextInput(
+        label="Razlog / detalji",
+        style=discord.TextStyle.paragraph,
+        placeholder="Zašto želiš lock voice? Sa kim ćeš biti?",
+        required=False,
+        max_length=400,
+    )
+
+    async def on_submit(self, i: discord.Interaction):
+        await i.response.defer(ephemeral=True, thinking=True)
+        guild = i.guild
+        member = i.user
+        # privatni kanal — vidljiv samo vlasniku + adminima
+        safe = "".join(c for c in member.name.lower() if c.isalnum() or c in "-_")[:18] or str(member.id)
+        existing = discord.utils.get(guild.text_channels, name=f"lockvc-{safe}")
+        if existing:
+            return await i.followup.send(
+                embed=em("⚠️ Već imaš zahtjev", f"Otvori: {existing.mention}", color=COLORS["warning"]),
+                ephemeral=True,
+            )
+        if not guild.me.guild_permissions.manage_channels:
+            return await i.followup.send(
+                embed=em("❌", "Bot nema **Manage Channels** permisiju!", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            member:             discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
+            guild.me:           discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True),
+        }
+        for role in guild.roles:
+            if role.permissions.administrator:
+                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        category = (
+            discord.utils.get(guild.categories, name="Tickets")
+            or discord.utils.get(guild.categories, name="tickets")
+        )
+        try:
+            chan = await guild.create_text_channel(
+                f"lockvc-{safe}",
+                overwrites=overwrites,
+                category=category,
+                reason=f"DM-Locked Voice zahtjev — {member}",
+                topic=f"DM-Locked Voice — vlasnik {member} ({member.id})",
+            )
+        except Exception as ex:
+            return await i.followup.send(
+                embed=em("❌", f"Greška: `{ex}`", color=COLORS["error"]),
+                ephemeral=True,
+            )
+        e = discord.Embed(
+            title="✧ DM-Locked Voice — zahtjev",
+            description=(
+                f"### ✧ {member.mention}\n"
+                f"\u2003\u2003✧ tražiš **privatni lock voice**\n"
+                f"\n"
+                f"> 🔊 *Naziv:*\n"
+                f"> {self.naziv.value}\n"
+                f"\n"
+                f"> 📝 *Razlog:*\n"
+                f"> {self.razlog.value or '*nije naveden*'}\n"
+                f"\n"
+                f"> 👮 staff će ti odgovoriti uskoro — strpi se 🙏"
+            ),
+            color=0x2B2D31,
+        )
+        e.set_thumbnail(url=member.display_avatar.url)
+        e.set_footer(text=f"🔵 GIANNI  ·  /gian  ·  zatvori klikom na 🔒")
+        await chan.send(content=member.mention, embed=e, view=TicketCloseView())
+        await i.followup.send(
+            embed=em("✅ Zahtjev poslat", f"Tvoj kanal: {chan.mention}", color=COLORS["success"]),
+            ephemeral=True,
+        )
+
+
+class VoicePravilaPanel(discord.ui.View):
+    """Tri dugmeta ispod /pravila-voice: Kreiraj voice · Staff · DM-Locked Voice."""
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="🔊 Kreiraj svoj voice", style=discord.ButtonStyle.success, custom_id="vc_create_btn")
-    async def create(self, i: discord.Interaction, b):
+    @discord.ui.button(label="Kreiraj voice", emoji="🔊", style=discord.ButtonStyle.success, custom_id="vc_create_btn")
+    async def create_btn(self, i: discord.Interaction, b):
+        await _vc_create_logic(i)
+
+    @discord.ui.button(label="Staff", emoji="👮", style=discord.ButtonStyle.secondary, custom_id="vc_staff_btn")
+    async def staff_btn(self, i: discord.Interaction, b):
+        # nađi staff/mod ulogu pa je tagni
+        guild = i.guild
+        staff_role = (
+            discord.utils.get(guild.roles, name="〢 /GIANNI")
+            or discord.utils.get(guild.roles, name="Staff")
+            or discord.utils.get(guild.roles, name="staff")
+            or discord.utils.get(guild.roles, name="Mod")
+            or next((r for r in guild.roles if r.permissions.manage_messages and not r.is_bot_managed()), None)
+        )
+        await i.response.send_message(
+            content=staff_role.mention if staff_role else None,
+            embed=discord.Embed(
+                title="✧ Staff poziv",
+                description=(
+                    f"### ✧ {i.user.mention}\n"
+                    f"\u2003\u2003✧ traži **staff** u voice sekciji\n"
+                    f"\n"
+                    f"> 👮 staff će se javiti uskoro — strpi se 🙏"
+                ),
+                color=0x2B2D31,
+            ),
+            ephemeral=False,
+            allowed_mentions=discord.AllowedMentions(roles=True),
+        )
+
+    @discord.ui.button(label="DM-Locked Voice", emoji="🔒", style=discord.ButtonStyle.primary, custom_id="vc_dm_lock_btn")
+    async def dm_lock_btn(self, i: discord.Interaction, b):
+        # otvori modal za DM-Locked Voice zahtjev
+        await i.response.send_modal(DMLockedVoiceModal())
+
+
+# stari naziv — ostavljen kao alias da postojeći perzistentni view-ovi nastave raditi
+class VoiceCreateButton(VoicePravilaPanel):
+    pass
+
+
+async def _vc_create_logic(i: discord.Interaction):
         guild = i.guild
         member = i.user
         # Ako već ima privatni VC, javi
@@ -9425,86 +9635,53 @@ async def pravila_voice_cmd(i: discord.Interaction):
         )
     await i.response.defer(ephemeral=True)
 
-    BAR = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
-
     e = discord.Embed(
-        title="🔊 ═╡ ＰＲＡＶＩＬＡ  ＰＲＩＶＡＴＮＩＨ  ＶＯＩＣＥ  ＫＡＮＡＬＡ ╞═ 🔊",
+        title="˚｡⋆୨୧˚  ✦  🎙️  P R A V I L A   V O I C E   /gian  🎙️  ✦  ˚୨୧⋆｡˚",
         description=(
-            "╔══════════════════════════════╗\n"
-            "║  Dobrodošli u **Privatni Voice** sistem!  ║\n"
-            "╚══════════════════════════════╝\n\n"
-            "🎙️ Svako može napraviti **svoj vlastiti voice kanal** kojim u potpunosti upravlja.\n"
-            "📌 Molimo vas da poštujete sljedeća pravila:"
+            "# 🦋  ✦  Privatni Voice Sistem  ✦  🦋\n"
+            "### ✧ napravi svoj kanal  ·  jednim klikom  ·  ti si vlasnik 👑\n"
+            "`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            "\n"
+            f"> 🚀  ✦  **Kako napraviti kanal**\n"
+            f"> 🎙️  uđi u <#{JTC_VOICE_ID}> ili klikni  **🔊 Kreiraj voice**  ispod — bot ti pravi kanal i prebacuje te\n"
+            "\n"
+            "> 🤝  ✦  **Poštovanje**\n"
+            "> 🎧  bez vrijeđanja, prekidanja, glasne pozadinske muzike i mikrofon-spama\n"
+            "\n"
+            "> 👑  ✦  **Vlasništvo**\n"
+            "> 🛠️  samo vlasnik koristi panel (lock · hide · kick…) — prije izlaska možeš prebaciti vlasništvo\n"
+            "\n"
+            "> 🔒  ✦  **Lock / Hide**\n"
+            "> 👁️  tvoje pravo da zaključaš ili sakriješ — staff ipak ima pristup zbog moderacije\n"
+            "\n"
+            "> 📛  ✦  **Imena kanala**\n"
+            "> ✏️  pristojno ime, bez NSFW i provokacija\n"
+            "\n"
+            "> 🗑️  ✦  **Auto-brisanje**\n"
+            "> 💨  kad svi izađu — kanal se sam briše. ne brini\n"
+            "\n"
+            "`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            "> ⚠️  ✦  **Kazne — sistem**\n"
+            "> ①  ⚠️ warn   ·   ②  🔇 voice mute   ·   ③  🚫 zabrana voice-a   ·   ④  👢 kick / ⛔ ban\n"
+            "\n"
+            "> ✨  ✦  **Završna riječ**\n"
+            "> 💞  voice je tu da se družimo i smijemo — uživaj u ekipi 🎉\n"
+            "`▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`\n"
+            "### 🎙️  ✦  klikni dugme ispod  ·  zaroni u zabavu  ✦  🎉"
         ),
-        color=COLORS["default"],
-        timestamp=datetime.now(timezone.utc),
+        color=0x2B2D31,
     )
-
-    e.add_field(name=f"{BAR}\n🚀 ═╡ KAKO NAPRAVITI KANAL ╞═ 🚀", value=(
-        f"➜ Uđi u voice kanal **🔊 Kreiraj svoj kanal** <#{JTC_VOICE_ID}>\n"
-        "➜ Bot će ti **automatski** napraviti privatni voice\n"
-        "➜ I **odmah** te prebaciti u njega\n"
-        "➜ Postaješ **vlasnik** 👑 i dobijaš kontrolni panel"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n🤝 ═╡ POŠTUJTE DRUGE ČLANOVE ╞═ 🤝", value=(
-        "🚫 Zabranjeno je vrijeđanje, maltretiranje i provociranje u voice kanalima\n"
-        "❌ Nema rasizma, diskriminacije i govora mržnje\n"
-        "🎙️ Ne prekidaj druge dok pričaju — sačekaj svoj red\n"
-        "🔇 Ne lupaj mikrofonom, ne puštaj glasnu pozadinsku muziku bez dozvole"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n👑 ═╡ VLASNIŠTVO KANALA ╞═ 👑", value=(
-        "🎛️ Samo vlasnik može koristiti kontrolni panel (Lock, Hide, Kick, itd.)\n"
-        "👥 Vlasnik je odgovoran za atmosferu u svom kanalu\n"
-        "🔁 Prije izlaska možeš prebaciti vlasništvo na drugog (`👑 Owner`)\n"
-        "⚖️ Vlasnik **NE smije** koristiti kontrole za maltretiranje (npr. spamovati Kick)"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n🔒 ═╡ LOCK / HIDE PRAVILA ╞═ 🔒", value=(
-        "🔐 Možeš zaključati ili sakriti kanal — to je **tvoje pravo**\n"
-        "🚷 Ali **nemoj** koristiti privatne kanale za zaobilaženje pravila servera\n"
-        "👮 Staff ima pristup svim kanalima zbog moderacije"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n🔞 ═╡ NEPRIKLADAN SADRŽAJ ╞═ 🔞", value=(
-        "🚫 Zabranjen NSFW sadržaj, govor i streaming u voice kanalima\n"
-        "🩸 Nema nasilnih, šokantnih ili uznemirujućih sadržaja\n"
-        "📋 Sva opšta pravila servera vrijede i u privatnim voice-ovima"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n📛 ═╡ IMENA KANALA ╞═ 📛", value=(
-        "✏️ Ime kanala mora biti pristojno\n"
-        "🚫 Zabranjena su uvredljiva, provokativna i NSFW imena\n"
-        "🛡️ Staff zadržava pravo da preimenuje ili obriše neprikladan kanal"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n🗑️ ═╡ AUTOMATSKO BRISANJE ╞═ 🗑️", value=(
-        "💨 Kad **svi izađu** iz kanala, bot ga **automatski briše**\n"
-        "💾 Ne brini o čišćenju — bot to radi za tebe\n"
-        "👑 Ako želiš da kanal ostane — prebaci vlasništvo prije izlaska"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n⚠️ ═╡ KAZNE ZA KRŠENJE ╞═ ⚠️", value=(
-        "Kršenje voice pravila može dovesti do sljedećih sankcija:\n\n"
-        "📌 `1.` ⚠️ Upozorenje *(warn)*\n"
-        "📌 `2.` 🔇 Voice mute na određeno vrijeme\n"
-        "📌 `3.` 🚫 Zabrana korištenja privatnih voice kanala\n"
-        "📌 `4.` 👢 Kick / 🔨 Ban sa servera"
-    ), inline=False)
-
-    e.add_field(name=f"{BAR}\n💫 ═╡ ZAVRŠNA RIJEČ ╞═ 💫", value=(
-        "🎧 Privatni voice kanali postoje da se družite, smijete i provedete kvalitetno vrijeme.\n"
-        "🤜🤛 Poštuj druge, čuvaj atmosferu i uživaj u GIANNI ekipi.\n\n"
-        "**✨ Sretno druženje! ✨**"
-    ), inline=False)
 
     if i.guild and i.guild.icon:
         e.set_thumbnail(url=i.guild.icon.url)
-    e.set_footer(text="🔊 GIANNI (Custom) • Voice Pravila", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
+    today_str = datetime.now(timezone.utc).strftime("%d. %B %Y. %H:%M")
+    e.set_footer(
+        text=f"🔵 {i.guild.member_count} članova  ·  /gian  ·  {today_str}",
+        icon_url=i.guild.icon.url if i.guild and i.guild.icon else None,
+    )
 
     try:
-        await i.channel.send(embed=e, view=VoiceCreateButton())
+        await i.channel.send(embed=e, view=VoicePravilaPanel())
         await i.followup.send(
             embed=em("✅ Postavljeno", "Voice pravila + dugme za kreiranje voice-a su objavljeni.", color=COLORS["success"]),
             ephemeral=True,
