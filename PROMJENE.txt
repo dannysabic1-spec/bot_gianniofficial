@@ -175,3 +175,16 @@ v3.4 — /vers ember sređen (manji + ljepši)
    • Samo: avatar + ime, blockquote sa stihovima
      između 🎙️ i 🎤, ljubičasti rub, mini footer.
    • Daleko elegantniji u chatu.
+
+══════════════════════════════════════════════
+  GIANNI v6 — Embedi (2025)
+══════════════════════════════════════════════
+
+- Uklonjen sep="" iz SVIH embeda (vatrice, aktivnost, level-up, pup) → čisto na mobilnom
+- Vatrice progress bar: 150 → 100 poruka (sinhronizovano sa VATRICA_PRAG)
+- /ping: latency bar (vizuelni), broj servera, korisnici, verzija
+- /serverinfo: emoji count, voice kanali odvojeno, boost tier, verifikacija, Discord timestamp, starost servera
+- /userinfo: starost naloga, Discord timestamp za join/kreiranje, status, top uloga bez @everyone
+- /aktivnost: set_author, % napredak, ukupno XP, cleaner layout (6 fieldova)
+- vatrice_pup: uklonjen {sep} iz desc stringa
+- post_pvc_info: uklonjen {sep} iz field value (bio bi NameError)

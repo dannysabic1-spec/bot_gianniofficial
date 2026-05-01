@@ -1,144 +1,120 @@
-════════════════════════════════════════════════════════════
-  GIANNI BOT — VERZIJA 2.2 (Mafia + Auto-Embed + Cloud Backup)
-════════════════════════════════════════════════════════════
+══════════════════════════════════════════════════════════════
+  GIANNI BOT — UPUTSTVO ZA NOVE PROMJENE
+  (auto-embed + Among Us + Mafia + Poker upgrade)
+══════════════════════════════════════════════════════════════
 
-ŠTA JE NOVO U OVOM UPLOADU
-──────────────────────────
+1) AUTO-EMBED (sve poruke bez embeda automatski dobijaju embed)
+───────────────────────────────────────────────────────────────
+   Pokriveno (monkey-patch ~linije 737–865):
+     • InteractionResponse.send_message
+     • InteractionResponse.edit_message
+     • Interaction.edit_original_response
+     • Webhook.send
+     • Messageable.send
+     • Message.edit
+     • Message.reply
+   Helper `_aembed_should_wrap()` preskače poruke koje već imaju
+   embed/file/view/modal/sticker/reference.
 
-  1) 🎭  NOVA IGRA: /mafia
-        - Lobby sa dugmadima (Pridruži se / Napusti / POKRENI / Otkaži)
-        - 4–12 igrača, automatska podjela uloga
-        - Uloge: 👨‍🌾 Civil, 🔪 Mafia, 🛡️ Doktor, 🕵️ Detektiv
-        - Noć (45s) → Jutro → Dan/diskusija (60s) → Glasanje (45s)
-        - Svaka faza je u embedu, sve akcije su klikom (ne kucaš ništa)
-        - DM-akcije za noćne uloge (mafia/doktor/detektiv)
-        - /mafia-stop → domaćin može prekinuti igru
+2) AMONG US — DINAMIČKI ZADACI (6 KATEGORIJA)
+───────────────────────────────────────────────────────────────
+   Nova funkcija: `generate_amogus_task(fake=False)` (~linija 3021)
+   Generiše random zadatak iz 6 kategorija:
+     🧮 math   — sabiranje/oduzimanje/množenje/dijeljenje
+     ⌨️ typing — RANDOM_KOMANDA_42 stringovi
+     🧩 logic  — niz brojeva po formuli (n², 2n, n+2n…)
+     🧠 memory — zapamti 4–6 cifara
+     ⚡ speed  — brza riječ (GO, FAST, ZAP…)
+     🔧 repair — sastavi ispremještanu riječ (KABEL, REAKTOR…)
 
-  2) 🎨  AUTO-EMBED ZAŠTITA
-        - Sve plain-text poruke koje bot šalje sada se AUTOMATSKI
-          umotavaju u embed sa odgovarajućom bojom
-        - Ništa na serveru više nije "providno"
-        - Boje:
-              ❌  → crvena (greška)
-              ⚠️  → žuta (upozorenje)
-              ✅  → zelena (uspjeh)
-              🔒  → ljubičasta
-              💶  → zlatna
-              ostalo → plava (info)
+   LAŽNI ZADACI ZA IMPOSTORE:
+     Impostori dobijaju zadatke koji izgledaju identično, ali NE
+     povećavaju globalni progress bar kad se "završe". Tako mogu
+     glumiti rad i obmanjivati crewmate-e.
 
-  3) 🗑️  UKLONJENE KOMANDE (oslobađa Discord limit za /mafia)
-        - /pozz
-        - /flip
-        - /8ball
+   Progress bar (postojeći `_task_bar`) i dalje pokazuje
+   `🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜  6/24` u glavnom embedu igre.
 
-  4) 💾  DISCORD CLOUD BACKUP (vatrice/tiket/brojanje preživi sve)
-        - Već implementirano u prošlom uploadu
-        - Sjeti se da postaviš BACKUP_CHANNEL_ID env varijablu
-        - Detalje vidi niže
+3) MAFIA — 2 NOVE ULOGE
+───────────────────────────────────────────────────────────────
+   👮 ŠERIF (od 6+ igrača)
+     • Ima 1 hitac za cijelu igru.
+     • Noću dobija DM s metom (ili može preskočiti).
+     • Pogodi mafiju → eliminira je.
+     • Pogodi civila → ŠERIF SAM UMIRE od kazne!
+     • Hitac NE može blokirati doktor.
 
+   🃏 ŠALJIVDŽIJA / JESTER (od 8+ igrača)
+     • Cilj: BUDI IZGLASAN na danu!
+     • Ako ga linčuju → ON pobjeđuje, igra se završava.
+     • Inače je obična meta.
 
-═════════════════════════════════════════
-  POŠTOVANJE DISCORD PRAVILA — ŠTA SE PREPORUČUJE
-═════════════════════════════════════════
+   Dodatno:
+     • Jutro embed sad ima polje 📊 Stanje (broj živih).
+     • Lobby embed prikazuje sve nove uloge.
 
-Tvoj bot tehnički NE krši nijedno Discord pravilo, ali da
-SERVER bude 100% siguran od ban-a, dodaj ovo:
+4) POKER — RAISE + ALL-IN
+───────────────────────────────────────────────────────────────
+   Nove akcije u toku igre (PokerActionView):
+     💰 Raise — modal za unos iznosa, oduzima sa računa,
+                dodaje u pot, resetuje needs_action svima ostalim
+     🔥 ALL-IN — bacaš cijeli balans u pot odjednom
+   Min raise: 10 💶. Provjerava balans prije akcije.
 
-📋 NA SERVER:
-  • Kanal #pravila — jasno napisana pravila (Bosanski + EN)
-        - Min. dob 13 godina (Discord ToS)
-        - Bez govora mržnje, bullying-a, doxxing-a
-        - Bez NSFW van NSFW-označenih kanala
-        - Bez scam linkova / phishinga / crypto prevara
-  • Kanal #prijave-staff sa /prijava komandom (već imaš tiket sistem)
-  • Kanal #pravila-mafia (ako je server posvećen Mafia igri):
-        - "Ne otkrivaj svoju ulogu drugim igračima preko DM-a"
-        - "Ghosting (mrtvi pričaju u game) = ban iz igre"
-        - "Voting mora biti aktivan — ko ne glasa 3 puta dobija mute"
-  • Kanali #lobby, #game, #dead-chat (opcionalno za Mafia atmosferu)
-  • Verifikaciju: koristi #pravila + reaction-role (već u botu)
+5) ŠTO NE TREBA DIRATI
+───────────────────────────────────────────────────────────────
+   • oleun_data.json (postojeći podaci ostaju netaknuti)
+   • COG/komande izvan navedenih nisu mijenjane
 
-⚙️ U BOTU (već imaš ili dodaj):
-  • Anti-Nuke (već aktivno) ✓
-  • Anti-Invite (već aktivno) ✓
-  • Auto-Backup (već aktivno) ✓
-  • Aktivni moderatori sa ban/kick rolama
-  • Slow mode na javnim kanalima
+══════════════════════════════════════════════════════════════
+   Pokretanje:
+     pip install -r requirements.txt
+     python bot.py
+══════════════════════════════════════════════════════════════
 
+══════════════════════════════════════════════════════════════
+  NOVO (v3) — COOLDOWN ZA IGRE + GIVEAWAY U POZADINI
+══════════════════════════════════════════════════════════════
 
-═════════════════════════════════════════
-  POSTAVKA CLOUD BACKUP-a (URADI SAMO JEDNOM)
-═════════════════════════════════════════
+5) PER-USER COOLDOWN 30 MIN za /amogus, /mafia, /poker
+───────────────────────────────────────────────────────────────
+   • Svaki regularan član (ne admin/owner) može pokrenuti
+     SVAKU od ove tri igre jednom u 30 minuta.
+   • Cooldown se broji ZASEBNO po komandi (može pokrenuti
+     amogus, pa mafia, pa poker u istih 5 sekundi).
+   • Owner i član s `Manage Messages` permission ZAOBILAZE.
+   • Ako se pokuša prije isteka, ide ephemeral poruka:
+       "⏳ Cooldown — sačekaj!
+        Možeš ponovo pokrenuti /amogus za 12m 34s."
+   • Konstanta: GAME_USER_COOLDOWN_SEC = 30 * 60
+   • Helperi: _is_game_admin / _check_game_cooldown /
+     _set_game_cooldown / _send_cooldown_msg
 
-1) NAPRAVI PRIVATNI KANAL "#bot-backup"
-   - Sakrij od svih osim tebe i bota
-   - Botu daj: View, Send, Attach Files, Read History
-   - Desni klik na kanal → "Copy Channel ID"
-     (uključi Developer Mode u Discord settings)
+6) GIVEAWAY — POZADINSKI TIMER (NE ZAMRZAVA)
+───────────────────────────────────────────────────────────────
+   • PROBLEM PRIJE: /giveaway start je čekao `await sleep(min*60)`
+     unutar same komande → interaction context je visio,
+     a nakon restarta bi se "zaledio".
+   • SAD: nakon slanja embeda timer ide kroz
+     `asyncio.create_task(_gw_timer(...))` — komanda se ZATVARA
+     odmah, a giveaway radi u pozadini.
+   • Restart: već postojeći recovery (~linije 1003-1037) detektuje
+     aktivne giveaway-ove iz `data["active_giveaways"]` i nastavlja
+     ih kroz background task — preživljava upload/restart.
+   • EMBED sad pokazuje:
+       🕒 Trajanje:  `1h 30min` (90 min)
+       👥 Učesnici:  `0`
+       🎟️ Domaćin:   @host
+       📅 Završava:  <full datum> + ⏰ <relativno (za X min/h)>
+   • Validacija: minuta mora biti 1..20160 (max 14 dana).
+   • Helper: `_gw_fmt_duration(min)` → "Xh Ymin" string.
+   • `/reset-gw` također radi u pozadini (worker `_reset_gw_worker`)
+     — 5 min countdown se ne zaglavi ni nakon restarta workflow-a.
 
-2) NA HOSTINGU DODAJ ENV VARIJABLU:
-       BACKUP_CHANNEL_ID = <ID koji si kopirao>
-
-3) UPLOADAJ NOVI bot.py iz ovog zipa
-
-4) RESTARTUJ BOTA
-   - Nakon ~90s vidjećeš prvi backup u kanalu
-   - Od tog trenutka VATRICE / TIKET / BROJANJE
-     preživljavaju sve buduće uploadove
-
-5) (opciono) Otkucaj /backup-now da forsiraš odmah
-
-
-═════════════════════════════════════════
-  KOMANDE (vlasnik bota)
-═════════════════════════════════════════
-
-  /backup-now        — odmah pošalji backup u kanal
-  /backup-restore    — vrati zadnji backup sa Discorda
-  /backup-status     — gdje se backup šalje, kad je zadnji bio
-
-
-═════════════════════════════════════════
-  KAKO SE IGRA /mafia
-═════════════════════════════════════════
-
-1) Domaćin u nekom tekstualnom kanalu otkuca:  /mafia
-2) Pojavi se LOBBY embed sa dugmadima
-3) Igrači klikaju "Pridruži se" (treba min. 4, max 12)
-4) Domaćin klikne "POKRENI"
-5) Bot pošalje SVAKOM igraču u DM njegovu ulogu
-6) NOĆ — Mafia/Doktor/Detektiv dobijaju u DM dropdown
-        i biraju kome rade akciju (45s)
-7) JUTRO — bot u kanalu objavi ko je umro (ili je doktor spasio)
-8) DAN — 60s diskusije
-9) GLASANJE — embed sa dropdownom za glasanje (45s)
-10) Krug se ponavlja dok mafia ili civili ne pobijede
-
-VAŽNO: igračima koji su mrtvi → bot više ne šalje akcije.
-Mafia pobjeđuje kad ima ≥ broja civila.
-Civili pobjeđuju kad sve mafije ubiju.
-
-Domaćin može prekinuti igru sa: /mafia-stop
-
-
-════════════════════════════════════════════════════════════
-  AKO NEŠTO NE RADI
-════════════════════════════════════════════════════════════
-
-❓ "/mafia ne pojavljuje se u listi komandi"
-   → Discord komande se sinhronizuju automatski na startu
-     (smart sync). Sačekaj 1-2 minute nakon restarta.
-   → Ako i dalje ne, otkucaj /sync (vlasnik komanda).
-
-❓ "Igrač ne dobija DM sa ulogom"
-   → Igrač ima isključene DM-ove od server članova.
-   → Mora da omogući: Server Settings → Privacy →
-     "Allow direct messages from server members"
-
-❓ "Bot ne šalje backup u kanal"
-   → Otkucaj /backup-status — pokaže šta fali.
-   → Provjeri env var BACKUP_CHANNEL_ID i bot dozvole.
-
-❓ "Vidim providnu poruku"
-   → Ne bi trebalo postojati u v2.2.
-   → Ako vidiš, screenshot pošalji.
+7) FIX UPLOAD/RESTART — bez grešaka
+───────────────────────────────────────────────────────────────
+   • Decoratori giveaway-a su provjereni (reset-gw je morao biti
+     fixan jer su decoratori bili na pomoćnoj funkciji).
+   • Sve game komande prvo provjere cooldown PRIJE bilo kakvog
+     stanja, pa nema curenja state-a kad se odbije.
+   • Sintaksa validirana sa `python3 -m ast` — 9586 linija.
