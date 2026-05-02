@@ -75,6 +75,101 @@ def _gianni_to_dict(self):
 
 discord.Embed.to_dict = _gianni_to_dict
 
+# ═══════════════════════════════════════════
+#    🎨 CUSTOM EMOJII (Application Emojis)
+# ═══════════════════════════════════════════
+import random as _ce_random
+CE = {
+    "VATRICE":       "<a:VATRICE:1496898836155596962>",
+    "aktivnost":     "<a:aktivnost:1500203557134270534>",
+    "aktivnost1":    "<a:aktivnost1:1500203403362435234>",
+    "aktivnost2":    "<a:aktivnost2:1500203392729878538>",
+    "giveaways1":    "<a:giveaways1:1500203932482273374>",
+    "giveaways2":    "<a:giveaways2:1500203929743659150>",
+    "giveaways3":    "<a:giveaways3:1500203918771228732>",
+    "giveaways4":    "<a:giveaways4:1500203908646305874>",
+    "giveaways5":    "<a:giveaways5:1500203902446997586>",
+    "sviemberi1":    "<a:sviemberi1:1500203327668092928>",
+    "sviemberi2":    "<a:sviemberi2:1500203314736926750>",
+    "sviemberi3":    "<a:sviemberi3:1500203301583454399>",
+    "sviemberi4":    "<a:sviemberi4:1500203287516020886>",
+    "sviemberi5":    "<a:sviemberi5:1500203273830006964>",
+    "sviemberi6":    "<a:sviemberi6:1500203259753926816>",
+    "sviemberi7":    "<a:sviemberi7:1500203246310920422>",
+    "sviemberi8":    "<a:sviemberi8:1500203231945687071>",
+    "sviemberi9":    "<a:sviemberi9:1500203211158720522>",
+    "poljubac":      "<a:poljubac:1500203685450617032>",
+    "mazi":          "<a:mazi:1500203682199896245>",
+    "zagrljaj":      "<a:zagrljaj:1500203677917511741>",
+    "kaladont1":     "<a:kaladont1:1500207407710863611>",
+    "kaladont2":     "<a:kaladont2:1500207404887969954>",
+    "kaladont3":     "<a:kaladont3:1500207401956278494>",
+    "kaladont4":     "<a:kaladont4:1500207399926108212>",
+    "kaladont5":     "<a:kaladont5:1500207397841666098>",
+    "kaladont6":     "<a:kaladont6:1500207395350249543>",
+    "kaladont7":     "<a:kaladont7:1500207392715968724>",
+    "kaladont8":     "<a:kaladont8:1500207389750853662>",
+    "kaladont9":     "<a:kaladont9:1500207387607433276>",
+    "kaladont10":    "<a:kaladont10:1500207385422073906>",
+    "kaladont11":    "<a:kaladont11:1500207383148888136>",
+    "kaladont12":    "<a:kaladont12:1500207380926042122>",
+    "kaladont13":    "<a:kaladont13:1500207378975559820>",
+    "kaladont14":    "<a:kaladont14:1500207376857563317>",
+    "kaladont15":    "<a:kaladont15:1500207374529597561>",
+    "kaladont16":    "<a:kaladont16:1500207371279011870>",
+    "kaladont17":    "<a:kaladont17:1500207368502251701>",
+    "kaladont18":    "<a:kaladont18:1500207366233129243>",
+    "kaladont19":    "<a:kaladont19:1500207364194832564>",
+    "kaladont20":    "<a:kaladont20:1500207361875382384>",
+    "kaladont21":    "<a:kaladont21:1500207359497081022>",
+    "kaladont22":    "<a:kaladont22:1500207357169238119>",
+    "kaladont23":    "<a:kaladont23:1500207355172880405>",
+    "kaladont24":    "<a:kaladont24:1500207353004425408>",
+    "kaladont25":    "<a:kaladont25:1500207350332653871>",
+    "kaladont27":    "<a:kaladont27:1500207348323582062>",
+    "kaladont28":    "<a:kaladont28:1500207346155257907>",
+    "kaladont29":    "<a:kaladont29:1500207344238203040>",
+    "admin":         "<a:52761admin:1496899031786459356>",
+    "arrowwhite":    "<a:51047animatedarrowwhite:1496899028976271470>",
+    "animedance":    "<a:50033animedance:1496899014766100500>",
+    "fondator":      "<a:39254fondator:1496898988065161226>",
+    "support":       "<a:10813support:1496898788370153693>",
+    "arroworange":   "<a:28079animatedarroworange:1496898931790057472>",
+    "arrowyellow":   "<a:15770animatedarrowyellow:1496898815502844025>",
+    "arrowpink":     "<a:15072animatedarrowpink2:1496898801556914236>",
+    "spam":          "<a:6988spam:1496898563131838505>",
+    "neoncherry":    "<a:58390neoncherry:1496898560082448565>",
+    "neonbunny":     "<a:776894neonbunny:1496898553291739277>",
+    "star":          "<a:849049starids:1496899463174946998>",
+    "sparkles":      "<a:793429sparkles:1496899433634201611>",
+    "butterfly":     "<a:15848butterfly:1496898819114270922>",
+    "blueneonstar":  "<a:40197blueneonstar:1496898993395859457>",
+    "blueglittermoon": "<a:39466blueglittermoon:1496898990082363524>",
+    "bloodmoon":     "<a:822858bloodmoon:1496899456728305896>",
+    "sparklyheart":  "<a:819237sparklyheart:1496899454538747996>",
+    "pinkhearts":    "<a:817359pinkhearts:1496899451535757362>",
+    "pastelhearts":  "<a:823826pastelhearts:1496899458661875732>",
+    "rubine":        "<a:24526rubine:1496898918292652102>",
+    "wings":         "<a:772466wings1:1496899429133975592>",
+    "redphoenix":    "<a:768331redphoenix:1496899421214867607>",
+    "redspiral":     "<a:913210redspiral:1496899506950766614>",
+    "sparkle13":     "<a:911479sparkle13:1496899502890684506>",
+}
+
+def _ce_sv():
+    """Vrati random sviemberi emoji kao separator."""
+    return _ce_random.choice([CE[f"sviemberi{i}"] for i in range(1, 10)])
+
+def _ce_gw():
+    """Vrati random giveaway emoji."""
+    return _ce_random.choice([CE[f"giveaways{i}"] for i in range(1, 6)])
+
+def _ce_kal():
+    """Vrati random kaladont emoji."""
+    _keys = [k for k in CE if k.startswith("kaladont")]
+    return _ce_random.choice([CE[k] for k in _keys])
+
+
 JOBS = [
     "Radio si kao konobar 🍺", "Čuvao si baku 🧓", "Prodavao ćevape 🥙",
     "Vozio si taksi 🚕", "Radio si na građevini 🏗️", "Popravljao auta 🔧",
@@ -1842,11 +1937,12 @@ async def on_member_join(member):
 
     # ── Divider ──
     
+    _sv1 = _ce_sv(); _sv2 = _ce_sv(); _sv3 = _ce_sv()
     desc = (
-        f"## 🎊  Dobrodošao/la, {member.mention}!\n"
+        f"{_sv1} **Dobrodošao/la, {member.mention}!** {_sv2}\n"
                 f"{personal}\n\n"
                 f"🔗  **discord.gg/gian**  ·  👥 Si nam **#{member.guild.member_count}**. član!\n\n"
-        f"> ✦ **Gdje početi?** — *klikni dugmad ispod ⬇️*"
+        f"{_sv3} **Gdje početi?** — *klikni dugmad ispod ⬇️*"
     )
 
     WELCOME_GIFS = [
@@ -1867,7 +1963,7 @@ async def on_member_join(member):
         name=f"✦ GIANNI Community — Nova Akvizicija! ✦",
         icon_url=member.guild.icon.url if member.guild.icon else None
     )
-    e.set_thumbnail(url=member.display_avatar.url)
+    e.set_thumbnail(url=random.choice(WELCOME_GIFS))
     e.add_field(
         name="😄  Šala dobrodošlice",
         value=sala,
@@ -1888,7 +1984,6 @@ async def on_member_join(member):
         value=f"**{acct_days} dana**",
         inline=True
     )
-    e.set_image(url=random.choice(WELCOME_GIFS))
     e.set_footer(
         text=f"GIANNI (Custom) • Dobrodošlica  |  discord.gg/gian",
         icon_url=member.display_avatar.url
@@ -2233,7 +2328,7 @@ async def on_message(message):
                 lvl_ch_id = cfg_v.get("levelup_channel") or cfg_v.get("aktivnost_channel") or 1494043957242495107
                 lvl_ch = message.guild.get_channel(lvl_ch_id) or message.channel
                 desc = (
-                    f"🎉 Čestitamo {message.author.mention}!\n"
+                    f"{_ce_sv()} Čestitamo {message.author.mention}!\n"
                     f"Dostigao/la si **`★ LEVEL {novi_lvl} ★`**\n"
                     f"💬 **+100 XP** • {vemoji} **+{awarded} vatrica**\n"
                     f"📨 Sljedeći level: još `100` poruka!\n"
@@ -2242,14 +2337,14 @@ async def on_message(message):
                     desc += f"🏷️ **Otključana uloga:** {new_role.mention}\n"
                 desc += f"\n📊 Provjeri statistiku sa `/aktivnost` ili `/rank`"
                 lv_em = discord.Embed(
-                    title="🌟 ʟᴇᴠᴇʟ ᴜᴘ! 🌟",
+                    title=f"{CE['sparkles']} ʟᴇᴠᴇʟ ᴜᴘ! {CE['sparkles']}",
                     description=desc,
                     color=0xFFD700,
                     timestamp=datetime.now(timezone.utc)
                 )
                 lv_em.set_thumbnail(url=message.author.display_avatar.url)
                 lv_em.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)
-                lv_em.set_footer(text=f"⚡ {BOT_NAME} • XP Sistem (svakih 100 poruka)")
+                lv_em.set_footer(text=f"{_ce_sv()} {BOT_NAME} • XP Sistem (svakih 100 poruka)")
                 if lvl_ch.id == message.channel.id:
                     await lvl_ch.send(content=message.author.mention, embed=lv_em, delete_after=15)
                 else:
@@ -3134,7 +3229,7 @@ async def aktivnost(i: discord.Interaction, korisnik: discord.Member = None):
         f"⏳ Još **`{do_sljedeceg}`** poruka!"
     )
     e = discord.Embed(
-        title=f"📊 Aktivnost — {u.display_name}",
+        title=f"{CE['aktivnost']} Aktivnost — {u.display_name}",
         description=desc,
         color=0xFFA500,
         timestamp=datetime.now(timezone.utc)
@@ -3144,10 +3239,10 @@ async def aktivnost(i: discord.Interaction, korisnik: discord.Member = None):
     e.add_field(name="🏆 Level",    value=f"```fix\n★ {lvl} ★\n```",             inline=True)
     e.add_field(name="⭐ XP",       value=f"```py\n{xp:,}\n```",                  inline=True)
     e.add_field(name="💬 Poruke",   value=f"```css\n{msgs:,}\n```",               inline=True)
-    e.add_field(name="🔥 Vatrice",  value=f"```yaml\n{vat}\n```",                 inline=True)
+    e.add_field(name=f"{CE['VATRICE']} Vatrice",  value=f"```yaml\n{vat}\n```",                 inline=True)
     e.add_field(name="📊 Ukupno XP",value=f"```fix\n{msgs * 100:,}\n```",        inline=True)
     e.add_field(name="📈 Formula",  value="```ini\n[100 poruka = LVL + vatrica]\n```", inline=True)
-    e.set_footer(text=f"⚡ {BOT_NAME} • XP Sistem")
+    e.set_footer(text=f"{_ce_sv()} {BOT_NAME} • XP Sistem {_ce_sv()}")
     await i.response.send_message(embed=e)
 
 # ═══════════════════════════════════════════
@@ -3275,18 +3370,42 @@ async def kpm(i: discord.Interaction):
 async def slots(i: discord.Interaction):
     await i.response.defer()
     await asyncio.sleep(1)
-    symbols = ["🍒","🍋","🍊","🍇","💎","7️⃣","⭐","🔔"]
-    reels = [random.choice(symbols) for _ in range(3)]
+    SLOTS_EMOJIS = {
+        "slots":   "<a:slots:1500204041307689063>",
+        "slots0":  "<a:slots0:1500204038057099305>",
+        "slots1":  "<a:slots1:1500204036786229389>",
+        "slots2":  "<a:slots2:1500204035385589780>",
+        "slots3":  "<a:slots3:1500204033330118821>",
+        "slots4":  "<a:slots4:1500204031757385728>",
+        "slots5":  "<a:slots5:1500204030272471090>",
+        "slots6":  "<a:slots6:1500204028817047592>",
+        "slots7":  "<a:slots7:1500204026954780773>",
+        "slots8":  "<a:slots8:1500204025151230063>",
+        "slots9":  "<a:slots9:1500204021645053993>",
+        "slots10": "<a:slots10:1500204019895894088>",
+        "slots11": "<a:slots11:1500204017748410389>",
+        "slots12": "<a:slots12:1500204015777091825>",
+        "slots13": "<a:slots13:1500204013428146298>",
+        "slots14": "<a:slots14:1500204010970546298>",
+        "slots15": "<a:slots15:1500204009288634408>",
+        "slots16": "<a:slots16:1500204007652851862>",
+        "slots17": "<a:slots17:1500204006230855860>",
+        "slots18": "<a:slots18:1500204003856748564>",
+    }
+    JACKPOT_SYMBOLS = {"slots0", "slots5", "slots8", "slots18"}
+    symbols = list(SLOTS_EMOJIS.keys())
+    keys = [random.choice(symbols) for _ in range(3)]
+    reels = [SLOTS_EMOJIS[k] for k in keys]
     d = get_economy(i.user.id)
-    if reels[0]==reels[1]==reels[2]:
-        reward = 1500 if reels[0] in ("💎","7️⃣") else 600
+    if keys[0]==keys[1]==keys[2]:
+        reward = 2000 if keys[0] in JACKPOT_SYMBOLS else 700
         res, color = f"🎉 JACKPOT! `+{reward} 💶`", COLORS["gold"]; d["balance"] += reward
-    elif reels[0]==reels[1] or reels[1]==reels[2]:
-        reward = 80; res, color = f"✨ Dobitak! `+{reward} 💶`", COLORS["success"]; d["balance"] += reward
+    elif keys[0]==keys[1] or keys[1]==keys[2] or keys[0]==keys[2]:
+        reward = 100; res, color = f"✨ Dobitak! `+{reward} 💶`", COLORS["success"]; d["balance"] += reward
     else:
         loss = 25; res, color = f"😢 Prazno. `-{loss} 💶`", COLORS["error"]; d["balance"] = max(0, d["balance"]-loss)
     save_data()
-    await i.followup.send(embed=em("🎰 Slot Mašina", f"**{' ║ '.join(reels)}**", color=color, fields=[
+    await i.followup.send(embed=em("🎰 Slot Mašina", f"** {' ║ '.join(reels)} **", color=color, fields=[
         ("🎯 Rezultat", res, False), ("🏦 Balans", f"`{d['balance']:,} 💶`", True),
     ]))
 
@@ -3336,7 +3455,7 @@ class VjesalaView(discord.ui.View):
     def make_embed(self, title=None, color=None):
         wrong_letters = [l for l in sorted(self.guessed) if l not in self.word]
         right_letters = [l for l in sorted(self.guessed) if l in self.word]
-        t = title or "🎮 Vješala"
+        t = title or f"🎮 Vješala {_ce_kal()}"
         c = color or COLORS["balkan"]
         e = discord.Embed(title=t, color=c, timestamp=datetime.now(timezone.utc))
         e.add_field(name="🔤 Riječ", value=f"`{self.display_word()}`", inline=False)
@@ -6301,15 +6420,15 @@ async def giveaway_start(i: discord.Interaction, nagrada: str, minuta: int = 60,
     end_ts = int(end.timestamp())
     duration_txt = _gw_fmt_duration(minuta)
     e = discord.Embed(
-        title="🎉 NAGRADNA IGRA!",
-        description=f"## 🏆  {nagrada}\n\nKlikni dugme **🎉 Učestvuj** da se prijaviš!",
+        title=f"{_ce_gw()} NAGRADNA IGRA! {_ce_gw()}",
+        description=f"## {CE['star']}  {nagrada}\n\n{_ce_sv()} Klikni dugme **🎉 Učestvuj** da se prijaviš! {_ce_sv()}",
         color=COLORS["gold"], timestamp=end
     )
     e.add_field(name="🕒 Trajanje",  value=f"`{duration_txt}` ({minuta} min)",       inline=True)
     e.add_field(name="👥 Učesnici",  value="`0`",                                    inline=True)
     e.add_field(name="🎟️ Domaćin",   value=i.user.mention,                           inline=True)
     e.add_field(name="📅 Završava",  value=f"<t:{end_ts}:F>\n⏰ <t:{end_ts}:R>",     inline=False)
-    e.set_footer(text=f"Završava se automatski • {BOT_NAME}")
+    e.set_footer(text=f"{_ce_sv()} Završava se automatski • {BOT_NAME}")
     await i.response.send_message(
         embed=em("✅ Pokrenuto!",
                  f"Nagradna igra **{nagrada}** poslata u {chan.mention}.\n🕒 Trajanje: **{duration_txt}**\n📅 Kraj: <t:{end_ts}:F>",
@@ -6350,8 +6469,8 @@ async def _end_giveaway(msg_id, channel):
     winner_id = random.choice(list(ga["entrants"]))
     winner    = channel.guild.get_member(winner_id)
     e = discord.Embed(
-        title="🎉 Nagradna igra ZAVRŠENA!",
-        description=f"## 🏆 {ga['prize']}\n\n🥳 Pobjednik: **{winner.mention if winner else f'<@{winner_id}>'}**!",
+        title=f"{CE['sparkles']} Nagradna igra ZAVRŠENA! {CE['sparkles']}",
+        description=f"## {CE['star']} {ga['prize']}\n\n{CE['animedance']} Pobjednik: **{winner.mention if winner else f'<@{winner_id}>'}**! {_ce_sv()}",
         color=COLORS["gold"], timestamp=datetime.now(timezone.utc)
     )
     e.add_field(name="👥 Učesnici", value=f"`{len(ga['entrants'])}`", inline=True)
@@ -6371,15 +6490,15 @@ async def _reset_gw_worker(chan: discord.TextChannel, host: discord.Member, nagr
         end    = datetime.now(timezone.utc) + timedelta(minutes=60)
         end_ts = int(end.timestamp())
         ga_e = discord.Embed(
-            title="🎉 NAGRADNA IGRA!",
-            description=f"## 🏆  {nagrada}\n\nKlikni dugme **🎉 Učestvuj** da se prijaviš!",
+            title=f"{_ce_gw()} NAGRADNA IGRA! {_ce_gw()}",
+            description=f"## {CE['star']}  {nagrada}\n\n{_ce_sv()} Klikni dugme **🎉 Učestvuj** da se prijaviš! {_ce_sv()}",
             color=COLORS["gold"], timestamp=end
         )
         ga_e.add_field(name="🕒 Trajanje",  value="`1h` (60 min)",               inline=True)
         ga_e.add_field(name="👥 Učesnici", value="`0`",                          inline=True)
         ga_e.add_field(name="🎟️ Domaćin", value=host.mention,                   inline=True)
         ga_e.add_field(name="📅 Završava", value=f"<t:{end_ts}:F>\n⏰ <t:{end_ts}:R>", inline=False)
-        ga_e.set_footer(text=f"Završava se automatski • {BOT_NAME}")
+        ga_e.set_footer(text=f"{_ce_sv()} Završava se automatski • {BOT_NAME}")
         msg = await chan.send(embed=ga_e)
         ga = {"entrants": set(), "prize": nagrada, "channel_id": chan.id,
               "msg_id": msg.id, "end_at": end.timestamp(), "guild_id": chan.guild.id}
@@ -7916,13 +8035,13 @@ async def _post_vatrice_objava(guild: discord.Guild, davalac: discord.Member | N
     # naslov sa malo "milestone" osjećaja
     if novi == 1:
         naslov = f"{emoji} ᴘʀᴠᴀ ᴠᴀᴛʀɪᴄᴀ! {emoji}"
-        cestit = f"🎉 Dobrodošao/la u vatreni klub, {primalac.mention}!"
+        cestit = f"{CE['zagrljaj']} Dobrodošao/la u vatreni klub, {primalac.mention}! {CE['animedance']}"
     elif novi % 10 == 0:
         naslov = f"{emoji}{emoji}{emoji}  ᴍɪʟᴇsᴛᴏɴᴇ — {novi} ᴠᴀᴛʀɪᴄᴀ!  {emoji}{emoji}{emoji}"
-        cestit = f"🔥 Bravo {primalac.mention} — okrugla brojka **{novi}**!"
+        cestit = f"{CE['sparkles']} Bravo {primalac.mention} — okrugla brojka **{novi}**! {_ce_sv()}"
     else:
         naslov = f"{emoji} ɴᴏᴠᴀ ᴠᴀᴛʀɪᴄᴀ! {emoji}"
-        cestit = f"🎉 Čestitamo {primalac.mention}!"
+        cestit = f"{_ce_sv()} Čestitamo {primalac.mention}!"
 
     if davalac:
         izvor_line = f"🎁 Vatricu poklonio: {davalac.mention}"
@@ -8086,7 +8205,7 @@ async def vatrice_pup(i: discord.Interaction):
     )
 
     desc = (
-        f"**🏆 PODIJ NAJVATRENIJIH** {emoji}\n"
+        f"**🏆 PODIJ NAJVATRENIJIH** {emoji} {_ce_sv()}\n"
         f"{podij_block}\n"
     )
     if ostali_lines:
