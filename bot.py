@@ -3070,10 +3070,8 @@ async def slots(i: discord.Interaction, ulog: int = 100):
         )
 
     await i.response.defer()
-    await asyncio.sleep(1)
 
     # ─── Simboli i težine ───────────────────────────────────────────────
-    # (simbol, težina, jackpot_multi, pair_multi)
     SLOT_DATA = [
         ("🍒", 22, 3.0,  0.5),
         ("🍋", 20, 3.5,  0.6),
@@ -3089,27 +3087,71 @@ async def slots(i: discord.Interaction, ulog: int = 100):
     jackpot_multi = {s[0]: s[2] for s in SLOT_DATA}
     pair_multi    = {s[0]: s[3] for s in SLOT_DATA}
 
+    # Unaprijed izaberi krajnji rezultat
     reels = random.choices(symbols_list, weights=weights, k=3)
     sym   = reels[0]
 
+    # ─── Animacija ──────────────────────────────────────────────────────
+    SPIN = "🎰"  # simbol vrtnje
+    def _sr(): return random.choice(symbols_list)  # random simbol za vrtnju
+
+    def _spin_embed(r1, r2, r3, subtitle="🎰  Vrte se..."):
+        desc = (
+            f"┌─────────────────────┐\n"
+            f"│  {r1}  │  {r2}  │  {r3}  │\n"
+            f"└─────────────────────┘"
+        )
+        e = discord.Embed(
+            title=f"🎰  S L O T  M A Š I N A",
+            description=desc,
+            color=0xF1C40F,
+            timestamp=datetime.now(timezone.utc)
+        )
+        e.add_field(name="💰 Ulog", value=f"`{ulog:,} 💶`", inline=True)
+        e.add_field(name="⏳ Status", value=subtitle, inline=True)
+        e.set_footer(text=f"{i.user.display_name} • {BOT_NAME}")
+        return e
+
+    # Frame 0 — sve se vrte
+    msg = await i.followup.send(embed=_spin_embed(_sr(), _sr(), _sr()), wait=True)
+
+    # Frame 1-2 — sve se vrte (random)
+    for _ in range(2):
+        await asyncio.sleep(0.55)
+        try: await msg.edit(embed=_spin_embed(_sr(), _sr(), _sr()))
+        except: pass
+
+    # Frame 3 — prvi valjak staje
+    await asyncio.sleep(0.65)
+    try: await msg.edit(embed=_spin_embed(reels[0], _sr(), _sr(), f"🔒 Stao: {reels[0]}"))
+    except: pass
+
+    # Frame 4 — drugi valjak staje
+    await asyncio.sleep(0.7)
+    try: await msg.edit(embed=_spin_embed(reels[0], reels[1], _sr(), f"🔒 Stao: {reels[0]} {reels[1]}"))
+    except: pass
+
+    # Frame 5 — treći valjak staje (kratka pauza za dramski efekat)
+    await asyncio.sleep(0.75)
+
     # ─── Odluka ─────────────────────────────────────────────────────────
     if reels[0] == reels[1] == reels[2]:
-        # JACKPOT — sva tri ista
         multiplier = jackpot_multi[sym]
         win        = int(ulog * multiplier)
         net        = win - ulog
         d["balance"] += net
         color = COLORS["gold"]
         if sym in ("💎", "7️⃣"):
-            title  = "💎 MEGA JACKPOT! 💎"
+            title  = "💎  M E G A  J A C K P O T  💎"
             result = f"🤑 **+{win:,} 💶** *(×{multiplier:.0f})*"
+            footer_extra = "🏆 NEVJEROVATAN POGODAK!"
         else:
-            title  = "🎉 JACKPOT! 🎉"
+            title  = "🎉  J A C K P O T  🎉"
             result = f"🎊 **+{win:,} 💶** *(×{multiplier:.1f})*"
+            footer_extra = "Sva tri ista!"
         outcome = "jackpot"
 
     elif reels[0] == reels[1] or reels[1] == reels[2]:
-        # PAR — dva ista
         mid        = reels[1]
         multiplier = pair_multi[mid]
         win        = int(ulog * multiplier)
@@ -3117,63 +3159,69 @@ async def slots(i: discord.Interaction, ulog: int = 100):
         if net >= 0:
             d["balance"] += net
             color  = COLORS["success"]
-            title  = "✨ Dobitak!"
+            title  = "✨  D O B I T A K  ✨"
             result = f"💚 **+{win:,} 💶** *(×{multiplier:.1f})*"
         else:
             d["balance"] = max(0, d["balance"] + net)
             color  = COLORS["warning"]
-            title  = "😬 Mali gubitak"
+            title  = "😬  M A L I  G U B I T A K"
             result = f"🟡 **{net:,} 💶** *(×{multiplier:.1f})*"
+        footer_extra = "Dva ista simbola — par!"
         outcome = "pair"
 
     else:
-        # NIŠTA — gubitak cijelog uloga
         d["balance"] = max(0, d["balance"] - ulog)
         color  = COLORS["error"]
-        title  = "💸 Ništa..."
+        title  = "💸  N I Š T A . . ."
         result = f"❌ **−{ulog:,} 💶**"
+        footer_extra = "Nema sreće ovaj put."
         outcome = "loss"
 
     save_data()
 
-    # ─── Opis ishoda ─────────────────────────────────────────────────────
+    # ─── Finalni embed sa svim stavljenim valjcima ────────────────────────
     if outcome == "jackpot":
-        desc = (
-            f"╔══════════════════╗\n"
-            f"║  {reels[0]}  ║  {reels[1]}  ║  {reels[2]}  ║\n"
-            f"╚══════════════════╝\n\n"
-            f"🎰 **JACKPOT!** Sva tri su ista!"
+        final_desc = (
+            f"┌─────────────────────┐\n"
+            f"│  {reels[0]}  │  {reels[1]}  │  {reels[2]}  │\n"
+            f"└─────────────────────┘\n\n"
+            f"🎰 Sva tri ista — JACKPOT!"
         )
     elif outcome == "pair":
-        desc = (
-            f"╔══════════════════╗\n"
-            f"║  {reels[0]}  ║  {reels[1]}  ║  {reels[2]}  ║\n"
-            f"╚══════════════════╝\n\n"
-            f"🎯 **Par!** Dva ista simbola."
+        final_desc = (
+            f"┌─────────────────────┐\n"
+            f"│  {reels[0]}  │  {reels[1]}  │  {reels[2]}  │\n"
+            f"└─────────────────────┘\n\n"
+            f"🎯 Dva ista simbola — par!"
         )
     else:
-        desc = (
-            f"╔══════════════════╗\n"
-            f"║  {reels[0]}  ║  {reels[1]}  ║  {reels[2]}  ║\n"
-            f"╚══════════════════╝\n\n"
-            f"😢 Nema sreće ovaj put."
+        payout_hint = (
+            "`🍒`×3 · `🍋`×3.5 · `🍊`×4 · `🍇`×5\n"
+            "`🔔`×6 · `⭐`×8 · `💎`×15 · `7️⃣`×50"
+        )
+        final_desc = (
+            f"┌─────────────────────┐\n"
+            f"│  {reels[0]}  │  {reels[1]}  │  {reels[2]}  │\n"
+            f"└─────────────────────┘\n\n"
+            f"😢 Nema kombinacije. Pokušaj ponovo!\n\n"
+            f"**📊 Jackpot isplate (×ulog):**\n{payout_hint}"
         )
 
-    # ─── Tabela isplata (samo ako je jackpot ili nema para) ──────────────
-    payout_hint = (
-        "**Jackpot multiplikatori** (×ulog):\n"
-        "`🍒` ×3 · `🍋` ×3.5 · `🍊` ×4 · `🍇` ×5\n"
-        "`🔔` ×6 · `⭐` ×8 · `💎` ×15 · `7️⃣` ×50"
+    final_e = discord.Embed(
+        title=f"🎰  {title}",
+        description=final_desc,
+        color=color,
+        timestamp=datetime.now(timezone.utc)
     )
+    final_e.add_field(name="💰 Ulog",     value=f"`{ulog:,} 💶`",         inline=True)
+    final_e.add_field(name="🎯 Rezultat", value=result,                   inline=True)
+    final_e.add_field(name="🏦 Balans",   value=f"`{d['balance']:,} 💶`", inline=True)
+    final_e.set_footer(text=f"{BOT_NAME} {VERSION} • {footer_extra} • Min 20 — Max 1.000.000.000 💶")
 
-    e = discord.Embed(title=f"🎰 Slot Mašina — {title}", description=desc, color=color, timestamp=datetime.now(timezone.utc))
-    e.add_field(name="💰 Ulog",    value=f"`{ulog:,} 💶`",         inline=True)
-    e.add_field(name="🎯 Rezultat", value=result,                   inline=True)
-    e.add_field(name="🏦 Balans",  value=f"`{d['balance']:,} 💶`", inline=True)
-    if outcome == "loss":
-        e.add_field(name="📊 Isplate", value=payout_hint, inline=False)
-    e.set_footer(text=f"{BOT_NAME} {VERSION} • Min: 20 💶 · Max: 1.000.000.000 💶")
-    await i.followup.send(embed=e)
+    try:
+        await msg.edit(embed=final_e)
+    except Exception:
+        await i.followup.send(embed=final_e)
 
 @bot.tree.command(name="rulet", description="🔫 Ruski rulet (za hrabre!)")
 @app_commands.checks.cooldown(1, 600, key=lambda i: i.user.id)
