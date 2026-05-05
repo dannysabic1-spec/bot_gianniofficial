@@ -3096,11 +3096,7 @@ async def slots(i: discord.Interaction, ulog: int = 100):
     def _sr(): return random.choice(symbols_list)  # random simbol za vrtnju
 
     def _spin_embed(r1, r2, r3, subtitle="🎰  Vrte se..."):
-        desc = (
-            f"┌─────────────────────┐\n"
-            f"│  {r1}  │  {r2}  │  {r3}  │\n"
-            f"└─────────────────────┘"
-        )
+        desc = f"𓉘  {r1}  │  {r2}  │  {r3}  𓉝"
         e = discord.Embed(
             title=f"🎰  S L O T  M A Š I N A",
             description=desc,
@@ -3180,18 +3176,15 @@ async def slots(i: discord.Interaction, ulog: int = 100):
     save_data()
 
     # ─── Finalni embed sa svim stavljenim valjcima ────────────────────────
+    slot_line = f"𓉘  {reels[0]}  │  {reels[1]}  │  {reels[2]}  𓉝"
     if outcome == "jackpot":
         final_desc = (
-            f"┌─────────────────────┐\n"
-            f"│  {reels[0]}  │  {reels[1]}  │  {reels[2]}  │\n"
-            f"└─────────────────────┘\n\n"
+            f"{slot_line}\n\n"
             f"🎰 Sva tri ista — JACKPOT!"
         )
     elif outcome == "pair":
         final_desc = (
-            f"┌─────────────────────┐\n"
-            f"│  {reels[0]}  │  {reels[1]}  │  {reels[2]}  │\n"
-            f"└─────────────────────┘\n\n"
+            f"{slot_line}\n\n"
             f"🎯 Dva ista simbola — par!"
         )
     else:
@@ -3200,9 +3193,7 @@ async def slots(i: discord.Interaction, ulog: int = 100):
             "`🔔`×6 · `⭐`×8 · `💎`×15 · `7️⃣`×50"
         )
         final_desc = (
-            f"┌─────────────────────┐\n"
-            f"│  {reels[0]}  │  {reels[1]}  │  {reels[2]}  │\n"
-            f"└─────────────────────┘\n\n"
+            f"{slot_line}\n\n"
             f"😢 Nema kombinacije. Pokušaj ponovo!\n\n"
             f"**📊 Jackpot isplate (×ulog):**\n{payout_hint}"
         )
