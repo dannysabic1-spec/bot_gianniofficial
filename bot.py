@@ -4,7 +4,7 @@
 # ║                                                                  ║
 # ║   👇 UPIŠI TVOJ TOKEN OVDJE (između navodnika):                 ║
 # ║                                                                  ║
-TOKEN = "UPIŠI_OVDJE_TVOJ_DISCORD_TOKEN"
+TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GMsO3o.ixgbSZZvD5f6PHhpFaoCjRbn5MpkR9Ggl2wLBg"
 # ║                                                                  ║
 # ║   Kako dobiti token:                                             ║
 # ║   → https://discord.com/developers/applications                 ║
