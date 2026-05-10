@@ -1,11 +1,12 @@
 # ╔══════════════════════════════════════════════════════════════════╗
 # ║           GIANNI (Custom) — Konfiguracija                      ║
 # ╚══════════════════════════════════════════════════════════════════╝
-# VAŽNO: Nemoj dijeliti ovaj fajl nikome! Token je tajna!
-# IMPORTANT: Never share this file! The token is a secret!
+import os
 
-# ── Bot Token (iz Discord Developer Portal > Bot > Token) ──────────
-TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GdkN2U.i6HTr3nfYs3bNdN2symVEWNOnQ-0CW7EPZZXm8"
+# ── Bot Token ──────────────────────────────────────────────────────
+# Na Railway/Render: postavi env var TOKEN u dashboard-u
+# Lokalno: možeš direktno zalijepiti token ovdje umjesto os.environ.get(...)
+TOKEN = os.environ.get("TOKEN", "ZALIJEPI-TOKEN-OVDJE-ILI-POSTAVI-ENV-VAR")
 
 # ── Guild (Server) ID ───────────────────────────────────────────────
 GUILD_ID = 1496860022066385016
