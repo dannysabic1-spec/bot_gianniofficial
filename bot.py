@@ -2,15 +2,22 @@
 # ║         🤖 GIANNI (Custom) — GLAVNI BOT                        ║
 # ╠══════════════════════════════════════════════════════════════════╣
 # ║                                                                  ║
-# ║   👇 UPIŠI TVOJ TOKEN OVDJE (između navodnika):                 ║
+# ║   👇 UPIŠI TVOJ TOKEN OVDJE — IZMEĐU NAVODNIKA:                ║
 # ║                                                                  ║
-TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GMsO3o.ixgbSZZvD5f6PHhpFaoCjRbn5MpkR9Ggl2wLBg"
+# ║   TOKEN = "ovdje-ide-tvoj-token"                                ║
 # ║                                                                  ║
 # ║   Kako dobiti token:                                             ║
-# ║   → https://discord.com/developers/applications                 ║
-# ║   → Tvoja aplikacija → Bot → Reset Token → kopiraj              ║
+# ║   1. Idi na discord.com/developers/applications                 ║
+# ║   2. Klikni na svoju aplikaciju (GIANNI)                        ║
+# ║   3. Lijevo → "Bot"                                              ║
+# ║   4. Klikni "Reset Token" → kopiraj                             ║
+# ║   5. Zalijepi dolje između navodnika i sačuvaj fajl             ║
 # ║                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════╝
+
+# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GgZ5-2.HMOi_VS-XtzjToQO2G5BHN-YNf_DtSW3zrJAqg"
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 import discord
 import asyncio

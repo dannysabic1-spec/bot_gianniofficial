@@ -335,8 +335,5 @@ class WelcomeCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot):
-    cog = WelcomeCog(bot)
-    await bot.add_cog(cog)
-    bot.tree.add_command(cog.cmd_setup_welcome)
-    bot.tree.add_command(cog.cmd_welcome_info)
+    await bot.add_cog(WelcomeCog(bot))
     print("✅ WelcomeCog učitan — /setup-welcome i /welcome-info aktivni!")
