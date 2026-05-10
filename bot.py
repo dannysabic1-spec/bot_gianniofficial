@@ -16,7 +16,7 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 # ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GgZ5-2.HMOi_VS-XtzjToQO2G5BHN-YNf_DtSW3zrJAqg"
+TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GKcBDH.YE0OqnJxTLO7r1giiZ-L5UrEoT0uDHVnDsJuBI"
 # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 import discord
