@@ -1,20 +1,10 @@
 # ╔══════════════════════════════════════════════════════════════════╗
 # ║           GIANNI (Custom) — Konfiguracija                      ║
 # ╚══════════════════════════════════════════════════════════════════╝
-import os, sys
+import os
 
 # ── Bot Token ──────────────────────────────────────────────────────
-# Railway: postavi environment variable TOKEN u Variables tabu
-# Lokalno:  TOKEN=tvoj_token python bot.py
-TOKEN = os.environ.get("TOKEN", "")
-if not TOKEN or TOKEN.startswith("ZALIJEPI"):
-    print("=" * 60)
-    print("GREŠKA: Bot token nije postavljen!")
-    print("Na Railway idi na: Variables → Add Variable")
-    print("  Name:  TOKEN")
-    print("  Value: (zalijepi novi token)")
-    print("=" * 60)
-    sys.exit(1)
+TOKEN = os.environ.get("TOKEN", "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GRsFR5.76Vx7eLSJD9ULhcfYxc5mxBM6P6IuhvOmuBMDI")
 
 # ── Guild (Server) ID ───────────────────────────────────────────────
 GUILD_ID = 1496860022066385016
@@ -32,6 +22,6 @@ LOG_CHANNEL_ID = 0
 AUTO_ROLE_ID = 0
 
 # ── Anti-Spam konfiguracija ─────────────────────────────────────────
-SPAM_MSG_LIMIT   = 6    # Maksimalno poruka...
-SPAM_WINDOW_SEC  = 8    # ...u ovom broju sekundi
-SPAM_TIMEOUT_SEC = 60   # Timeout trajanje u sekundama
+SPAM_MSG_LIMIT   = 6
+SPAM_WINDOW_SEC  = 8
+SPAM_TIMEOUT_SEC = 60
