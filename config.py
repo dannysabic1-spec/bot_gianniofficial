@@ -1,10 +1,9 @@
 # ╔══════════════════════════════════════════════════════════════════╗
 # ║           GIANNI (Custom) — Konfiguracija                      ║
 # ╚══════════════════════════════════════════════════════════════════╝
-import os
 
 # ── Bot Token ──────────────────────────────────────────────────────
-TOKEN = os.environ.get("TOKEN", "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GRsFR5.76Vx7eLSJD9ULhcfYxc5mxBM6P6IuhvOmuBMDI")
+TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GRsFR5.76Vx7eLSJD9ULhcfYxc5mxBM6P6IuhvOmuBMDI"
 
 # ── Guild (Server) ID ───────────────────────────────────────────────
 GUILD_ID = 1496860022066385016
