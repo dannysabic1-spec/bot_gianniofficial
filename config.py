@@ -2,8 +2,7 @@
 # ║           GIANNI (Custom) — Konfiguracija                      ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
-# ── Bot Token ──────────────────────────────────────────────────────
-TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GRsFR5.76Vx7eLSJD9ULhcfYxc5mxBM6P6IuhvOmuBMDI"
+TOKEN = "MTQ5Njg3MTY0NzIwNDk5OTIwOA.GATY4W.9xWuNJoXIsmRR-aols8ZQ1WDnycw-4-Yr17MJ4"
 
 # ── Guild (Server) ID ───────────────────────────────────────────────
 GUILD_ID = 1496860022066385016
