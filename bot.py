@@ -1,7 +1,7 @@
 # ╔══════════════════════════════════════════════════════════════════╗
 #            🎉  GIANNI (Custom) — Glavni Bot                     ║
 # ║   Welcome sistem + Poo Game + Anti-Spam                        ║
-# ╚══════════════════════════════════════════════════════════════════╝
+# ══════════════════════════════════════════════════════════════════╝
 
 import discord
 import asyncio
@@ -110,12 +110,12 @@ WELCOME_MSGS = [
     "{mention} se pojavio/la! Bio/la si tu negdje, a? Dobrodošao/la! 👀",
     "Naš/a novi/a prijatelj/ica {mention} je stigao/la! Uživaj! ",
     "{mention} je ušao/la u chat! Čaj ili kafa? ☕",
-    "Legenda stiže! Dobrodošao/la {mention}, spreman/a na zabavu? 🎮",
+    "Legenda stiže! Dobrodošao/la {mention}, spreman/a na zabavu? ",
     "Oh, ko je ovo? {mention}! Baš si nam nedostajao/la! 😂❤️",
     "Ekipa, {mention} je odlučio/la da nam se pridruži. Mudra odluka! 😎✨",
     "{mention} je stigao/la! Sjedni, opusti se, ti si sada dio GIANNI familije! 👑",
-    "Čekali smo te, {mention}! Dobrodošao/la! 🥰",
-    "{mention} je kucao/la na vrata — otvorili smo! Dobrodošao/la! 🚪🎊",
+    "Čekali smo te, {mention}! Dobrodošao/la! ",
+    "{mention} je kucao/la na vrata — otvorili smo! Dobrodošao/la! 🚪",
 ]
 
 WELCOME_GIFS = [
@@ -129,8 +129,8 @@ WELCOME_GIFS = [
 WELCOME_JOKES = [
     "😄 Zašto programeri vole prirodu? Jer nema bugova! 🐛",
     "😂 Šta kaže nula osmici? 'Lijepo ti stoji kaiš!' 😂",
-    "🤣 Zašto je kompjuter uvijek hladan? Jer ima puno Windows! ",
-    "😄 Kako se zove Eskimo koji sjedi na stolici? Polarna sjednica! 🧊",
+    " Zašto je kompjuter uvijek hladan? Jer ima puno Windows! ",
+    " Kako se zove Eskimo koji sjedi na stolici? Polarna sjednica! 🧊",
     "😂 Zašto ribe ne igraju tenis? Jer se boje mreže! 🎾",
     "🤣 Šta kaže jedan zid drugom? 'Vidimo se na uglu!' 🧱",
     "😄 Zašto matematičari nikad ne idu na plažu? Imaju previše problema s brojevima! 🏖️",
@@ -215,7 +215,7 @@ async def on_member_join(member: discord.Member):
     
     desc = (
         f"## 🎊 Dobrodošao/la, {member.display_name}!\n"
-        f"▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"
+        f"▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"
         f"{msg}\n\n"
         f"**Gdje početi?** 🗺️\n"
         f" Pročitaj pravila i uzmi uloge\n"
@@ -237,7 +237,7 @@ async def on_member_join(member: discord.Member):
     embed.set_thumbnail(url=member.display_avatar.url)
     embed.add_field(name="😄 Šala dobrodošlice", value=joke, inline=False)
     embed.add_field(name="⏰ Pridružio/la", value=f"<t:{now_ts}:R>", inline=True)
-    embed.add_field(name="📅 Nalog star", value=f"**{acct_days}** dana", inline=True)
+    embed.add_field(name=" Nalog star", value=f"**{acct_days}** dana", inline=True)
     embed.set_image(url=random.choice(WELCOME_GIFS))
     embed.set_footer(
         text="GIANNI (Custom)  ·  discord.gg/gian",
