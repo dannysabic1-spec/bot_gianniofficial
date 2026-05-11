@@ -1549,24 +1549,42 @@ async def on_member_join(member):
 
     # ── DM Dobrodošlice ──────────────────────────────
     try:
+        VE_DM = [
+            "<a:vatrice1:1500466044429664256>",
+            "<a:vatrice2:1500466048418185246>",
+            "<a:vatrice3:1500466039782113352>",
+            "<a:vatrice4:1500466061970247741>",
+        ]
+        dm_count = sum(1 for m in member.guild.members if not m.bot)
         dm_e = discord.Embed(
-            title=f"🎉 Dobrodošao/la na {member.guild.name}!",
             description=(
-                f"Hej **{member.display_name}**! Drago nam je što si ovdje! 🥳\n\n"
-                f"📋 Pročitaj pravila i pogledaj informacije u <#1496860023093989475>\n"
-                f"🏷️ Uzmi svoje uloge u <#1496860023480127502>\n"
-                f"💬 Kreni chatati u <#1496860023480127498>\n"
-                f"📈 Prati svoja XP i level u <#1496860023480127499>\n"
-                f"❓ Trebaš pomoć? Otvori **ticket** ili pitaj moderatora\n\n"
-                f"💡 Komande: `/help` (slash) ili `.help` (prefix)\n"
-                f"🔗 Naš invite: **discord.gg/gian**\n\n"
-                f"🇧🇦 Dobrodošao/la u **GIANNI** — gdje svaka noć ima priču! 🍻"
+                f"**wlcm {member.mention}!**\n\n"
+                f"{VE_DM[0]} <#1496860023706488884> **·** {VE_DM[1]} <#1496860023093989475> **·** "
+                f"{VE_DM[2]} <#1501973333195882696> **·** {VE_DM[3]} <#1496860023480127505>\n"
+                f"🪶 **{dm_count} member · discord.gg/gian**"
             ),
-            color=0xFFD700, timestamp=datetime.now(timezone.utc)
+            color=0x2B2D3A,
+            timestamp=datetime.now(timezone.utc)
         )
-        if member.guild.icon: dm_e.set_thumbnail(url=member.guild.icon.url)
-        dm_e.set_footer(text=f"{BOT_NAME} • Welcome Bot")
-        await member.send(embed=dm_e)
+        dm_e.set_thumbnail(url=member.display_avatar.url)
+        dm_e.set_footer(
+            text=f"{BOT_NAME} • Welcome",
+            icon_url=member.guild.icon.url if member.guild.icon else None
+        )
+        dm_v = discord.ui.View()
+        dm_v.add_item(discord.ui.Button(
+            label="game",
+            emoji="<a:game1:1500459114931949568>",
+            url=f"https://discord.com/channels/{member.guild.id}/1496860023706488890",
+            style=discord.ButtonStyle.link
+        ))
+        dm_v.add_item(discord.ui.Button(
+            label="music",
+            emoji="<a:music2:1500459145382592602>",
+            url=f"https://discord.com/channels/{member.guild.id}/1496860024121852088",
+            style=discord.ButtonStyle.link
+        ))
+        await member.send(embed=dm_e, view=dm_v)
     except: pass  # Korisnik ima zatvorene DM
 
     # ── Welcome ────────────────────────────────────────
