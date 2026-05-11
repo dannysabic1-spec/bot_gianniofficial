@@ -22,12 +22,12 @@ OFFICIAL_INVITE   = "gian"               # discord.gg/gian
 OFFICIAL_GUILD_ID = 1494043955980140754  # ID zvaničnog GIANNI servera
 
 COLORS = {
-    "default": 0x00BCD4, "success": 0x00E5FF, "error":   0xE74C3C,
-    "warning": 0xF39C12, "info":    0x00BCD4, "gold":    0xF1C40F,
-    "balkan":  0x00BCD4, "purple":  0x00BCD4, "fun":     0x00BCD4,
-    "dark":    0x2C2F33, "teal":    0x00BCD4, "love":    0xFF4D6D,
-    "pink":    0x00BCD4,
-    "aqua":    0x00BCD4,
+    "default": 0x2B2D42, "success": 0x43B581, "error":   0xE74C3C,
+    "warning": 0xF39C12, "info":    0x2B2D42, "gold":    0xF1C40F,
+    "balkan":  0x2B2D42, "purple":  0x2B2D42, "fun":     0x2B2D42,
+    "dark":    0x2B2D42, "teal":    0x2B2D42, "love":    0xFF4D6D,
+    "pink":    0x2B2D42,
+    "aqua":    0x2B2D42,
 }
 
 JOBS = [
@@ -727,7 +727,7 @@ async def try_prefix_command(message):
     parts = content[1:].split(maxsplit=1)
     cmd_name = parts[0].lower()
     args_text = parts[1] if len(parts) > 1 else ""
-    PREFIX_ALIASES = {"i": "invite", "inv": "invite", "h": "help", "p": "ping", "lb": "leaderboard", "np": "spotify", "sp": "spotify", "tc": "topchatters", "top": "topchatters", "b": "bank", "lot": "lottery", "r": "remind", "qrcode": "qr"}
+    PREFIX_ALIASES = {"i": "invite", "inv": "invite", "h": "help", "p": "ping", "lb": "leaderboard", "np": "spotify", "sp": "spotify",  "tc": "topchatters", "top": "topchatters", "b": "bank", "lot": "lottery", "r": "remind", "qrcode": "qr"}
     cmd_name = PREFIX_ALIASES.get(cmd_name, cmd_name)
     cmd = bot.tree.get_command(cmd_name)
     if cmd is None: return False
@@ -849,7 +849,9 @@ data = {"economy": {}, "xp": {}, "warnings": {}, "zoo": {}, "quests": {}, "selfr
         "heist_cooldown": {}, "reminders": [], "confess_count": 0,
         "cmd_uses": {}, "private_voices": {}, "pvc_info_posted": False,
         "msg_count_week": {}, "aotw_last": None,
-        "ban_allowed_ids": []}
+        "ban_allowed_ids": [],
+        "poo": {},
+        "poo_tasks": {}}
 
 def load_data():
     global data
@@ -883,6 +885,8 @@ def load_data():
             data["aotw_last"]      = loaded.get("aotw_last", None)
             data["nsfw_strikes"]   = loaded.get("nsfw_strikes", {})
             data["ban_allowed_ids"]= loaded.get("ban_allowed_ids", [])
+            data["poo"]            = loaded.get("poo", {})
+            data["poo_tasks"]       = loaded.get("poo_tasks", {})
             data["vatrice"]        = loaded.get("vatrice", {})
             data["vatrice_cd"]     = loaded.get("vatrice_cd", {})
             data["vatrice_threshold"] = loaded.get("vatrice_threshold", {})
@@ -1313,8 +1317,6 @@ async def on_ready():
     # vanity_loop uklonjen — zamijenjen sa /vatrice sistemom
     if not auto_game_loop.is_running(): auto_game_loop.start()
     if not active_member_week.is_running(): active_member_week.start()
-    bot.add_view(PooView())
-    if not poo_decay_task.is_running(): poo_decay_task.start()
     try: await post_pvc_info()
     except Exception as _e: print(f"[pvc-info init] {_e}")
     print(f"  🛡️ Sigurnost: Anti-Nuke ✓ • Anti-Invite ✓ • Auto-Backup ✓ • Owner whitelist: {len(OWNER_IDS)}")
@@ -1547,24 +1549,42 @@ async def on_member_join(member):
 
     # ── DM Dobrodošlice ──────────────────────────────
     try:
+        VE_DM = [
+            "<a:vatrice1:1500466044429664256>",
+            "<a:vatrice2:1500466048418185246>",
+            "<a:vatrice3:1500466039782113352>",
+            "<a:vatrice4:1500466061970247741>",
+        ]
+        dm_count = sum(1 for m in member.guild.members if not m.bot)
         dm_e = discord.Embed(
-            title=f"🎉 Dobrodošao/la na {member.guild.name}!",
             description=(
-                f"Hej **{member.display_name}**! Drago nam je što si ovdje! 🥳\n\n"
-                f"📋 Pročitaj pravila i pogledaj informacije u <#1496860023093989475>\n"
-                f"🏷️ Uzmi svoje uloge u <#1496860023480127502>\n"
-                f"💬 Kreni chatati u <#1496860023480127498>\n"
-                f"📈 Prati svoja XP i level u <#1496860023480127499>\n"
-                f"❓ Trebaš pomoć? Otvori **ticket** ili pitaj moderatora\n\n"
-                f"💡 Komande: `/help` (slash) ili `.help` (prefix)\n"
-                f"🔗 Naš invite: **discord.gg/gian**\n\n"
-                f"🇧🇦 Dobrodošao/la u **GIANNI** — gdje svaka noć ima priču! 🍻"
+                f"**wlcm {member.mention}!**\n\n"
+                f"{VE_DM[0]} <#1496860023706488884> **·** {VE_DM[1]} <#1496860023093989475> **·** "
+                f"{VE_DM[2]} <#1501973333195882696> **·** {VE_DM[3]} <#1496860023480127505>\n"
+                f"🪶 **{dm_count} member · discord.gg/gian**"
             ),
-            color=0xFFD700, timestamp=datetime.now(timezone.utc)
+            color=0x2B2D3A,
+            timestamp=datetime.now(timezone.utc)
         )
-        if member.guild.icon: dm_e.set_thumbnail(url=member.guild.icon.url)
-        dm_e.set_footer(text=f"{BOT_NAME} • Welcome Bot")
-        await member.send(embed=dm_e)
+        dm_e.set_thumbnail(url=member.display_avatar.url)
+        dm_e.set_footer(
+            text=f"{BOT_NAME} • Welcome",
+            icon_url=member.guild.icon.url if member.guild.icon else None
+        )
+        dm_v = discord.ui.View()
+        dm_v.add_item(discord.ui.Button(
+            label="game",
+            emoji="<a:game1:1500459114931949568>",
+            url=f"https://discord.com/channels/{member.guild.id}/1496860023706488890",
+            style=discord.ButtonStyle.link
+        ))
+        dm_v.add_item(discord.ui.Button(
+            label="music",
+            emoji="<a:music2:1500459145382592602>",
+            url=f"https://discord.com/channels/{member.guild.id}/1496860024121852088",
+            style=discord.ButtonStyle.link
+        ))
+        await member.send(embed=dm_e, view=dm_v)
     except: pass  # Korisnik ima zatvorene DM
 
     # ── Welcome ────────────────────────────────────────
@@ -1572,137 +1592,63 @@ async def on_member_join(member):
     chan = member.guild.get_channel(ch_id) if ch_id else discord.utils.get(member.guild.text_channels, name="welcome")
     if not chan: return
 
-    WELCOME_PORUKE = [
-        f"Hej {member.mention}! Drago nam je što si stigao/la! Upoznaj se, ispoštuj pravila i uživaj! 🍻",
-        f"Evo ga/je {member.mention}! Server tek sad može početi! 🎉",
-        f"Pazi ekipa, {member.mention} je stigao/la! Dobrodošao/la u porodicu! 🏠❤️",
-        f"{member.mention} se pojavio/la! Bio/la si tu negdje, a? Dobrodošao/la! 👀",
-        f"Naš/a novi/a prijatelj/ica {member.mention} je stigao/la! Sretno i uživaj! 🌟",
-        f"{member.mention} je ušao/la u chat! Čaj ili kafa? ☕",
-        f"Legenda stiže! Dobrodošao/la {member.mention}, nadam se da si spreman/a na zabavu! 🎮",
-        f"Pssst... {member.mention} je upravo stigao/la. Recite tiho — iznenadite ih! 🤫🎊",
-        f"Alarm! Alarm! {member.mention} je upravo sletio/la na server! Dobrodošao/la! 🚨🎊",
-        f"Oh, ko je ovo? {member.mention}! Baš si nam nedostajao/la, a ni ne znamo te još! 😂❤️",
-        f"Ekipa, pažnja! {member.mention} je odlučio/la da nam se pridruži. Mudra odluka! 😎✨",
-        f"Novi/a član/ica detected! {member.mention} je ušao/la u zgradu. Dobrodošao/la! 🏢🎉",
-        f"{member.mention} je stigao/la! Sjedni, opusti se, ti si sada dio GIANNI familije! 👑",
-        f"Čekali smo te, {member.mention}! Dobrodošao/la, nadam se da ćeš ostati zauvijek! 🥰",
-        f"Server +1! {member.mention} se pridružio/la! Dobrodošao/la među naše! 💪🎉",
-        f"Jel to {member.mention}?! Ma daj, dobrodošao/la! Počasti nas prisustvom! 🍾✨",
-        f"{member.mention} je kucao/la na vrata — otvorili smo! Dobrodošao/la u GIANNI! 🚪🎊",
-        f"Evo novog/e! {member.mention} — nadam se da voliš zabavu jer smo ovdje puni toga! 🎮🔥",
-        f"Hej hej hej! {member.mention} je ovdje! Server upravo dobio upgrade! ⬆️😄",
-        f"Dobrodošao/la {member.mention}! Zapni se, bit će zabavno! 🎢❤️",
+    # ── Animirani vatrice emojiji ──
+    VE = [
+        "<a:vatrice1:1500466044429664256>",
+        "<a:vatrice2:1500466048418185246>",
+        "<a:vatrice3:1500466039782113352>",
+        "<a:vatrice4:1500466061970247741>",
     ]
 
-    WELCOME_SALE = [
-        "😄 Zašto programeri vole prirodu? Jer nema bugova! 🐛",
-        "😂 Šta kaže nula osmici? 'Lijepo ti stoji kaiš!' 😂",
-        "🤣 Zašto je kompjuter uvijek hladan? Jer ima puno Windows! 🪟",
-        "😄 Kako se zove Eskimo koji sjedi na stolici? Polarna sjednica! 🧊",
-        "😂 Zašto ribe ne igraju tenis? Jer se boje mreže! 🎾🐟",
-        "🤣 Šta kaže jedan zid drugom? 'Vidimo se na uglu!' 🧱",
-        "😄 Zašto matematičari nikad ne idu na plažu? Jer imaju previše problema s brojevima! 🏖️",
-        "😂 Kako se zove snjegović koji leži na suncu? Lokva! ☀️💧",
-        "🤣 Zašto banane nose sunčane naočale? Jer se ne žele oguliti od sunca! 🍌😎",
-        "😄 Šta kaže jedan lift drugom? 'Mene diže ovo što tebe spušta!' 🛗",
-        "😂 Kako se zove majmun bez banane? Majmun! Banana nije sastavni dio naziva! 🐒",
-        "🤣 Zašto je škola poput zatvora? Uniforme, mreže na prozorima i niko ne želi ići! 🏫",
-        "😄 Šta kaže tava tiganju? 'Hej, daj mi prostora, sav si se raspalio!' 🍳",
-        "😂 Zašto slon ne može koristiti kompjuter? Jer se boji miša! 🐘🖱️",
-        "🤣 Koliko treba da se promijeni sijalica? Niti jedna — ona se mijenja sama kad je sprema! 💡",
-        "😄 Šta kaže more plaži? Ništa, samo maše! 🌊👋",
-        "😂 Zašto krava nosi zvonce? Jer joj rogovi ne rade! 🐄🔔",
-        "🤣 Kako se zove pas koji voli magiju? Labra-kadabra-dor! 🐕✨",
-        "😄 Zašto je knjiga uvijek tužna? Jer ima previše stranica iza sebe! 📚😢",
-        "😂 Šta kaže jedna vrata drugima? 'Ključ je da se ne zaključaš u sebi!' 🚪🔑",
-    ]
+    # ── Kanali ──
+    ch_chat = member.guild.get_channel(cfg.get("chat_channel",  1496860023706488884))
+    ch_info = member.guild.get_channel(cfg.get("info_channel",  1496860023093989475))
+    ch_news = member.guild.get_channel(cfg.get("news_channel",  1501973333195882696))
+    ch_gws  = member.guild.get_channel(cfg.get("gws_channel",   1496860023480127505))
+    ch_game = member.guild.get_channel(cfg.get("game_channel",  1496860023706488890))
+    ch_mus  = member.guild.get_channel(cfg.get("music_channel", 1496860024121852088))
 
-    sala = random.choice(WELCOME_SALE)
-    custom_msg = cfg.get("welcome_message",
-        random.choice(WELCOME_PORUKE))
+    chat_lnk = ch_chat.mention if ch_chat else "#chat"
+    info_lnk = ch_info.mention if ch_info else "#info"
+    news_lnk = ch_news.mention if ch_news else "#news"
+    gws_lnk  = ch_gws.mention  if ch_gws  else "#gws"
 
-    # ── Kanali po guild_config (sa fallback na GIANNI default ID-eve) ──
-    GIANNI_CHANNELS = {
-        "informacije": cfg.get("info_channel",    1496860023093989475),
-        "selfroles":   cfg.get("roles_channel",   1496860023480127502),
-        "chat":        cfg.get("chat_channel",    1496860023480127498),
-        "rank":        cfg.get("levelup_channel", 1496860023480127499),
-        "aktivnost":   cfg.get("aktivnost_channel", 1496860024121852090),
-    }
-    def ch_link(key):
-        c = member.guild.get_channel(GIANNI_CHANNELS[key])
-        return c.mention if c else "#—"
+    member_count = sum(1 for m in member.guild.members if not m.bot)
 
-    # ── Podaci za embed ──
-    now_ts    = int(datetime.now(timezone.utc).timestamp())
-    acct_days = (datetime.now(timezone.utc) - member.created_at).days
-    personal  = custom_msg.replace("{user}", member.mention).replace("{server}", member.guild.name)
-
-    # ── Divider ──
-    DIV = "▬" * 28
-
-    desc = (
-        f"## 🎊  Dobrodošao/la, {member.mention}!\n"
-        f"{DIV}\n"
-        f"{personal}\n\n"
-
-        f"✦  **Gdje početi?**\n\n"
-        f"ℹ️  **Informacije & Pravila**  ·  {ch_link('informacije')}\n"
-        f"🏷️  **Uzmi uloge**             ·  {ch_link('selfroles')}\n"
-        f"💬  **Kreni chatati**          ·  {ch_link('chat')}\n"
-        f"📈  **XP napredovanje**        ·  {ch_link('rank')}\n"
-        f"📊  **Aktivnost**               ·  {ch_link('aktivnost')}\n\n"
-
-        f"{DIV}\n"
-        f"🔗  **discord.gg/gian**  ·  👥 Si nam **#{member.guild.member_count}**. član!"
-    )
-
-    WELCOME_GIFS = [
-        "https://media.tenor.com/M0vSf9CGHoEAAAAC/celebration.gif",
-        "https://media.tenor.com/SoQgOZMVWKoAAAAC/welcome-hi.gif",
-        "https://media.tenor.com/bTFOnAa2HTEAAAAC/welcome-neon.gif",
-        "https://media.tenor.com/Yd1G5y4OIIMAAAAC/fireworks-celebrate.gif",
-        "https://media.tenor.com/YP5R3oMtd3MAAAAC/welcome-party.gif",
-    ]
-
+    # ── Welcome Embed ──
     e = discord.Embed(
-        title=None,
-        description=desc,
-        color=0xFFD700,
+        description=(
+            f"**wlcm {member.mention}!**\n\n"
+            f"{VE[0]} {chat_lnk} **·** {VE[1]} {info_lnk} **·** {VE[2]} {news_lnk} **·** {VE[3]} {gws_lnk}\n"
+            f"🪶 **{member_count} member · discord.gg/gian**"
+        ),
+        color=0x2B2D3A,
         timestamp=datetime.now(timezone.utc)
     )
-    e.set_author(
-        name=f"✦ GIANNI Community — Nova Akvizicija! ✦",
+    e.set_thumbnail(url=member.display_avatar.url)
+    e.set_footer(
+        text=f"{BOT_NAME} • Welcome",
         icon_url=member.guild.icon.url if member.guild.icon else None
     )
-    e.set_thumbnail(url=member.display_avatar.url)
-    e.add_field(
-        name="😄  Šala dobrodošlice",
-        value=sala,
-        inline=False
-    )
-    e.add_field(
-        name="👥  Redni broj",
-        value=f"**#{member.guild.member_count}**",
-        inline=True
-    )
-    e.add_field(
-        name="⏰  Pridružio/la",
-        value=f"<t:{now_ts}:R>",
-        inline=True
-    )
-    e.add_field(
-        name="📅  Nalog star",
-        value=f"**{acct_days} dana**",
-        inline=True
-    )
-    e.set_image(url=random.choice(WELCOME_GIFS))
-    e.set_footer(
-        text=f"GIANNI (Custom) • Dobrodošlica  |  discord.gg/gian",
-        icon_url=member.display_avatar.url
-    )
-    await chan.send(content=member.mention, embed=e)
+
+    # ── Dugmadi ──
+    wv = discord.ui.View()
+    if ch_game:
+        wv.add_item(discord.ui.Button(
+            label="game",
+            emoji="<a:game1:1500459114931949568>",
+            url=f"https://discord.com/channels/{member.guild.id}/{ch_game.id}",
+            style=discord.ButtonStyle.link
+        ))
+    if ch_mus:
+        wv.add_item(discord.ui.Button(
+            label="music",
+            emoji="<a:music2:1500459145382592602>",
+            url=f"https://discord.com/channels/{member.guild.id}/{ch_mus.id}",
+            style=discord.ButtonStyle.link
+        ))
+
+    await chan.send(content=member.mention, embed=e, view=wv)
 
 def _find_boost_channel(guild: discord.Guild):
     """Vraća prvi tekstualni kanal koji u imenu sadrži 'boost' (case-insensitive),
@@ -1975,7 +1921,6 @@ async def on_message(message):
                 win_e.set_thumbnail(url=message.author.display_avatar.url)
                 win_e.set_footer(text=f"{BOT_NAME} • Kaladont pobjeda")
                 await message.channel.send(content=message.author.mention, embed=win_e)
-                await poo_trigger("win_kaladont", message.author.id, message.guild, channel=message.channel)
                 del kaladont_games[message.channel.id]
                 return
             await message.channel.send(embed=kaladont_word_card(word, message.author.display_name, new_req, count), view=KaladontWordView(message.channel.id))
@@ -1987,6 +1932,9 @@ async def on_message(message):
     # ── Msg Counter ───────────────────────────────────
     mkey = f"{message.guild.id}:{message.author.id}"
     data["msg_count"][mkey] = data["msg_count"].get(mkey, 0) + 1
+    # Poo task: chat messages
+    if message.guild:
+        _poo_task_progress(message.guild.id, message.author.id, "chat")
     data.setdefault("msg_count_week", {})
     data["msg_count_week"][mkey] = data["msg_count_week"].get(mkey, 0) + 1
 
@@ -2066,78 +2014,6 @@ async def on_message(message):
             except Exception as _e:
                 print(f"[level-up] {_e}")
     except Exception as _e: print(f"[vatrica-500] {_e}")
-
-    # ── 🐾 POO auto-triggers ──────────────────────────────────────────
-    if not message.author.bot and message.guild:
-        try:
-            _uid  = message.author.id
-            _gld  = message.guild
-            _ch   = message.channel
-            _ct   = message.content
-            _cu   = _ct.upper().strip()
-            _inp  = message.channel.id in POO_CHANNELS
-            if _inp:
-                await poo_trigger("msg_poo_ch", _uid, _gld, channel=_ch)
-                _tds = datetime.now(timezone.utc).strftime("%Y%m%d")
-                data.setdefault("_poo_first", {})
-                if _tds not in data["_poo_first"]:
-                    data["_poo_first"][_tds] = str(_uid)
-                    await poo_trigger("poo_first_today", _uid, _gld, channel=_ch)
-                data.setdefault("_poo_msg_tot", {})
-                data["_poo_msg_tot"][str(_uid)] = data["_poo_msg_tot"].get(str(_uid), 0) + 1
-                _pt = data["_poo_msg_tot"][str(_uid)]
-                if _pt == 100: await poo_trigger("poo_msgs_100", _uid, _gld, channel=_ch)
-                if _pt == 500: await poo_trigger("poo_msgs_500", _uid, _gld, channel=_ch)
-                if datetime.now(timezone.utc).hour < 3:
-                    await poo_trigger("poo_midnight", _uid, _gld, channel=_ch)
-            _cs = _ct.strip()
-            if _cs.lstrip("-").isdigit():
-                await poo_trigger("msg_number", _uid, _gld, channel=_ch)
-                if _cs == "7":    await poo_trigger("msg_lucky7", _uid, _gld, channel=_ch)
-                if _cs == "666":  await poo_trigger("msg_666",    _uid, _gld, channel=_ch)
-                if _cs == "1337": await poo_trigger("msg_1337",   _uid, _gld, channel=_ch)
-                if _cs == "42":   await poo_trigger("msg_secret", _uid, _gld, channel=_ch)
-            if "POO IS BEST" in _cu:                        await poo_trigger("msg_poo_is_best",_uid,_gld,channel=_ch)
-            if "POO MILUJE" in _cu or "POO VOLI" in _cu:   await poo_trigger("msg_poo_miluje", _uid,_gld,channel=_ch)
-            if "POO" in _cu or "POU" in _cu:               await poo_trigger("msg_word_poo",   _uid,_gld,channel=_ch)
-            if "GIANNI" in _cu:                             await poo_trigger("msg_gianni",     _uid,_gld,channel=_ch)
-            if _cu.startswith("POO") or _cu.startswith("POU"): await poo_trigger("msg_starts_poo",_uid,_gld,channel=_ch)
-            _cl = _ct.lower()
-            if any(w in _cl for w in ["haha","lol","lmao","xd"]):          await poo_trigger("msg_lol",     _uid,_gld,channel=_ch)
-            if any(w in _cl for w in ["dobrodosao","dobrodošao","welcome"]):await poo_trigger("msg_welcome", _uid,_gld,channel=_ch)
-            if "gg" in _cl.split() or "bravo" in _cl:                      await poo_trigger("msg_gg",      _uid,_gld,channel=_ch)
-            if "hvala" in _cl:                                              await poo_trigger("msg_hvala",   _uid,_gld,channel=_ch)
-            if any(w in _cl for w in ["sretan","srecan"]):                  await poo_trigger("msg_srecan",  _uid,_gld,channel=_ch)
-            if any(w in _cl for w in ["tuzno","tužno","sad","žao"]):       await poo_trigger("msg_sad",     _uid,_gld,channel=_ch)
-            _lc = len(_ct)
-            if _lc >= 100: await poo_trigger("msg_long",    _uid, _gld, channel=_ch)
-            if _lc == 69:  await poo_trigger("msg_len_69",  _uid, _gld, channel=_ch)
-            if _lc == 100: await poo_trigger("msg_len_100", _uid, _gld, channel=_ch)
-            if message.attachments:  await poo_trigger("msg_attachment", _uid, _gld, channel=_ch)
-            if message.reference:    await poo_trigger("msg_reply",      _uid, _gld, channel=_ch)
-            if message.mentions:
-                await poo_trigger("msg_mention", _uid, _gld, channel=_ch)
-                if len(message.mentions) >= 3:           await poo_trigger("msg_3mention",    _uid,_gld,channel=_ch)
-                if any(m.bot for m in message.mentions): await poo_trigger("msg_bot_mention", _uid,_gld,channel=_ch)
-            _hr = datetime.now(timezone.utc).hour
-            if   0  <= _hr < 6:  await poo_trigger("msg_night",     _uid, _gld, channel=_ch)
-            elif 6  <= _hr < 12: await poo_trigger("msg_morning",   _uid, _gld, channel=_ch)
-            elif 12 <= _hr < 18: await poo_trigger("msg_afternoon", _uid, _gld, channel=_ch)
-            else:                await poo_trigger("msg_evening",   _uid, _gld, channel=_ch)
-            data.setdefault("_poo_day_msgs", {})
-            _dmk = f"{_uid}_{datetime.now(timezone.utc).strftime('%Y%m%d')}"
-            data["_poo_day_msgs"][_dmk] = data["_poo_day_msgs"].get(_dmk, 0) + 1
-            _dmc = data["_poo_day_msgs"][_dmk]
-            if _dmc == 20: await poo_trigger("msg_20today", _uid, _gld, channel=_ch)
-            if _dmc == 50: await poo_trigger("msg_50today", _uid, _gld, channel=_ch)
-            data.setdefault("_poo_ch_day", {})
-            _cdk = f"{_uid}_{datetime.now(timezone.utc).strftime('%Y%m%d')}"
-            _chs = data["_poo_ch_day"].setdefault(_cdk, [])
-            if str(message.channel.id) not in _chs:
-                _chs.append(str(message.channel.id))
-                if len(_chs) >= 3: await poo_trigger("msg_3channels", _uid, _gld, channel=_ch)
-        except Exception: pass
-    # ─────────────────────────────────────────────────────────────────
 
     await bot.process_commands(message)
 
@@ -2383,13 +2259,27 @@ async def on_member_remove(member):
         ch_id = cfg.get("leave_channel") or cfg.get("welcome_channel")
         chan = member.guild.get_channel(ch_id) if ch_id else discord.utils.get(member.guild.text_channels, name="welcome")
         if chan:
+            VE_L = [
+                "<a:vatrice1:1500466044429664256>",
+                "<a:vatrice2:1500466048418185246>",
+                "<a:vatrice3:1500466039782113352>",
+                "<a:vatrice4:1500466061970247741>",
+            ]
+            member_count_l = sum(1 for m in member.guild.members if not m.bot)
             e = discord.Embed(
-                title=f"👋 {member.display_name} je napustio/la server",
-                description=f"Žao nam je što ode **{member.display_name}**. Srećno! 🙏",
-                color=COLORS["error"], timestamp=datetime.now(timezone.utc)
+                description=(
+                    f"**bye {member.mention}** 👋\n\n"
+                    f"{VE_L[0]} {member.display_name} **je napustio/la server**\n"
+                    f"🪶 **{member_count_l} member · discord.gg/gian**"
+                ),
+                color=0x2B2D3A,
+                timestamp=datetime.now(timezone.utc)
             )
             e.set_thumbnail(url=member.display_avatar.url)
-            e.set_footer(text=f"{BOT_NAME} • Oproštaj")
+            e.set_footer(
+                text=f"{BOT_NAME} • Leave",
+                icon_url=member.guild.icon.url if member.guild.icon else None
+            )
             await chan.send(embed=e)
     except (discord.NotFound, discord.Forbidden):
         pass
@@ -2924,26 +2814,23 @@ async def baki(i: discord.Interaction, korisnik: discord.Member = None):
         ("💶 Balans", f"```yaml\n{d['balance']:,} 💶\n```", True), ("💼 Poslednji posao", f"`{last}`", True),
     ]))
 
-@bot.tree.command(name="posao", description="💼 Radi i zaradi (svako 30 min)")
+@bot.tree.command(name="posao", description="💼 Radi i zaradi (svakih 30 min)")
 @app_commands.checks.cooldown(1, 1800, key=lambda i: i.user.id)
 async def posao(i: discord.Interaction):
     d = get_economy(i.user.id)
     earn = random.randint(150, 600)
     d["balance"] += earn; d["last_work"] = time.time(); save_data()
     quest_progress(i.user.id, "work3")
-    asyncio.create_task(poo_trigger("cmd_posao", i.user.id, i.guild))
-    tc = data.get("poo", {}).get("task_counts", {})
-    if tc.get("cmd_posao", 0) >= 5:
-        asyncio.create_task(poo_trigger("eco_posao5", i.user.id, i.guild))
+    _poo_task_progress(i.guild.id if i.guild else 0, i.user.id, "work")
     await i.response.send_message(embed=em("💼 Posao završen!", f"*{random.choice(JOBS)}*", color=COLORS["success"], fields=[
         ("💶 Zarada", f"`+{earn} 💶`", True), ("🏦 Balans", f"`{d['balance']:,} 💶`", True), ("⏰ Sledeći", "za 30 min", True),
     ]))
 
-@bot.tree.command(name="daily", description="🎁 Hourly nagrada (svaki 1h)")
+@bot.tree.command(name="daily", description="🎁 Nagrada svakih 30 minuta")
 async def daily(i: discord.Interaction):
     # 🔒 PERZISTENTNI cooldown — koristi data["economy"][uid]["last_daily"] umjesto in-memory dekoratora.
     # Ovo preživljava restart bota.
-    DAILY_COOLDOWN = 1800  # 30 min u sekundama
+    DAILY_COOLDOWN = 1800  # 30min u sekundama
     d = get_economy(i.user.id)
     now = time.time()
     last = float(d.get("last_daily", 0) or 0)
@@ -2961,10 +2848,7 @@ async def daily(i: discord.Interaction):
     d["last_daily"] = now
     save_data()
     quest_progress(i.user.id, "daily1")
-    asyncio.create_task(poo_trigger("cmd_daily", i.user.id, i.guild))
-    tc2 = data.get("poo", {}).get("task_counts", {})
-    if tc2.get("cmd_daily", 0) >= 5:
-        asyncio.create_task(poo_trigger("eco_daily5", i.user.id, i.guild))
+    _poo_task_progress(i.guild.id if i.guild else 0, i.user.id, "daily")
     await i.response.send_message(embed=em_pro("🎁 Daily Nagrada", "🌟 Tvoj poklon je stigao!\n*Vrati se za 30 min za novu nagradu* 🔄", color=COLORS["gold"], author=i.user, thumb=i.user.display_avatar.url, fields=[
         ("💶 Nagrada", f"```diff\n+ {reward} 💶\n```", True), ("🏦 Balans", f"```yaml\n{d['balance']:,} 💶\n```", True), ("⏰ Sljedeći", "za 30 min", True),
     ]))
@@ -2976,7 +2860,6 @@ async def daj(i: discord.Interaction, korisnik: discord.Member, iznos: int):
     s, r = get_economy(i.user.id), get_economy(korisnik.id)
     if s["balance"] < iznos: return await i.response.send_message(embed=em("❌ Nemaš dovoljno", f"Imaš samo `{s['balance']:,} 💶`!", color=COLORS["error"]), ephemeral=True)
     s["balance"] -= iznos; r["balance"] += iznos; save_data()
-    asyncio.create_task(poo_trigger("eco_give", i.user.id, i.guild))
     await i.response.send_message(embed=em("🤝 Transakcija uspešna", color=COLORS["success"], fields=[
         ("📤 Od", i.user.mention, True), ("📥 Za", korisnik.mention, True), ("💶 Iznos", f"`{iznos:,} 💶`", True),
     ]))
@@ -2991,8 +2874,7 @@ async def kradi(i: discord.Interaction, korisnik: discord.Member):
     await i.response.defer()
     await asyncio.sleep(2)
     amount = random.randint(50, min(600, r["balance"]))
-    _steal_ok = random.random() < 0.38
-    if _steal_ok:
+    if random.random() < 0.38:
         r["balance"] -= amount; s["balance"] += amount
         e = em("🕵️ Krađa uspešna!", "Niko te nije video. Za sad... 👀", color=COLORS["gold"], fields=[
             ("💰 Ukradeno", f"`{amount:,} 💶`", True), ("👤 Žrtva", korisnik.mention, True), ("🏦 Balans", f"`{s['balance']:,} 💶`", True),
@@ -3003,9 +2885,7 @@ async def kradi(i: discord.Interaction, korisnik: discord.Member):
         e = em("🚔 Uhvaćen si!", f"{korisnik.mention} te je prijavio policiji! 🤡", color=COLORS["error"], fields=[
             ("💸 Kazna", f"`{fine:,} 💶`", True), ("🏦 Balans", f"`{s['balance']:,} 💶`", True),
         ])
-    save_data()
-    asyncio.create_task(poo_trigger("eco_steal_ok" if _steal_ok else "eco_steal_fail", i.user.id, i.guild))
-    await i.followup.send(embed=e)
+    save_data(); await i.followup.send(embed=e)
 
 @bot.tree.command(name="rank", description="📈 Level i XP")
 async def rank(i: discord.Interaction, korisnik: discord.Member = None):
@@ -3187,6 +3067,7 @@ async def kpm(i: discord.Interaction):
 @app_commands.describe(ulog="Iznos uloga (min 20 — max 1.000.000.000)")
 @app_commands.checks.cooldown(1, 15, key=lambda i: i.user.id)
 async def slots(i: discord.Interaction, ulog: int = 100):
+    _poo_task_progress(i.guild.id if i.guild else 0, i.user.id, "slots")
     SLOTS_MIN = 20
     SLOTS_MAX = 1_000_000_000
 
@@ -3433,6 +3314,7 @@ class VjesalaView(discord.ui.View):
 
 @bot.tree.command(name="vjasala", description="🎮 Igra Vješala — pogodi skrivenu riječ!")
 async def vjasala(i: discord.Interaction):
+    _poo_task_progress(i.guild.id if i.guild else 0, i.user.id, "vjasala")
     word = random.choice(VJASALA_RJECNIK)
     v    = VjesalaView(i.user, word)
     await i.response.send_message(embed=v.make_embed(), view=v)
@@ -7008,15 +6890,27 @@ async def setup_all(
     await i.response.send_message(embed=e, ephemeral=True)
 
 @bot.tree.command(name="setup-welcome", description="⚙️ Postavi welcome kanal [ADMIN]")
-@discord.app_commands.describe(kanal="Welcome kanal", poruka="Custom poruka ({user} = mention, {server} = ime servera)")
+@discord.app_commands.describe(kanal="Kanal gdje bot šalje welcome embed novim članovima")
 @discord.app_commands.default_permissions(manage_guild=True)
-async def setup_welcome(i: discord.Interaction, kanal: discord.TextChannel, poruka: str = ""):
+async def setup_welcome(i: discord.Interaction, kanal: discord.TextChannel):
     cfg = get_guild_config(i.guild.id)
     cfg["welcome_channel"] = kanal.id
-    if poruka: cfg["welcome_message"] = poruka
     save_data()
-    preview = poruka.replace("{user}", i.user.mention).replace("{server}", i.guild.name) if poruka else f"Hej {i.user.mention}! Drago nam je što si stigao! 🇷🇸"
-    await i.response.send_message(embed=em("✅ Welcome kanal postavljen!", f"Kanal: {kanal.mention}\nPoruka: *{preview}*", color=COLORS["success"]), ephemeral=True)
+    e_out = discord.Embed(
+        title="✅ Welcome kanal postavljen!",
+        description=(
+            f"**Kanal:** {kanal.mention}\n\n"
+            f"Svaki novi član će dobiti embed sa:\n"
+            f"<a:vatrice1:1500466044429664256> chat · <a:vatrice2:1500466048418185246> info · "
+            f"<a:vatrice3:1500466039782113352> news · <a:vatrice4:1500466061970247741> gws\n"
+            f"🪶 broj članova · discord.gg/gian\n"
+            f"Dugmad: <a:game1:1500459114931949568> game · <a:music2:1500459145382592602> music"
+        ),
+        color=COLORS["success"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    e_out.set_footer(text=f"{BOT_NAME} • Welcome Setup")
+    await i.response.send_message(embed=e_out, ephemeral=True)
 
 @bot.tree.command(name="aktivnost-setup", description="⚙️ Postavi kanal za XP level-up i aktivnost [ADMIN]")
 @discord.app_commands.describe(
@@ -7054,12 +6948,25 @@ async def aktivnost_setup(
     await i.response.send_message(embed=e_out, ephemeral=True)
 
 @bot.tree.command(name="setup-leave", description="⚙️ Postavi leave kanal [ADMIN]")
-@discord.app_commands.describe(kanal="Leave kanal")
+@discord.app_commands.describe(kanal="Kanal gdje bot šalje poruku kad član napusti server")
 @discord.app_commands.default_permissions(manage_guild=True)
 async def setup_leave(i: discord.Interaction, kanal: discord.TextChannel):
     get_guild_config(i.guild.id)["leave_channel"] = kanal.id
     save_data()
-    await i.response.send_message(embed=em("✅ Leave kanal postavljen!", f"Kanal: {kanal.mention}", color=COLORS["success"]), ephemeral=True)
+    e_out = discord.Embed(
+        title="✅ Leave kanal postavljen!",
+        description=(
+            f"**Kanal:** {kanal.mention}\n\n"
+            f"Kad član napusti server, bot će poslati embed sa:\n"
+            f"<a:vatrice1:1500466044429664256> **bye** ime člana\n"
+            f"🪶 broj članova · discord.gg/gian\n"
+            f"Thumbnail: avatar člana koji je otišao"
+        ),
+        color=COLORS["success"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    e_out.set_footer(text=f"{BOT_NAME} • Leave Setup")
+    await i.response.send_message(embed=e_out, ephemeral=True)
 
 @bot.tree.command(name="setup-autorole", description="⚙️ Postavi automatsku ulogu pri ulasku [ADMIN]")
 @discord.app_commands.describe(uloga="Uloga koja se daje svim novim članovima")
@@ -7299,7 +7206,7 @@ async def help_cmd(i: discord.Interaction):
             f"📌 Verzija **{VERSION}** · Ukupno komandi: **100**\n"
             f"{head_line}"
         ),
-        color=0x00BCD4,
+        color=COLORS["balkan"],
         timestamp=datetime.now(timezone.utc),
     )
     e.set_thumbnail(url=bot.user.display_avatar.url)
@@ -7335,7 +7242,9 @@ async def help_cmd(i: discord.Interaction):
             f"> `{px}kpm` `{px}slots` `{px}rulet` `{px}vers`\n"
             f"> `{px}vjasala` `{px}kaladont` `{px}kaladont-stop` `{px}toplo-hladno`\n"
             f"> `{px}blackjack` `{px}kviz` `{px}kocka` `{px}geografija` `{px}meme`\n"
-            f"> `{px}amogus` `{px}amogus-stop` `{px}aktivnost`"
+            f"> `{px}amogus` `{px}amogus-stop` `{px}aktivnost`\n"
+            f"> `{px}meme` — 😂 Balkanski mem\n"
+            f"> `{px}poo` `{px}poo-zadaci` `{px}poo-top` `{px}poo-hrani` `{px}poo-info`"
         ),
         inline=False,
     )
@@ -7394,6 +7303,7 @@ async def help_cmd(i: discord.Interaction):
                 f"> `{px}bingo` `{px}hunt` `{px}zoo` `{px}battle`\n"
                 f"> `{px}quests` `{px}poll` `{px}confess` `{px}tiket`\n"
                 f"> `{px}zagrljaj` `{px}poljubac` `{px}srce`\n"
+                f"> `{px}meme` `{px}poo` `{px}poo-zadaci`\n"
                 f"> `{px}brojanje-postavi` `{px}brojanje-info`"
             ),
             inline=False,
@@ -7458,6 +7368,7 @@ async def help_cmd(i: discord.Interaction):
         value=(
             f"> Bingo tiket košta **500 coina** 🪙\n"
             f"> Koristi `{px}posao` i `{px}daily` za zaradu!\n"
+            f"> 💩 `{px}poo` — hrani serversku kreaturU zajedno!\n"
             f"> Za pomoć: kontaktiraj staff servera 💬"
         ),
         inline=False,
@@ -7706,6 +7617,8 @@ data.setdefault("reminders", [])
 data.setdefault("heist_cooldown", {})
 data.setdefault("confess_count", 0)
 data.setdefault("cmd_uses", {})
+
+
 
 # ─── 🏆 TOP CHATTERS ───
 @bot.tree.command(name="topchatters", description="🏆 Top 10 najaktivnijih chatera")
@@ -10390,500 +10303,458 @@ async def backup_status_cmd(i: discord.Interaction):
         ephemeral=True,
     )
 
+bot.tree.add_command(backup_group)
 
-# ═══════════════════════════════════════════════════════════════════════
-#    🐾 P O O  —  Zajednički Virtualni Ljubimac Servera
-#    Cijeli server zajedno hrani i razvija Poo-a! Aktivan 24/7.
-# ═══════════════════════════════════════════════════════════════════════
 
-POO_CHANNELS: set = {
-    1496860023907811348, 1496860023907811349, 1496860023907811350,
-    1496860023907811351, 1496860023907811352, 1496860023907811354,
-    1496860023907811353, 1496860023907811355, 1496860023706488884,
-    1496860024121852090,
-}
-
-# (min_xp, emoji_art, stage_name, opis)
-POO_STAGES = [
-    (0,      "🥚",               "J A J E",               "Poo još nije izlegao... čekajte!"),
-    (50,     "💩",               "B E B A  P O O",          "Tek izlegao! Slab i gladan."),
-    (150,    "💩 ✨",            "M A L I  P O O",           "Raste! Počinje da zna šta želi."),
-    (300,    "🌱 💩",            "B U Đ E N J E",            "Poo se budi — želi pažnju!"),
-    (500,    "💩 💪",            "A K T I V A N",            "Pun energije i znatiželjan."),
-    (800,    "🌟 💩 🌟",         "S J A J N I  P O O",       "Počinje da sja! Server ga voli."),
-    (1200,   "💎 💩 💎",         "D R A G O C J E N I",      "Rijedak i cijenjen na serveru."),
-    (1800,   "💩 🔥 💩",         "V A T R E N I  P O O",     "Usijao se od aktivnosti!"),
-    (2500,   "⚡ 💩 ⚡",         "M U N J A",                "Brz kao munja, svuda prisutan."),
-    (3500,   "🌈 💩 🌈",         "Š A R E N I  P O O",       "Duga boja — bogatstvo karaktera."),
-    (5000,   "👑 💩 👑",         "K R A L J E V S K I",      "Zaslužio je titulu kralja!"),
-    (7000,   "💩 🏆 💩",         "Š A M P I O N",            "Nedostižan pobjednik."),
-    (9500,   "🌙 💩 ⭐",         "N O Ć N I  Č U V A R",     "Aktivan i noću, nikad ne spava."),
-    (12500,  "⭐ 💩 ⭐",         "Z V I J E Z D A",           "Postala prava zvijezda servera!"),
-    (16000,  "🌺 💩 🌺",         "C V I J E T  P O O",        "Procvjetao u punom sjaju."),
-    (20000,  "💫 💩 💫",         "K O S M I Č K I",           "Dostigao kosmičke razmjere!"),
-    (25000,  "🔮 💩 🔮",         "M I S T I Č N I",           "Mistična sila pokrenula poo!"),
-    (31000,  "🐉 💩 🐉",         "Z M A J  P O O",            "Legendarni kao zmaj!"),
-    (38000,  "🌍 💩 🌍",         "S V J E T S K I",            "Poznat širom digitalne galaksije."),
-    (50000,  "⚡ 👑 💩 👑 ⚡",   "L E G E N D A",              "Poo je dostigao besmrtnost!"),
+# ═══════════════════════════════════════════
+#    BALKANSKI MEMOVI lista
+# ═══════════════════════════════════════════
+BALKANSKI_MEMOVI = [
+    "Kad kazes 'idem samo na 5 minuta' a vratis se za 2 sata",
+    "Balkanska dijeta: jednom jedes, drugi put gledat kako drugi jedu",
+    "Balkanski 'odmah' = negdje izmedju 30 minuta i nikad",
+    "Nana: 'nisi jeo?' Ti: 'jesam' Nana: 'ajde pojedi ovo'",
+    "Kad bolja polovina kaze 'kako hoces' — PAZI SE!",
+    "Mi ne kazemo 'te volim', mi kazemo 'jesi jeo?'",
+    "Balkanski WiFi password: pitaj komšiju",
+    "Balkanski 'nije daleko': 45 minuta i tri kontrole",
+    "Nema problema koji se ne moze riješiti uz kafu",
+    "Kad kaze 'ne ljutim se' — najgore pocinje",
+    "Mi smo jedini narod gdje se svi svadjaju a svi u pravu",
+    "Nana vs. frizider: nana uvijek pobijedi",
+    "Balkanska fizika: rakija lijeci sve, ili boli manje posle",
+    "Balkanci ne kazu zbogom, kazu 'e, ajmo' i stoje jos sat",
+    "Kad si gladan a mama kaze 'ima u frizideru' — traganje pocinje",
+    "Svaka balkanska prica pocinje 'ti ne znas kako je bilo'",
+    "Balkanski domacin: gost ne smije gladovati, cak ni slucajno",
+    "Piknik plan: idemo u prirodu, jedemo 6 sati, ne vidimo prirodu",
+    "Balkanski grad: 10 hiljada ljudi, svi znaju sve o svima",
+    "Kad kazes 'gledam samo minutu' a sat prosao",
+    "Balkanska logika: sunce zari, ali nosimo jaknu za svaki slucaj",
+    "Viber poruka od mame u 6 ujutro: 'jesi ziv?'",
+    "Ko nije kasnio 45 minuta na vlak koji je kasnio sat — nije Balkanac",
+    "Balkanska tajna: svi znaju, niko ne govori — osim uz rakiju",
+    "Komšijska posjeta: dodju na kavu, ostanu na veceri",
+    "Balkanski ljekar: 'ajde, nije nista, uzmi caj'",
+    "Svaki put kad izlaziš: 'di si bio?' 'di ideš?' 'kad se vracas?'",
+    "Balkanski put do prodavnice: sretnješ 3 komšije, sat vremena",
+    "Proslava u 14:00 = pocni dolaziti u 16:00",
+    "Tata u kuci: tiho. Tata na auto: komentator",
+    "Kad mama kaze 'vidi sto si uradio' otac gleda u pod",
+    "Balkanski sat: 10:00 = izmedju 10:30 i 11:15",
+    "Svadbeni stres: tko sjedi pored koga? Veci problem od rata",
+    "Balkanski turist: svi frizideri otvoreni, restorani zaobidjeni",
+    "Balkanci na moru: sjena, rostilj, muzika, mora nema",
+    "Balkanski muzicki ukus: turbofolk ili metal, ne postoji sredina",
+    "Nana ne mari za dijetu — ali mari za tvoje lijepo lice",
+    "Djed kaze 'u moje vrjeme': pocni planirati 45 min slusanja",
+    "Kad si bolestan: mama donese supu, baka donese rakiju, tata donese savjet",
+    "Balkanski frizider: uvijek pun, nikad ne znas cega",
+    "Ko ne dodje na slavlje nije nas — ko dodje ne ode kuci sit",
+    "Balkanska autopilotnija: put do hamburgera poznaješ bolje od kuce",
+    "Rodbina koja te ne vidi: 'narasao si!' (uvijek, bez obzira)",
+    "Balkanski dorucak: caj, jaja, med, kajmak, burek — 'nista posebno'",
+    "Nana gura hranu, mama gura kapu, tata gura savjete",
+    "Balkanski 'jesmo li stigli?' = svakih 5 minuta od polaska",
+    "Praznik plan: ne radimo nista CIJELI DAN zajedno",
+    "Mama: 'ne brini, niko nista ne prica o tebi' Mama malo posle: '...'",
+    "Balkanska ptica rane: mama u 7, svi u kuci u 10",
+    "Svaka balkanska prica: pocne s kafom, zavrsi s politikom",
+    "Kad sav grad zna tvoj problem, a ti si ga samo rekao prijatelju",
+    "Djed u prici: 'a onda...' — pocinje sat vremena epske istorije",
+    "Balkanski 'miran covjek': tih dok ne pocne fudbal",
+    "Mama cita horoskop, baba cita solje, otac cita novine — svi u pravu",
+    "Balkanski domacin misli 'mozda je gladan' = donese cijeli bife",
+    "Kad neko kaze 'bit cu za 10 minuta' — naruci pice, moze cekati",
+    "Balkanski 'nikad nije kasno' = vec kasno, ali idemo",
+    "Kad pise 'br' u chatu — ne znas je l' brate ili nema teksta",
+    "Balkanska strpljost: cekaj red 5 minuta, onda gurni se naprijed",
+    "Balkanski film: svadba ili sprovod, uvijek ista muzika",
+    "Kad ti kazu 'imas vremena' — to znaci hitno",
+    "Komšija na vjencanju: 'tko je ova?' Svi gledaju. Komšija zna sve.",
+    "Balkanci smo: gledamo lose vrijeme na Balkanu, kunemo vladu",
+    "Balkanski 'nije skupo': vise nego sto imam",
+    "Kad kazes 'ne trebam nista': trebas svaki dio, ali ne priznaješ",
+    "Balkanski poklon: uvijek previse hrane, nikad dovoljno kesa",
+    "Tata: 'je l' ugaseno?' Gasi sam, ali pita 3 puta",
+    "Balkanski vijest: 10% info, 90% komentar",
+    "Kad si kuci kasno — mama je budna, otac spava, ali cuje sve",
+    "Balkan matematika: jedna kafa = 3 sata pricanja",
+    "Rodit ces se opet ako izjedeš sve s tanjira — balkanska legenda",
+    "Balkanski 'odmah se vracam' = video na ulici Ziku i tri sata nestao",
+    "Balkanska izjava 'idem lezati malo' = cijela noc",
+    "Balkanski alarm: mama vikne jednom, to je upozorenje",
+    "Planiram odmor: torba spakirana, novac nema. Klasika.",
+    "Cijela familija na telefonu za Bajram — nijedan ne moze da cuje",
+    "Balkanska kuhinja: 'tjestenina za troje' = dovoljno za deset",
+    "Nije pijanka ako si otisao pjeske i vratio taksijem",
+    "Balkanac u restoranu: 'sta je najjeftinije?' (uzme najskuplje)",
+    "Svaka balkan porodica ima jednog strucnjaka za sve",
+    "Kad kazes 'sad cu' a ni za sat nisi pobjegao iz kreveta",
+    "Balkanski 'bit ce gotovo za 5 minuta' a radio 3 sata",
+    "Balkanski plan: 'odma idemo' = polazak za pola sata",
+    "Godisnija — on zaboravi, ona pamti ZAUVIJEK",
+    "Kad kazes 'idem spavati' a sedeš YouTube gledati do 3 ujutro",
+    "Ko nije kasnio na vlastitu proslavu — nije nas",
+    "Balkanci na dijeti: 'jedan komad torte ne steti' (uzme tri)",
+    "Svaka balkanska familija: jedan koji jede sve, jedan koji ne jede nista",
+    "Nana u bolnici: svi posjete tamo, nana kuha, doktori jedu",
+    "Kad kazes 'nema nista u frizideru' — u njemu je hrana za tjedan",
+    "Balkanski 'je l' sve ok?' = pricaj mi o svemu godinu dana",
+    "Balkanska prazna torba: uvijek 12 kilograma hrane kad se vrati",
+    "Svadbeni ples: stariji par — ne krecu se. Djeca — ne stanu.",
+    "Balkanska filozofija: ko ne ceka, ne doceka",
+    "Kad imas 'samo jedno pitanje' a imas sto",
+    "Balkanci smo: ako nisi zakasnio, stigao si prerano",
+    "Kad nana kaze 'pojedi jos malo' a si vec pun 40 minuta",
 ]
 
-POO_TASKS = [
-    {"id":1,  "cat":"💬 Chat",    "name":"Glasnik",            "desc":"Napiši poruku u poo kanalu",                  "xp":5,   "tr":"msg_poo_ch"},
-    {"id":2,  "cat":"💬 Chat",    "name":"Numeričar",          "desc":"Napiši broj u chat",                          "xp":10,  "tr":"msg_number"},
-    {"id":3,  "cat":"💬 Chat",    "name":"Poo Fanatik",        "desc":"Napiši 'POO' ili 'POU' u chat",               "xp":15,  "tr":"msg_word_poo"},
-    {"id":4,  "cat":"💬 Chat",    "name":"Stroj za Tekst",     "desc":"Pošalji poruku od 100+ znakova",              "xp":12,  "tr":"msg_long"},
-    {"id":5,  "cat":"💬 Chat",    "name":"Emoji Kralj",        "desc":"Pošalji poruku s emojijima",                  "xp":8,   "tr":"msg_emoji"},
-    {"id":6,  "cat":"💬 Chat",    "name":"Fotograf",           "desc":"Pošalji sliku ili GIF u poo kanal",           "xp":10,  "tr":"msg_attachment"},
-    {"id":7,  "cat":"💬 Chat",    "name":"Odgovarač",          "desc":"Odgovori (reply) na tuđu poruku",             "xp":8,   "tr":"msg_reply"},
-    {"id":8,  "cat":"💬 Chat",    "name":"Mencioner",          "desc":"Taguj nekog u poruci",                        "xp":10,  "tr":"msg_mention"},
-    {"id":9,  "cat":"💬 Chat",    "name":"Noćna Ptica",        "desc":"Piši između 00:00-06:00",                     "xp":12,  "tr":"msg_night"},
-    {"id":10, "cat":"💬 Chat",    "name":"Jutarnja Kafa",      "desc":"Piši između 06:00-12:00",                     "xp":8,   "tr":"msg_morning"},
-    {"id":11, "cat":"💬 Chat",    "name":"LOL Master",         "desc":"Napiši 'haha', 'lol' ili 'xd'",               "xp":6,   "tr":"msg_lol"},
-    {"id":12, "cat":"💬 Chat",    "name":"GIANNI Navijač",     "desc":"Napiši 'GIANNI' u kanalu",                    "xp":15,  "tr":"msg_gianni"},
-    {"id":13, "cat":"💬 Chat",    "name":"Poo Starter",        "desc":"Poruka počinje sa 'Poo' ili 'Pou'",           "xp":12,  "tr":"msg_starts_poo"},
-    {"id":14, "cat":"💬 Chat",    "name":"Precizni 69",        "desc":"Napiši poruku od TAČNO 69 znakova",           "xp":30,  "tr":"msg_len_69"},
-    {"id":15, "cat":"💬 Chat",    "name":"Stotka",             "desc":"Napiši poruku od TAČNO 100 znakova",          "xp":35,  "tr":"msg_len_100"},
-    {"id":16, "cat":"💬 Chat",    "name":"Popodnevnik",        "desc":"Piši između 12:00-18:00",                     "xp":7,   "tr":"msg_afternoon"},
-    {"id":17, "cat":"💬 Chat",    "name":"Večernik",           "desc":"Piši između 18:00-24:00",                     "xp":8,   "tr":"msg_evening"},
-    {"id":18, "cat":"💬 Chat",    "name":"Broj Sreće",         "desc":"Napiši tačno broj 7 u chat",                  "xp":20,  "tr":"msg_lucky7"},
-    {"id":19, "cat":"💬 Chat",    "name":"Djavo",              "desc":"Napiši tačno broj 666 u chat",                "xp":20,  "tr":"msg_666"},
-    {"id":20, "cat":"💬 Chat",    "name":"Hacker",             "desc":"Napiši tačno 1337 u chat",                    "xp":35,  "tr":"msg_1337"},
-    {"id":21, "cat":"🎮 Komande", "name":"Kockar",             "desc":"Koristi /slots",                              "xp":10,  "tr":"cmd_slots"},
-    {"id":22, "cat":"🎮 Komande", "name":"Dnevni Ritual",      "desc":"Uzmi /daily nagradu",                         "xp":15,  "tr":"cmd_daily"},
-    {"id":23, "cat":"🎮 Komande", "name":"Radnik",             "desc":"Radi /posao",                                 "xp":15,  "tr":"cmd_posao"},
-    {"id":24, "cat":"🎮 Komande", "name":"Meme Lord",          "desc":"Koristi .meme komandu",                       "xp":12,  "tr":"cmd_meme"},
-    {"id":25, "cat":"🎮 Komande", "name":"Kaladont Pro",       "desc":"Pokreni /kaladont igru",                      "xp":12,  "tr":"cmd_kaladont"},
-    {"id":26, "cat":"🎮 Komande", "name":"Blackjack Ace",      "desc":"Koristi /blackjack",                          "xp":10,  "tr":"cmd_blackjack"},
-    {"id":27, "cat":"🎮 Komande", "name":"Nahranioc",          "desc":"Koristi /poo feed",                           "xp":25,  "tr":"cmd_poo_feed"},
-    {"id":28, "cat":"🎮 Komande", "name":"Vješalog",           "desc":"Pokreni /vjesala igru",                       "xp":10,  "tr":"cmd_vjesala"},
-    {"id":29, "cat":"🎮 Komande", "name":"Termometar",         "desc":"Pokreni /toplo-hladno",                       "xp":10,  "tr":"cmd_toplo"},
-    {"id":30, "cat":"🎮 Komande", "name":"Mafia Boss",         "desc":"Pokreni /mafia igru",                         "xp":20,  "tr":"cmd_mafia"},
-    {"id":31, "cat":"🎮 Komande", "name":"Balkanac",           "desc":"Pogledaj /profil",                            "xp":8,   "tr":"cmd_profile"},
-    {"id":32, "cat":"🎮 Komande", "name":"Bankač",             "desc":"Koristi /bank komandu",                       "xp":8,   "tr":"cmd_bank"},
-    {"id":33, "cat":"🎮 Komande", "name":"Kvizaš",             "desc":"Pokreni /kviz",                               "xp":12,  "tr":"cmd_kviz"},
-    {"id":34, "cat":"🎮 Komande", "name":"Geograf",            "desc":"Pokreni /geografija",                         "xp":12,  "tr":"cmd_geo"},
-    {"id":35, "cat":"🎮 Komande", "name":"Pokerar",            "desc":"Pokreni /poker igru",                         "xp":20,  "tr":"cmd_poker"},
-    {"id":36, "cat":"🎮 Komande", "name":"Loto Srećko",        "desc":"Kupi loto tiket /lottery buy",                "xp":15,  "tr":"cmd_lottery"},
-    {"id":37, "cat":"🎮 Komande", "name":"Poo Gledalac",       "desc":"Pogledaj /poo status",                        "xp":5,   "tr":"cmd_poo_status"},
-    {"id":38, "cat":"🎮 Komande", "name":"Mislioc",            "desc":"Koristi /8ball",                              "xp":8,   "tr":"cmd_8ball"},
-    {"id":39, "cat":"🎮 Komande", "name":"Questor",            "desc":"Provjeri /quests",                            "xp":10,  "tr":"cmd_quests"},
-    {"id":40, "cat":"🎮 Komande", "name":"RPS Vitez",          "desc":"Koristi /rps komandu",                        "xp":8,   "tr":"cmd_rps"},
-    {"id":41, "cat":"💰 Ekonomija","name":"Stotka Plus",       "desc":"Zaraditi 100+ 💶 u jednoj igri",              "xp":10,  "tr":"eco_earn_100"},
-    {"id":42, "cat":"💰 Ekonomija","name":"Petaca",            "desc":"Zaraditi 500+ 💶 u jednoj igri",              "xp":20,  "tr":"eco_earn_500"},
-    {"id":43, "cat":"💰 Ekonomija","name":"Hiljadarka",        "desc":"Zaraditi 1000+ 💶 u jednoj igri",             "xp":35,  "tr":"eco_earn_1k"},
-    {"id":44, "cat":"💰 Ekonomija","name":"Bogataš",           "desc":"Imati 10,000+ 💶 u novčaniku",                "xp":30,  "tr":"eco_rich_10k"},
-    {"id":45, "cat":"💰 Ekonomija","name":"Milioner",          "desc":"Imati 100,000+ 💶",                           "xp":80,  "tr":"eco_rich_100k"},
-    {"id":46, "cat":"💰 Ekonomija","name":"Ulagač",            "desc":"Položi u banku (/bank deposit)",              "xp":10,  "tr":"eco_bank_dep"},
-    {"id":47, "cat":"💰 Ekonomija","name":"Povlakač",          "desc":"Podigni iz banke (/bank withdraw)",           "xp":8,   "tr":"eco_bank_wd"},
-    {"id":48, "cat":"💰 Ekonomija","name":"Siromah",           "desc":"Ostani bez novca (0 💶)",                     "xp":5,   "tr":"eco_broke"},
-    {"id":49, "cat":"💰 Ekonomija","name":"Džepni Lopov",      "desc":"Uspješno ukradi od nekoga",                   "xp":12,  "tr":"eco_steal_ok"},
-    {"id":50, "cat":"💰 Ekonomija","name":"Uhvaćen",           "desc":"Uhvaćen pri krađi",                           "xp":5,   "tr":"eco_steal_fail"},
-    {"id":51, "cat":"💰 Ekonomija","name":"Darežljiv",         "desc":"Pokloni nekome 💶 (/daj)",                    "xp":12,  "tr":"eco_give"},
-    {"id":52, "cat":"💰 Ekonomija","name":"JACKPOT!",          "desc":"Osvoji jackpot na /slots",                    "xp":50,  "tr":"eco_slots_jp"},
-    {"id":53, "cat":"💰 Ekonomija","name":"Hazarder",          "desc":"Izgubi 💶 u igri",                            "xp":5,   "tr":"eco_loss"},
-    {"id":54, "cat":"💰 Ekonomija","name":"Radna Etika",       "desc":"Uzmi platu 5 puta",                           "xp":25,  "tr":"eco_posao5"},
-    {"id":55, "cat":"💰 Ekonomija","name":"Daily x5",          "desc":"Uzmi daily nagradu 5 puta",                   "xp":25,  "tr":"eco_daily5"},
-    {"id":56, "cat":"🏆 Pobjede", "name":"Kaladont Šampion",   "desc":"Izreci 'KALADONT' i pobijedi",                "xp":40,  "tr":"win_kaladont"},
-    {"id":57, "cat":"🏆 Pobjede", "name":"Termik",             "desc":"Pogodi Toplo-Hladno za manje od 5 pokušaja",  "xp":30,  "tr":"win_toplo_5"},
-    {"id":58, "cat":"🏆 Pobjede", "name":"Vješani Heroj",      "desc":"Pogodi u Vješalama",                          "xp":25,  "tr":"win_vjesala"},
-    {"id":59, "cat":"🏆 Pobjede", "name":"Mafia Survivor",     "desc":"Preživjeti kao Civil",                        "xp":35,  "tr":"win_mafia_civil"},
-    {"id":60, "cat":"🏆 Pobjede", "name":"21 Točno",           "desc":"Pobijedi dealera u Blackjacku",               "xp":25,  "tr":"win_blackjack"},
-    {"id":61, "cat":"🏆 Pobjede", "name":"Poker Face",         "desc":"Pobijedi u Pokeru",                           "xp":40,  "tr":"win_poker"},
-    {"id":62, "cat":"🏆 Pobjede", "name":"Kviz Zvijezda",      "desc":"5 tačnih odgovora u kvizu",                   "xp":30,  "tr":"win_quiz5"},
-    {"id":63, "cat":"🏆 Pobjede", "name":"Geograf Šampion",    "desc":"Pogodi 3 tačne u geografiji",                 "xp":30,  "tr":"win_geo3"},
-    {"id":64, "cat":"🏆 Pobjede", "name":"RPS Pobjednik",      "desc":"Pobijedi u Kamen-Papir-Makaze",               "xp":15,  "tr":"win_rps"},
-    {"id":65, "cat":"🏆 Pobjede", "name":"Lucky Giveaway",     "desc":"Osvoji giveaway",                             "xp":50,  "tr":"win_giveaway"},
-    {"id":66, "cat":"🏆 Pobjede", "name":"7 Mega Jackpot",     "desc":"Pogodi 3x 7 na slotovima",                    "xp":100, "tr":"win_slots_777"},
-    {"id":67, "cat":"🏆 Pobjede", "name":"Dijamantski",        "desc":"Pogodi 3x dijamant na slotovima",             "xp":75,  "tr":"win_slots_ddd"},
-    {"id":68, "cat":"🏆 Pobjede", "name":"Loto Heroj",         "desc":"Osvoji sedmičnu loto",                        "xp":60,  "tr":"win_loto"},
-    {"id":69, "cat":"🏆 Pobjede", "name":"Mafia Detektiv",     "desc":"Eliminiši sve Mafia igrače",                  "xp":50,  "tr":"win_mafia_det"},
-    {"id":70, "cat":"🏆 Pobjede", "name":"Hat Trick",          "desc":"Pobijedi u 3 igre istog dana",                "xp":40,  "tr":"win_3today"},
-    {"id":71, "cat":"🤝 Socijalno","name":"Reakcioner",        "desc":"Dodaj reakciju na nečiju poruku",             "xp":5,   "tr":"react_add"},
-    {"id":72, "cat":"🤝 Socijalno","name":"Voljen",            "desc":"Dobiti srce ili palac na svoju poruku",       "xp":8,   "tr":"react_recv"},
-    {"id":73, "cat":"🤝 Socijalno","name":"Svi Zajedno",       "desc":"Pomeni 3+ člana u jednoj poruci",             "xp":15,  "tr":"msg_3mention"},
-    {"id":74, "cat":"🤝 Socijalno","name":"Aktivan Dan",       "desc":"Napiši 20 poruka u jednom danu",              "xp":20,  "tr":"msg_20today"},
-    {"id":75, "cat":"🤝 Socijalno","name":"Maraton Pisac",     "desc":"Napiši 50 poruka u jednom danu",              "xp":40,  "tr":"msg_50today"},
-    {"id":76, "cat":"🤝 Socijalno","name":"Dobrodošlica",      "desc":"Napiši 'dobrodošao' ili 'welcome'",           "xp":10,  "tr":"msg_welcome"},
-    {"id":77, "cat":"🤝 Socijalno","name":"GG Bro",            "desc":"Napiši 'gg' ili 'bravo'",                     "xp":8,   "tr":"msg_gg"},
-    {"id":78, "cat":"🤝 Socijalno","name":"Veteran Poo",       "desc":"Napiši 100 poruka u poo kanalima",            "xp":30,  "tr":"poo_msgs_100"},
-    {"id":79, "cat":"🤝 Socijalno","name":"Legend Poo",        "desc":"Napiši 500 poruka u poo kanalima",            "xp":80,  "tr":"poo_msgs_500"},
-    {"id":80, "cat":"🤝 Socijalno","name":"Hvala Lijepo",      "desc":"Napiši 'hvala' nekome",                       "xp":8,   "tr":"msg_hvala"},
-    {"id":81, "cat":"🤝 Socijalno","name":"Motivator",         "desc":"Napiši 'sretan' ili 'srecan'",                "xp":8,   "tr":"msg_srecan"},
-    {"id":82, "cat":"🤝 Socijalno","name":"Emotivac",          "desc":"Napiši 'tuzno' ili 'sad'",                    "xp":5,   "tr":"msg_sad"},
-    {"id":83, "cat":"🤝 Socijalno","name":"Bot Prijatelj",     "desc":"Pomeni bota u poruci",                        "xp":15,  "tr":"msg_bot_mention"},
-    {"id":84, "cat":"🤝 Socijalno","name":"Trio Chat",         "desc":"Napiši u 3+ različita kanala istog dana",     "xp":15,  "tr":"msg_3channels"},
-    {"id":85, "cat":"🤝 Socijalno","name":"Poo Veteran",       "desc":"Ostani aktivan 10+ dana zaredom",             "xp":50,  "tr":"msg_10days"},
-    {"id":86, "cat":"⚡ Specijal", "name":"Poo Is Best",       "desc":"Napiši 'POO IS BEST' u kanalu",               "xp":25,  "tr":"msg_poo_is_best"},
-    {"id":87, "cat":"⚡ Specijal", "name":"Gladni Spasitej",   "desc":"Nahrani poo kad je hunger ispod 30%",         "xp":20,  "tr":"poo_feed_hungry"},
-    {"id":88, "cat":"⚡ Specijal", "name":"Jutarnji Cuvar",    "desc":"Budi prvi koji pise u poo kanalu danas",       "xp":25,  "tr":"poo_first_today"},
-    {"id":89, "cat":"⚡ Specijal", "name":"Nocni Medo",        "desc":"Pisi u poo kanalu izmedju 00:00-03:00",        "xp":20,  "tr":"poo_midnight"},
-    {"id":90, "cat":"⚡ Specijal", "name":"Poo Miluje",        "desc":"Napisi 'POO MILUJE' ili 'POO VOLI'",          "xp":15,  "tr":"msg_poo_miluje"},
-    {"id":91, "cat":"⚡ Specijal", "name":"Poo Level 5",       "desc":"Pomozi poo-u do Nivoa 5",                     "xp":30,  "tr":"poo_reach_5"},
-    {"id":92, "cat":"⚡ Specijal", "name":"Poo Level 10",      "desc":"Pomozi poo-u do Nivoa 10",                    "xp":60,  "tr":"poo_reach_10"},
-    {"id":93, "cat":"⚡ Specijal", "name":"Poo Level 15",      "desc":"Pomozi poo-u do Nivoa 15",                    "xp":100, "tr":"poo_reach_15"},
-    {"id":94, "cat":"⚡ Specijal", "name":"Poo MAX!",          "desc":"Pomozi poo-u do Nivoa 19 (LEGENDA)",          "xp":200, "tr":"poo_reach_19"},
-    {"id":95, "cat":"⚡ Specijal", "name":"Feed x10",          "desc":"Nahrani poo 10 puta",                         "xp":30,  "tr":"poo_feed_10x"},
-    {"id":96, "cat":"⚡ Specijal", "name":"Poo King",          "desc":"Budi #1 contributor kad poo dostigne Nivo 10","xp":150, "tr":"poo_king"},
-    {"id":97, "cat":"⚡ Specijal", "name":"Svi Statovi Niski", "desc":"Pomozi kad je svaki stat poo-a ispod 30%",    "xp":50,  "tr":"poo_all_low"},
-    {"id":98, "cat":"⚡ Specijal", "name":"Tajni Trigger",     "desc":"Pronadi tajni trigger (hint: broj 42)",       "xp":40,  "tr":"msg_secret"},
-    {"id":99, "cat":"⚡ Specijal", "name":"Poo Explorer",      "desc":"Zavrsi zadatke iz svih 6 kategorija",         "xp":50,  "tr":"poo_all_cats"},
-    {"id":100,"cat":"⚡ Specijal", "name":"THE POO KING",      "desc":"50,000 XP za server — LEGENDA DOSTIGNUTA!",   "xp":500, "tr":"poo_legend"},
-]
+def get_next_meme(guild_id: int) -> str:
+    return random.choice(BALKANSKI_MEMOVI)
 
-_POO_TR_MAP: dict = {t["tr"]: t for t in POO_TASKS}
-
-
-def get_poo() -> dict:
-    if "poo" not in data:
-        data["poo"] = {
-            "xp": 0, "hunger": 100, "happiness": 100,
-            "cleanliness": 100, "energy": 100,
-            "tasks_done": 0, "task_counts": {},
-            "contributors": {}, "born_at": time.time(),
-            "daily_tasks": [], "daily_tasks_date": "",
-            "daily_completed": [], "milestones": [],
-        }
-    p = data["poo"]
-    for k, v in [("task_counts", {}), ("contributors", {}), ("daily_tasks", []),
-                 ("daily_tasks_date", ""), ("daily_completed", []), ("milestones", [])]:
-        p.setdefault(k, v)
-    return p
-
-
-def _poo_stage_idx(xp: int) -> int:
-    idx = 0
-    for i2, (min_xp, *_) in enumerate(POO_STAGES):
-        if xp >= min_xp:
-            idx = i2
-        else:
-            break
-    return idx
-
-
-def _poo_bar(v: int, length: int = 10) -> str:
-    v = max(0, min(100, v))
-    filled = round(v / 100 * length)
-    tile = "🟩" if v >= 70 else ("🟨" if v >= 40 else ("🟧" if v >= 20 else "🟥"))
-    return f"{tile * filled}{'⬛' * (length - filled)}  **{v}%**"
-
-
-def _poo_refresh_daily():
-    p = get_poo()
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    if p.get("daily_tasks_date") != today:
-        p["daily_tasks_date"] = today
-        p["daily_completed"] = []
-        p["daily_tasks"] = random.sample([t["id"] for t in POO_TASKS], 5)
-        save_data()
-
-
-def poo_build_embed(guild=None) -> discord.Embed:
-    p = get_poo()
-    _poo_refresh_daily()
-    xp = p.get("xp", 0)
-    idx = _poo_stage_idx(xp)
-    _, art, sname, sdesc = POO_STAGES[idx]
-    next_xp = POO_STAGES[idx + 1][0] if idx + 1 < len(POO_STAGES) else POO_STAGES[-1][0]
-    curr_xp = POO_STAGES[idx][0]
-    xp_pct = min(100, int((xp - curr_xp) / max(next_xp - curr_xp, 1) * 100))
-    bar_fill = "\u2588" * (xp_pct // 10) + "\u2591" * (10 - xp_pct // 10)
-    STAGE_COLORS = [
-        0x5D4037, 0x8D6E63, 0xA5D6A7, 0x81C784, 0x4CAF50,
-        0xFFD54F, 0x29B6F6, 0xFF7043, 0xFFEA00, 0x00BFA5,
-        0xFFD700, 0xFF6B6B, 0x9C27B0, 0xF8BBD0, 0xFF80AB,
-        0x00E5FF, 0xE040FB, 0xFF6F00, 0x1DE9B6, 0xFFFFFF,
-    ]
+# ═══════════════════════════════════════════
+#    /meme — balkanski mem
+# ═══════════════════════════════════════════
+@bot.tree.command(name="meme", description="😂 Pošalji balkanski mem u kanal")
+async def meme_cmd(i: discord.Interaction):
+    meme_text = get_next_meme(i.guild.id if i.guild else 0)
     e = discord.Embed(
-        title=f"🐾  {art}  \u2022  {sname}",
-        description=(
-            f"*{sdesc}*\n\n"
-            f"> **Nivo {idx}** `{bar_fill}` `{xp_pct}%`\n"
-            f"> XP: **{xp:,}** / **{next_xp:,}**"
-        ),
-        color=STAGE_COLORS[idx],
-        timestamp=datetime.now(timezone.utc),
-    )
-    e.add_field(name="🍗  Glad",     value=_poo_bar(p.get("hunger",      100)), inline=False)
-    e.add_field(name="😊  Sreća",    value=_poo_bar(p.get("happiness",   100)), inline=False)
-    e.add_field(name="🧼  Čistoća",  value=_poo_bar(p.get("cleanliness", 100)), inline=False)
-    e.add_field(name="⚡  Energija", value=_poo_bar(p.get("energy",      100)), inline=False)
-    daily_ids = p.get("daily_tasks", [])
-    daily_done = set(p.get("daily_completed", []))
-    if daily_ids:
-        lines = []
-        for tid in daily_ids:
-            tt = next((x for x in POO_TASKS if x["id"] == tid), None)
-            if tt:
-                ck = "✅" if tid in daily_done else "⬜"
-                lines.append(f"{ck} {tt['cat']} **{tt['name']}** \u2014 _{tt['desc']}_ `+{tt['xp']} XP`")
-        e.add_field(
-            name="🎯  Dnevni Zadaci  *(resetuju se u ponoć)*",
-            value="\n".join(lines),
-            inline=False
-        )
-    contribs = p.get("contributors", {})
-    if contribs and guild:
-        top3 = sorted(contribs.items(), key=lambda x: x[1], reverse=True)[:3]
-        medals = ["🥇", "🥈", "🥉"]
-        tl = []
-        for mi, (uid_s, xp_g) in enumerate(top3):
-            m = guild.get_member(int(uid_s))
-            tl.append(f"{medals[mi]} **{m.display_name if m else uid_s}** \u2014 `{xp_g:,} XP`")
-        e.add_field(name="🏆  Top Nahranivači", value="\n".join(tl), inline=True)
-    born = p.get("born_at", time.time())
-    days = max(0, int((time.time() - born) / 86400))
-    tasks_done = p.get("tasks_done", 0)
-    e.add_field(name="📊  Info", value=f"🗓️ `{days}` dana\n📋 `{tasks_done}` zadataka", inline=True)
-    e.set_footer(text=f"🐾 GIANNI Poo \u2022 Nivo {idx}/{len(POO_STAGES)-1} \u2022 Koristi /poo feed da hraniš!")
-    return e
-
-
-async def poo_trigger(tr: str, uid: int, guild=None, channel=None, xp: int = 0):
-    t = _POO_TR_MAP.get(tr)
-    if not t and not xp:
-        return
-    amount = xp or (t["xp"] if t else 0)
-    if not amount:
-        return
-    p = get_poo()
-    _poo_refresh_daily()
-    old_idx = _poo_stage_idx(p.get("xp", 0))
-    p["xp"] = p.get("xp", 0) + amount
-    uid_s = str(uid)
-    p["contributors"][uid_s] = p["contributors"].get(uid_s, 0) + amount
-    tc = p.setdefault("task_counts", {})
-    tc[tr] = tc.get(tr, 0) + 1
-    daily_ids = p.get("daily_tasks", [])
-    daily_done = set(p.get("daily_completed", []))
-    for tid in daily_ids:
-        tt = next((x for x in POO_TASKS if x["id"] == tid), None)
-        if tt and tt["tr"] == tr and tid not in daily_done:
-            daily_done.add(tid)
-            p["daily_completed"] = list(daily_done)
-            p["tasks_done"] = p.get("tasks_done", 0) + 1
-            break
-    p["happiness"] = min(100, p.get("happiness", 100) + 1)
-    new_idx = _poo_stage_idx(p["xp"])
-    leveled = new_idx > old_idx
-    if leveled and new_idx not in p.get("milestones", []):
-        p.setdefault("milestones", []).append(new_idx)
-        if new_idx == 5:  asyncio.create_task(poo_trigger("poo_reach_5",  uid, guild, channel))
-        if new_idx == 10: asyncio.create_task(poo_trigger("poo_reach_10", uid, guild, channel))
-        if new_idx == 15: asyncio.create_task(poo_trigger("poo_reach_15", uid, guild, channel))
-        if new_idx == 19: asyncio.create_task(poo_trigger("poo_reach_19", uid, guild, channel))
-    save_data()
-    if leveled and channel:
-        _, art2, sname2, sdesc2 = POO_STAGES[new_idx]
-        try:
-            ev_e = discord.Embed(
-                title="🎉  P O O  J E  E V O L U I R A O !",
-                description=(
-                    f"# {art2}\n## {sname2}\n*{sdesc2}*\n\n"
-                    f"Svi zajedno ste pomogli **Poo-u** da dostigne **Nivo {new_idx}**! 🐾🎊"
-                ),
-                color=0xFFD700,
-                timestamp=datetime.now(timezone.utc)
-            )
-            ev_e.set_footer(text="🐾 GIANNI Poo \u2022 Evoluirao!")
-            await channel.send(embed=ev_e)
-        except Exception:
-            pass
-
-
-@tasks.loop(minutes=30)
-async def poo_decay_task():
-    if "poo" not in data or data["poo"].get("xp", 0) == 0:
-        return
-    p = data["poo"]
-    p["hunger"]      = max(0, p.get("hunger",      100) - 4)
-    p["happiness"]   = max(0, p.get("happiness",   100) - 2)
-    p["cleanliness"] = max(0, p.get("cleanliness", 100) - 3)
-    p["energy"]      = max(0, p.get("energy",      100) - 2)
-    save_data()
-
-
-class PooView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="Nahrani  (50 \U0001f4b6)", emoji="🍗", style=discord.ButtonStyle.success, custom_id="poo_feed_btn")
-    async def feed_btn(self, i: discord.Interaction, b: discord.ui.Button):
-        p = get_poo()
-        d = get_economy(i.user.id)
-        cost = 50
-        if d["balance"] < cost:
-            return await i.response.send_message(
-                embed=em("❌ Nemaš dovoljno", f"Hranjenje košta **{cost} 💶**!", color=COLORS["error"]),
-                ephemeral=True
-            )
-        d["balance"] -= cost
-        hungry = p.get("hunger", 100) < 30
-        p["hunger"]      = min(100, p.get("hunger",      0) + 25)
-        p["happiness"]   = min(100, p.get("happiness",   0) + 15)
-        p["cleanliness"] = min(100, p.get("cleanliness", 0) + 10)
-        p["energy"]      = min(100, p.get("energy",      0) + 10)
-        save_data()
-        tr_used = "poo_feed_hungry" if hungry else "cmd_poo_feed"
-        await poo_trigger(tr_used, i.user.id, i.guild, channel=i.channel)
-        tc2 = data.get("poo", {}).get("task_counts", {})
-        if tc2.get("cmd_poo_feed", 0) + tc2.get("poo_feed_hungry", 0) >= 10:
-            asyncio.create_task(poo_trigger("poo_feed_10x", i.user.id, i.guild, channel=i.channel))
-        try:
-            await i.response.edit_message(embed=poo_build_embed(i.guild), view=self)
-        except Exception:
-            await i.response.send_message(
-                embed=em("✅ Nahranjen!", "Poo ti zahvaljuje! 🐾", color=COLORS["success"]),
-                ephemeral=True
-            )
-
-    @discord.ui.button(label="Osvježi", emoji="🔄", style=discord.ButtonStyle.secondary, custom_id="poo_refresh_btn")
-    async def refresh_btn(self, i: discord.Interaction, b: discord.ui.Button):
-        await i.response.edit_message(embed=poo_build_embed(i.guild), view=self)
-
-    @discord.ui.button(label="Dnevni zadaci", emoji="🎯", style=discord.ButtonStyle.primary, custom_id="poo_tasks_btn")
-    async def tasks_btn(self, i: discord.Interaction, b: discord.ui.Button):
-        p = get_poo()
-        _poo_refresh_daily()
-        daily_ids = p.get("daily_tasks", [])
-        daily_done = set(p.get("daily_completed", []))
-        lines = []
-        for tid in daily_ids:
-            tt = next((x for x in POO_TASKS if x["id"] == tid), None)
-            if tt:
-                ck = "✅" if tid in daily_done else "⬜"
-                lines.append(
-                    f"{ck} **#{tt['id']:03}** {tt['cat']} **{tt['name']}**\n"
-                    f"\u2514 _{tt['desc']}_ `+{tt['xp']} XP`"
-                )
-        e2 = discord.Embed(
-            title="🎯  Dnevni Zadaci Poo-a",
-            description="\n\n".join(lines) or "Nema zadataka za danas.",
-            color=0x8D6E63,
-            timestamp=datetime.now(timezone.utc)
-        )
-        e2.set_footer(text="🐾 Svaki dan 5 novih zadataka \u2022 resetuju se u ponoć UTC")
-        await i.response.send_message(embed=e2, ephemeral=True)
-
-
-# ─── Poo Command Group ────────────────────────────────────────────────
-poo_group = app_commands.Group(name="poo", description="🐾 Poo — zajednički virtualni ljubimac servera!")
-
-
-@poo_group.command(name="status", description="🐾 Pogledaj stanje Poo ljubimca — live stats i dnevni zadaci!")
-async def poo_status_cmd(i: discord.Interaction):
-    asyncio.create_task(poo_trigger("cmd_poo_status", i.user.id, i.guild))
-    await i.response.send_message(embed=poo_build_embed(i.guild), view=PooView())
-
-
-@poo_group.command(name="feed", description="🍗 Nahrani Poo-a (košta 50 💶, cooldown 30s po osobi)")
-@app_commands.checks.cooldown(1, 30, key=lambda i: i.user.id)
-async def poo_feed_slash(i: discord.Interaction):
-    p = get_poo()
-    d = get_economy(i.user.id)
-    cost = 50
-    if d["balance"] < cost:
-        return await i.response.send_message(
-            embed=em("❌ Nemaš dovoljno", f"Hranjenje košta **{cost} 💶**.", color=COLORS["error"]),
-            ephemeral=True
-        )
-    d["balance"] -= cost
-    hungry = p.get("hunger", 100) < 30
-    p["hunger"]      = min(100, p.get("hunger",      0) + 25)
-    p["happiness"]   = min(100, p.get("happiness",   0) + 15)
-    p["cleanliness"] = min(100, p.get("cleanliness", 0) + 10)
-    p["energy"]      = min(100, p.get("energy",      0) + 10)
-    save_data()
-    tr_used = "poo_feed_hungry" if hungry else "cmd_poo_feed"
-    await poo_trigger(tr_used, i.user.id, i.guild, channel=i.channel)
-    tc3 = data.get("poo", {}).get("task_counts", {})
-    if tc3.get("cmd_poo_feed", 0) + tc3.get("poo_feed_hungry", 0) >= 10:
-        asyncio.create_task(poo_trigger("poo_feed_10x", i.user.id, i.guild, channel=i.channel))
-    idx2 = _poo_stage_idx(data["poo"]["xp"])
-    _, art3, sname3, _ = POO_STAGES[idx2]
-    fe = discord.Embed(
-        title="🍗  Poo je nahranjen!",
-        description=(
-            f"{art3} **{sname3}** je sretan/na!\n"
-            f"Potrošio/la si **{cost} 💶** za hranjenje.\n\n"
-            f"+**25** 🍗 Glad  +**15** 😊 Sreća  +**10** 🧼 Čistoća  +**10** ⚡ Energija"
-        ),
-        color=COLORS["success"],
+        description=f"😂  {meme_text}",
+        color=COLORS["fun"],
         timestamp=datetime.now(timezone.utc)
     )
-    fe.add_field(name="🍗 Glad",  value=_poo_bar(p.get("hunger",    100)), inline=True)
-    fe.add_field(name="😊 Sreća", value=_poo_bar(p.get("happiness", 100)), inline=True)
-    fe.set_footer(text="🐾 GIANNI Poo \u2022 Hvala što se brineš o Poo-u!")
-    await i.response.send_message(embed=fe)
+    e.set_author(name=f"{i.user.display_name} šalje mem", icon_url=i.user.display_avatar.url)
+    e.set_footer(text=f"{BOT_NAME} • Balkanski memovi")
+    await i.response.send_message(embed=e)
+    _poo_task_progress(i.guild.id if i.guild else 0, i.user.id, "use_meme")
 
 
-@poo_group.command(name="tasks", description="📋 Pregled svih 100 Poo zadataka po kategoriji")
-@app_commands.describe(kategorija="Odaberi kategoriju zadataka")
-@app_commands.choices(kategorija=[
-    app_commands.Choice(name="💬 Chat (1-20)",        value="chat"),
-    app_commands.Choice(name="🎮 Komande (21-40)",    value="komande"),
-    app_commands.Choice(name="💰 Ekonomija (41-55)",  value="ekonomija"),
-    app_commands.Choice(name="🏆 Pobjede (56-70)",    value="pobjede"),
-    app_commands.Choice(name="🤝 Socijalno (71-85)",  value="socijalno"),
-    app_commands.Choice(name="⚡ Specijal (86-100)",  value="specijal"),
-])
-async def poo_tasks_slash(i: discord.Interaction, kategorija: str = "chat"):
-    CAT = {
-        "chat": "💬 Chat", "komande": "🎮 Komande", "ekonomija": "💰 Ekonomija",
-        "pobjede": "🏆 Pobjede", "socijalno": "🤝 Socijalno", "specijal": "⚡ Specijal",
-    }
-    cat_name = CAT.get(kategorija, "💬 Chat")
-    p = get_poo()
-    _poo_refresh_daily()
-    tc4 = p.get("task_counts", {})
-    daily_ids2 = set(p.get("daily_tasks", []))
-    tasks_in_cat = [t for t in POO_TASKS if t["cat"] == cat_name]
-    lines2 = []
-    for t in tasks_in_cat:
-        cnt = tc4.get(t["tr"], 0)
-        dmark = "🎯 " if t["id"] in daily_ids2 else ""
-        done = f" *(x{cnt})*" if cnt else ""
-        lines2.append(f"`#{t['id']:03}` {dmark}**{t['name']}** \u2014 {t['desc']} `+{t['xp']} XP`{done}")
-    done_cnt = sum(1 for t in tasks_in_cat if tc4.get(t["tr"], 0) > 0)
-    e3 = discord.Embed(
-        title=f"📋  POO ZADACI  \u2022  {cat_name}",
-        description="\n".join(lines2) or "Nema zadataka.",
-        color=0x8D6E63,
+# ═══════════════════════════════════════════
+#    💩 POO GAME — 24/7 virtuelna kreatura
+# ═══════════════════════════════════════════
+POO_STAGES = [
+    (0,    '💩',    'Jaje Poo-a',      'Tek se izleglo. Jedva se pomjera.'),
+    (50,   '💩',    'Beba Poo',         'Probudio se! Traži pažnju i hranu.'),
+    (150,  '💩✨',  'Rastući Poo',      'Raste svakim danom! Počinje sjajiti.'),
+    (350,  '💩⚡',  'Energični Poo',    'Pun energije! Skace unaokolo.'),
+    (700,  '💩🔥',  'Vatreni Poo',      'Plamen izlazi iz njega! Vruc i mocan.'),
+    (1200, '💩💎',  'Kristalni Poo',    'Pretvorio se u nešto nevjerojatno.'),
+    (2000, '💩👑',  'Kraljevski Poo',   'Vladar svih Poo-ova. Legenda servera.'),
+    (3500, '💩🌌',  'Kosmički Poo',     'Transcendirao granice prostora i vremena.'),
+]
+
+POO_ZADACI = [
+    ('chat1','Početnički Chatter','Pošalji 10 poruka u chatu','chat',10,50,1),
+    ('chat2','Aktivni Chatter','Pošalji 50 poruka ukupno','chat',50,120,2),
+    ('chat3','Neumorni Pisac','Pošalji 200 poruka ukupno','chat',200,300,3),
+    ('chat4','Chat Manijak','Pošalji 1000 poruka ukupno','chat',1000,1500,12),
+    ('chat5','Legenda Chata','Pošalji 5000 poruka ukupno','chat',5000,5000,25),
+    ('meme1','Memer Početnik','Koristi /meme 3 puta','use_meme',3,50,1),
+    ('meme2','Balkanski Memer','Koristi /meme 20 puta','use_meme',20,150,2),
+    ('meme3','Meme Legenda','Koristi /meme 100 puta','use_meme',100,500,5),
+    ('meme4','Meme Bog','Koristi /meme 500 puta','use_meme',500,2000,15),
+    ('meme5','Meme Vjecnost','Koristi /meme 2000 puta','use_meme',2000,8000,50),
+    ('broj1','Broji Pocetniku','Unesi tacan broj u brojanje 5 puta','count',5,75,1),
+    ('broj2','Majstor Brojeva','Unesi tacan broj 25 puta','count',25,200,3),
+    ('broj3','Numericki Bog','Unesi tacan broj 100 puta','count',100,600,6),
+    ('broj4','Matematicki Genij','Unesi tacan broj 500 puta','count',500,2500,18),
+    ('broj5','Numericki Demon','Unesi tacan broj 2000 puta','count',2000,10000,60),
+    ('posao1','Mali Radnik','Odradi /posao 5 puta','work',5,80,1),
+    ('posao2','Marljivi Radnik','Odradi /posao 25 puta','work',25,220,3),
+    ('posao3','Trudenik Dana','Odradi /posao 100 puta','work',100,700,7),
+    ('posao4','Radoholic','Odradi /posao 500 puta','work',500,3000,20),
+    ('posao5','Radni Bog','Odradi /posao 2000 puta','work',2000,10000,50),
+    ('daily1','Dnevna Rutina','Uzmi /daily nagradu 5 puta','daily',5,80,1),
+    ('daily2','Konzistentnost','Uzmi /daily nagradu 30 puta','daily',30,300,4),
+    ('daily3','Disciplina','Uzmi /daily nagradu 100 puta','daily',100,800,8),
+    ('daily4','Daily Master','Uzmi /daily nagradu 500 puta','daily',500,4000,22),
+    ('daily5','Vjecni Daily','Uzmi /daily nagradu 2000 puta','daily',2000,15000,80),
+    ('daj1','Poklon Darivac','Pošalji pare nekome /daj 10 puta','daj',10,150,2),
+    ('daj2','Veliki Darivac','Pošalji pare nekome /daj 50 puta','daj',50,600,6),
+    ('mile1','Bogatash','Dostigne 10 000 coina','balance',10000,200,3),
+    ('mile2','Milioner','Dostigne 100 000 coina','balance',100000,1000,10),
+    ('mile3','Milijarder','Dostigne 1 000 000 coina','balance',1000000,5000,30),
+    ('hunt1','Lovac Pocetnik','Idi u lov /hunt 10 puta','hunt',10,100,2),
+    ('hunt2','Iskusni Lovac','Idi u lov /hunt 50 puta','hunt',50,350,4),
+    ('hunt3','Legendarni Lovac','Idi u lov /hunt 200 puta','hunt',200,1500,12),
+    ('hunt4','Bog Lova','Idi u lov /hunt 1000 puta','hunt',1000,6000,35),
+    ('kviz1','Kviz Igrac','Odgovori na /kviz 5 puta','kviz',5,80,1),
+    ('kviz2','Znalac','Odgovori na /kviz 25 puta','kviz',25,250,3),
+    ('kviz3','Enciklopedija','Odgovori na /kviz 100 puta','kviz',100,900,10),
+    ('kviz4','Omniznalac','Odgovori na /kviz 500 puta','kviz',500,4000,25),
+    ('slots1','Kockar Pocetnik','Odigraj /slots 5 puta','slots',5,70,1),
+    ('slots2','Kockar','Odigraj /slots 30 puta','slots',30,280,4),
+    ('slots3','Kockar Veteran','Odigraj /slots 100 puta','slots',100,750,8),
+    ('slots4','Kockar Boga','Odigraj /slots 500 puta','slots',500,3500,22),
+    ('bj1','Blackjack Debi','Odigraj /blackjack 10 puta','blackjack',10,120,2),
+    ('bj2','BJ Profesionalac','Odigraj /blackjack 50 puta','blackjack',50,400,5),
+    ('bj3','Blackjack Legenda','Odigraj /blackjack 200 puta','blackjack',200,2000,15),
+    ('battle1','Borac','Učestvuj u /battle 5 puta','battle',5,80,1),
+    ('battle2','Ratnik','Učestvuj u /battle 25 puta','battle',25,280,4),
+    ('battle3','Sampion','Učestvuj u /battle 100 puta','battle',100,800,8),
+    ('battle4','Ratni Bog','Učestvuj u /battle 500 puta','battle',500,4500,28),
+    ('vjasala1','Rjesavac Vjasala','Odigraj /vjasala 5 puta','vjasala',5,70,1),
+    ('vjasala2','Majstor Vjasala','Odigraj /vjasala 20 puta','vjasala',20,220,3),
+    ('vjasala3','Vjasala Majstor','Odigraj /vjasala 100 puta','vjasala',100,900,10),
+    ('kaladont1','Kaladont Pocetniku','Pokreni /kaladont 5 puta','kaladont',5,100,2),
+    ('kaladont2','Kaladont Majstor','Pokreni /kaladont 25 puta','kaladont',25,500,6),
+    ('bingo1','Bingo Igrac','Uzmi bingo tiket 5 puta','bingo',5,80,1),
+    ('bingo2','Bingo Veteran','Uzmi bingo tiket 25 puta','bingo',25,300,4),
+    ('zagrljaj1','Zagrljaj Podijelac','Zagrli nekoga 10 puta','zagrljaj',10,80,1),
+    ('srce1','Ljubavni Heroj','Pošalji srce 20 puta','srce',20,120,2),
+    ('vers1','Zadnji Stih','Pošalji vers /vers 5 puta','vers',5,100,2),
+    ('vers2','Reper Servera','Pošalji vers /vers 25 puta','vers',25,400,5),
+    ('poll1','Glasac','Napravi /poll glasanje 5 puta','poll',5,80,1),
+    ('tiket1','Tiket Heroj','Otvori /tiket 3 puta','tiket',3,100,2),
+    ('report1','Reportaz','Prijavi nekoga /report 5 puta','report',5,60,1),
+    ('afk1','AFK Nomad','Postavi /afk status 10 puta','afk',10,80,1),
+    ('geo1','Geograf','Odigraj /geografija 5 puta','geo',5,70,1),
+    ('geo2','Geograf Znalac','Odigraj /geografija 25 puta','geo',25,250,3),
+    ('kpm1','KPM Igrac','Odigraj /kpm 10 puta','kpm',10,70,1),
+    ('kpm2','KPM Majstor','Odigraj /kpm 50 puta','kpm',50,250,3),
+    ('zoo1','Zoo Ljubitelj','Pogledaj /zoo 10 puta','zoo',10,60,1),
+    ('lottery1','Loto Igrac','Kupi loto tiket /lottery 5 puta','lottery',5,80,1),
+    ('heist1','Razbojnik','Učestvuj u /heist 3 puta','heist',3,150,3),
+    ('allpoo1','Poo Sluga','Pomozi Poo-u 50 puta ukupno','poo_total',50,500,5),
+    ('allpoo2','Poo Prijatelj','Pomozi Poo-u 200 puta ukupno','poo_total',200,2000,15),
+    ('allpoo3','Poo Cuvar','Pomozi Poo-u 1000 puta ukupno','poo_total',1000,10000,60),
+    ('allpoo4','Poo Bog','Pomozi Poo-u 5000 puta ukupno','poo_total',5000,50000,250),
+    ('mile4','Level 10','Dostigne Level 10','level',10,200,3),
+    ('mile5','Level 25','Dostigne Level 25','level',25,500,6),
+    ('mile6','Level 50','Dostigne Level 50','level',50,1000,10),
+    ('mile7','Level 100','Dostigne Level 100','level',100,5000,30),
+    ('mile8','Level 250','Dostigne Level 250','level',250,15000,75),
+    ('xp1','XP Sakupljac','Sakupi 1 000 XP ukupno','xp',1000,100,2),
+    ('xp2','XP Veteran','Sakupi 10 000 XP ukupno','xp',10000,500,6),
+    ('xp3','XP Bog','Sakupi 100 000 XP ukupno','xp',100000,5000,40),
+    ('stage1','Poo Budjenje','Pomozi Poo-u da dostigne Stage 2','stage',2,200,0),
+    ('stage2','Poo Rast','Pomozi Poo-u da dostigne Stage 3','stage',3,300,0),
+    ('stage3','Poo Energija','Pomozi Poo-u da dostigne Stage 4','stage',4,500,0),
+    ('stage4','Vatreni Poo','Pomozi Poo-u da dostigne Stage 5','stage',5,1000,0),
+    ('stage5','Kristalni Poo','Pomozi Poo-u da dostigne Stage 6','stage',6,2000,0),
+    ('stage6','Kraljevski Poo','Pomozi Poo-u da dostigne Stage 7','stage',7,5000,0),
+    ('stage7','Kosmicki Poo','Pomozi Poo-u da dostigne Stage 8','stage',8,15000,0),
+    ('epic1','Vjecni Pisac','Pošalji 20 000 poruka ukupno','chat',20000,20000,100),
+    ('epic2','Workaholic God','Odradi /posao 10 000 puta','work',10000,50000,200),
+    ('epic3','Neumorni Lovac','Idi u lov 5 000 puta','hunt',5000,25000,120),
+]
+
+def _get_poo_data(guild_id: int) -> dict:
+    key = str(guild_id)
+    if key not in data['poo']:
+        data['poo'][key] = {'xp': 0, 'stage': 0, 'total_helps': 0, 'contributors': {}}
+    d = data['poo'][key]
+    d.setdefault('xp', 0); d.setdefault('stage', 0)
+    d.setdefault('total_helps', 0); d.setdefault('contributors', {})
+    return d
+
+def _get_poo_tasks(guild_id: int, uid: int) -> dict:
+    key = f"{guild_id}:{uid}"
+    if key not in data['poo_tasks']:
+        data['poo_tasks'][key] = {}
+    return data['poo_tasks'][key]
+
+def _poo_stage_for(xp: int) -> int:
+    stage_idx = 0
+    for idx, (req, emoji, name, desc) in enumerate(POO_STAGES):
+        if xp >= req: stage_idx = idx
+        else: break
+    return stage_idx
+
+def _poo_task_progress(guild_id: int, uid: int, task_type: str, amount: int = 1):
+    if not guild_id: return
+    tasks = _get_poo_tasks(guild_id, uid)
+    poo = _get_poo_data(guild_id)
+    uid_str = str(uid)
+    contributed = False
+    for row in POO_ZADACI:
+        tid, tname, tdesc, ttype, goal, coin_r, poo_contrib = row
+        if ttype != task_type: continue
+        if tasks.get(tid, 0) >= goal: continue
+        tasks[tid] = tasks.get(tid, 0) + amount
+        if tasks[tid] >= goal:
+            tasks[tid] = goal
+            poo['xp'] = poo.get('xp', 0) + poo_contrib
+            poo['total_helps'] = poo.get('total_helps', 0) + 1
+            poo['contributors'][uid_str] = poo['contributors'].get(uid_str, 0) + poo_contrib
+            eco = get_economy(uid)
+            eco['balance'] = eco.get('balance', 0) + coin_r
+            contributed = True
+    new_stage = _poo_stage_for(poo.get('xp', 0))
+    if new_stage != poo.get('stage', 0): poo['stage'] = new_stage
+    if contributed: save_data()
+
+@bot.tree.command(name="poo", description="💩 Stanje Poo kreature na serveru")
+async def poo_cmd(i: discord.Interaction):
+    gid = i.guild.id if i.guild else 0
+    poo = _get_poo_data(gid)
+    xp = poo.get('xp', 0)
+    stage_idx = _poo_stage_for(xp)
+    stage_xp, emoji, stage_name, stage_desc = POO_STAGES[stage_idx]
+    next_stage = POO_STAGES[stage_idx + 1] if stage_idx + 1 < len(POO_STAGES) else None
+    helps = poo.get('total_helps', 0)
+    if next_stage:
+        next_xp = next_stage[0]
+        prog = xp - stage_xp
+        needed = next_xp - stage_xp
+        bar_filled = min(int(prog / needed * 15), 15) if needed > 0 else 15
+        bar = '█' * bar_filled + '░' * (15 - bar_filled)
+        progress_text = f'\'`{bar}`\' \'`{prog}/{needed} XP`\''
+        next_txt = f"{next_stage[1]} {next_stage[2]}"
+    else:
+        progress_text = '**💩 MAX STAGE DOSTIGNUTO!** 👑'
+        next_txt = 'MAX'
+    contribs = poo.get('contributors', {})
+    top3 = sorted(contribs.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_text = ''
+    medals = ['🥇', '🥈', '🥉']
+    for idx, (uid_str, pts) in enumerate(top3):
+        m = i.guild.get_member(int(uid_str)) if i.guild else None
+        uname = m.display_name if m else f'User #{uid_str[:4]}'
+        top_text += f"{medals[idx]} **{uname}** — `+{pts} Poo XP`\n"
+    e = discord.Embed(
+        title=f'💩 Serverski POO — Stage {stage_idx + 1}/{len(POO_STAGES)}',
+        description=(
+            f'{emoji}  **{stage_name}**\n'
+            f'*{stage_desc}*\n\n'
+            f'**Progres do sljedeceg stage-a:**\n'
+            f'{progress_text}\n'
+            f'Sljedeci: {next_txt}\n\n'
+            f'📊 Ukupni Poo XP: **{xp:,}**\n'
+            f'🤝 Ukupno doprinosa: **{helps:,}**'
+        ),
+        color=0x8B4513,
         timestamp=datetime.now(timezone.utc)
     )
-    e3.set_footer(text=f"🐾 Uradjeno {done_cnt}/{len(tasks_in_cat)} u kategoriji  \u2022  🎯 = dnevni zadatak")
-    await i.response.send_message(embed=e3, ephemeral=True)
+    if top_text:
+        e.add_field(name='🏆 Top 3 Cuvara Poo-a', value=top_text, inline=False)
+    e.add_field(name='💡 Kako hraniti Poo?', value=(
+        '• Pisi u chat aktivno\n'
+        '• Koristi `/meme` komandu\n'
+        '• Broji u kanalu za brojanje\n'
+        '• Igraj igre: `/hunt` `/slots` `/kviz` `/blackjack`\n'
+        '• Zaradjuj novac: `/posao` `/daily`\n'
+        '• Ili plati direktno: `/poo-hrani` (200 💶)'
+    ), inline=False)
+    e.set_footer(text=f'💩 POO igra • {BOT_NAME} • 24/7 aktivan • /poo-zadaci za zadatke')
+    await i.response.send_message(embed=e)
 
+@bot.tree.command(name="poo-zadaci", description="💩 Lista Poo zadataka (10 po stranici, ukupno 100)")
+@app_commands.describe(stranica="Stranica 1-10")
+async def poo_zadaci_cmd(i: discord.Interaction, stranica: int = 1):
+    gid = i.guild.id if i.guild else 0
+    user_tasks = _get_poo_tasks(gid, i.user.id)
+    stranica = max(1, min(stranica, 10))
+    start = (stranica - 1) * 10
+    zadaci_slice = POO_ZADACI[start:start + 10]
+    desc = ''
+    for tid, tname, tdesc, ttype, goal, coin_r, poo_contrib in zadaci_slice:
+        prog = user_tasks.get(tid, 0)
+        done = prog >= goal
+        icon = '✅' if done else '🔲'
+        bar_f = min(int(prog / goal * 8), 8) if goal > 0 else 0
+        mini_bar = '▰' * bar_f + '▱' * (8 - bar_f)
+        desc += f'{icon} **{tname}**\n'
+        desc += f'> _{tdesc}_\n'
+        desc += f'> `{mini_bar}` `{prog}/{goal}` · 💩+{poo_contrib} · 💶+{coin_r:,}\n\n'
+    done_count = sum(1 for r in POO_ZADACI if user_tasks.get(r[0], 0) >= r[4])
+    e = discord.Embed(
+        title=f'💩 POO Zadaci — Stranica {stranica}/10',
+        description=desc or 'Nema zadataka.',
+        color=0x8B4513,
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.set_footer(text=f'Stranica {stranica}/10 · Napredak: {done_count}/{len(POO_ZADACI)} · {BOT_NAME}')
+    await i.response.send_message(embed=e, ephemeral=True)
 
-@poo_group.command(name="top", description="🏆 Top 10 nahranivača Poo-a svih vremena")
-async def poo_top_slash(i: discord.Interaction):
-    p = get_poo()
-    contribs = p.get("contributors", {})
+@bot.tree.command(name="poo-top", description="💩 Top lista cuvara Poo-a na serveru")
+async def poo_top_cmd(i: discord.Interaction):
+    gid = i.guild.id if i.guild else 0
+    poo = _get_poo_data(gid)
+    contribs = poo.get('contributors', {})
     if not contribs:
         return await i.response.send_message(
-            embed=em("🐾 Top Nahranivači", "Niko još nije nahranio Poo-a!\nKoristi **/poo feed** da počneš!", color=COLORS["warning"])
-        )
-    top10 = sorted(contribs.items(), key=lambda x: x[1], reverse=True)[:10]
-    medals = ["🥇", "🥈", "🥉"] + [f"`#{n}`" for n in range(4, 11)]
-    lines3 = []
-    for mi, (uid_s, xp_g) in enumerate(top10):
-        m = i.guild.get_member(int(uid_s)) if i.guild else None
-        lines3.append(f"{medals[mi]} **{m.display_name if m else uid_s}** \u2014 `{xp_g:,} XP`")
-    idx3 = _poo_stage_idx(p.get("xp", 0))
-    _, art4, sname4, _ = POO_STAGES[idx3]
-    e4 = discord.Embed(
-        title=f"🏆  TOP NAHRANIVAČI  \u2022  {art4} {sname4}",
-        description="\n".join(lines3),
-        color=COLORS["gold"],
-        timestamp=datetime.now(timezone.utc)
+            embed=em('💩 Poo Top Lista', 'Još niko nije doprinjeo Poo-u! Budi aktivan na serveru.', color=0x8B4513))
+    top = sorted(contribs.items(), key=lambda x: x[1], reverse=True)[:10]
+    medals = ['🥇', '🥈', '🥉'] + [f'`#{n}`' for n in range(4, 11)]
+    lines = []
+    for idx, (uid_str, pts) in enumerate(top):
+        m = i.guild.get_member(int(uid_str)) if i.guild else None
+        uname = m.display_name if m else f'User #{uid_str[:4]}'
+        lines.append(f'{medals[idx]} **{uname}** — `+{pts} Poo XP`')
+    stage_idx = _poo_stage_for(poo.get('xp', 0))
+    semo, snm = POO_STAGES[stage_idx][1], POO_STAGES[stage_idx][2]
+    e = discord.Embed(
+        title='💩 Top 10 Cuvara Poo-a',
+        description='\n'.join(lines),
+        color=0x8B4513, timestamp=datetime.now(timezone.utc))
+    e.add_field(name='💩 Trenutni Stage', value=f'{semo} **{snm}** (XP: {poo.get("xp",0):,})', inline=True)
+    e.set_footer(text=f'Budi aktivan i hrani Poo-a! · {BOT_NAME}')
+    await i.response.send_message(embed=e)
+
+@bot.tree.command(name="poo-hrani", description="💩 Nahrani Poo-a direktno (košta 200 coina)")
+async def poo_hrani_cmd(i: discord.Interaction):
+    COST = 200
+    gid = i.guild.id if i.guild else 0
+    eco = get_economy(i.user.id)
+    if eco['balance'] < COST:
+        return await i.response.send_message(
+            embed=em('💩 Nemaš dovoljno',
+                     f'Hranjenje Poo-a koštá **{COST} 💶**.\nImaš samo `{eco["balance"]:,} 💶`.',
+                     color=COLORS['error']), ephemeral=True)
+    eco['balance'] -= COST
+    poo = _get_poo_data(gid)
+    bonus = random.randint(2, 8)
+    old_stage = poo.get('stage', 0)
+    poo['xp'] = poo.get('xp', 0) + bonus
+    poo['total_helps'] = poo.get('total_helps', 0) + 1
+    uid_str = str(i.user.id)
+    poo.setdefault('contributors', {})[uid_str] = poo['contributors'].get(uid_str, 0) + bonus
+    new_stage = _poo_stage_for(poo['xp'])
+    poo['stage'] = new_stage
+    save_data()
+    semo, snm = POO_STAGES[new_stage][1], POO_STAGES[new_stage][2]
+    leveled = new_stage > old_stage
+    desc = f'Nahranio/la si Poo-a! +**{bonus} Poo XP** 🍔\nPoo XP ukupno: **{poo["xp"]:,}**'
+    if leveled: desc += f'\n\n🎉 **POO JE NAPREDOVAO NA NOVI STAGE!**\n{semo} **{snm}**'
+    await i.response.send_message(embed=em('💩 Poo je sit!', desc, color=0x8B4513, fields=[
+        ('💰 Potrošeno', f'`{COST} 💶`', True),
+        ('🏦 Ostalo', f'`{eco["balance"]:,} 💶`', True),
+        ('💩 Stage', f'{semo} {snm}', True),
+    ]))
+
+@bot.tree.command(name="poo-info", description="💩 Tvoj licni doprinos i napredak zadataka")
+async def poo_info_cmd(i: discord.Interaction):
+    gid = i.guild.id if i.guild else 0
+    poo = _get_poo_data(gid)
+    uid_str = str(i.user.id)
+    user_tasks = _get_poo_tasks(gid, i.user.id)
+    my_contrib = poo.get('contributors', {}).get(uid_str, 0)
+    done_count = sum(1 for r in POO_ZADACI if user_tasks.get(r[0], 0) >= r[4])
+    total_tasks = len(POO_ZADACI)
+    pct = round(done_count / total_tasks * 100, 1) if total_tasks > 0 else 0
+    bar_f = int(done_count / total_tasks * 15) if total_tasks > 0 else 0
+    bar = '█' * bar_f + '░' * (15 - bar_f)
+    stage_idx = _poo_stage_for(poo.get('xp', 0))
+    semo, snm = POO_STAGES[stage_idx][1], POO_STAGES[stage_idx][2]
+    contribs = poo.get('contributors', {})
+    sorted_c = sorted(contribs.items(), key=lambda x: x[1], reverse=True)
+    my_rank = next((idx + 1 for idx, (uid, pts) in enumerate(sorted_c) if uid == uid_str), None)
+    rank_txt = f'#{my_rank}' if my_rank else '—'
+    e = discord.Embed(
+        title='💩 Tvoj Poo Profil',
+        description=(
+            f'💩 Serverski Poo: {semo} **{snm}**\n'
+            f'🤝 Tvoj doprinos: **{my_contrib} Poo XP**\n'
+            f'🏆 Rang: **{rank_txt}**\n\n'
+            f'📋 Zadaci: `{bar}` `{done_count}/{total_tasks}` ({pct}%)\n\n'
+            f'💡 Koristi `/poo-zadaci` za detaljan pregled!'
+        ),
+        color=0x8B4513, timestamp=datetime.now(timezone.utc)
     )
-    e4.set_footer(text=f"🐾 GIANNI Poo \u2022 Nivo {idx3}/{len(POO_STAGES)-1}")
-    await i.response.send_message(embed=e4)
-
-
-bot.tree.add_command(poo_group)
-
-
-bot.tree.add_command(backup_group)
+    e.set_thumbnail(url=i.user.display_avatar.url)
+    e.set_footer(text=f'💩 POO igra · {BOT_NAME} · Budi aktivan i pomozi Poo-u!')
+    await i.response.send_message(embed=e, ephemeral=True)
 
 # ═══════════════════════════════════════════
 #    POKRETANJE
