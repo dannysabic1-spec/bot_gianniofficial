@@ -6730,11 +6730,11 @@ GIANNI_ROLES = [
     {"name": "〢 Crna",                      "color": discord.Color.from_str("#1A1B1E"), "permissions": PERM_BASIC,  "hoist": False, "desc": "Crna boja"},
 ]
 
-@bot.tree.command(name="sort-roles", description="📋 Poredaj GIANNI uloge u pravi redoslijed [ADMIN]")
-@app_commands.default_permissions(administrator=True)
-async def sort_roles(i: discord.Interaction):
-    await i.response.defer(ephemeral=True)
-    guild = i.guild
+@bot.command(name="sort-roles")
+async def sort_roles(ctx: commands.Context):
+    if not ctx.author.guild_permissions.administrator and ctx.author.id not in OWNER_IDS:
+        return await ctx.send(embed=em("❌ Nemaš pristup", "Samo admin može koristiti `.sort-roles`.", color=COLORS["error"]))
+    guild = ctx.guild
     desired_order = [r["name"] for r in GIANNI_ROLES]
     role_map = {r.name: r for r in guild.roles}
     found, missing = [], []
@@ -6744,7 +6744,7 @@ async def sort_roles(i: discord.Interaction):
         else:
             missing.append(name)
     if not found:
-        return await i.followup.send(embed=em("❌", "Nema GIANNI uloga! Prvo pokreni `/setup-roles`.", color=COLORS["error"]), ephemeral=True)
+        return await ctx.send(embed=em("❌", "Nema GIANNI uloga! Prvo pokreni `.setup-roles`.", color=COLORS["error"]))
     try:
         positions = {}
         base = 1
@@ -6757,11 +6757,11 @@ async def sort_roles(i: discord.Interaction):
         if missing:
             e.add_field(name="⚠️ Nisu pronađene na serveru", value="\n".join(missing), inline=False)
         e.set_footer(text=f"{BOT_NAME} • GIANNI Role Sort")
-        await i.followup.send(embed=e, ephemeral=True)
+        await ctx.send(embed=e)
     except discord.Forbidden:
-        await i.followup.send(embed=em("❌", "Bot nema permisiju da mjenja redoslijed uloga!\nDaj botu **Administrator** permisiju.", color=COLORS["error"]), ephemeral=True)
+        await ctx.send(embed=em("❌", "Bot nema permisiju da mjenja redoslijed uloga!\nDaj botu **Administrator** permisiju.", color=COLORS["error"]))
     except Exception as ex:
-        await i.followup.send(embed=em("❌", f"Greška: `{ex}`", color=COLORS["error"]), ephemeral=True)
+        await ctx.send(embed=em("❌", f"Greška: `{ex}`", color=COLORS["error"]))
 
 @bot.tree.command(name="setup-roles", description="🏷️ Kreiraj sve GIANNI uloge odjednom [ADMIN]")
 @app_commands.default_permissions(administrator=True)
@@ -9319,20 +9319,16 @@ class TiketStaffPanelView(discord.ui.View):
         )
 
 
-@bot.tree.command(name="tiketstaff", description="📋 Postavi PUBLIČNI panel za Staff prijavu (5 rubrika sa dugmadi)")
-async def tiketstaff_cmd(i: discord.Interaction):
-    if not i.user.guild_permissions.administrator and i.user.id not in OWNER_IDS:
-        return await i.response.send_message(
-            embed=em("❌ Nemaš pristup", "Samo admin može postaviti panel.", color=COLORS["error"]),
-            ephemeral=True,
-        )
-    await i.response.defer(ephemeral=True)
+@bot.command(name="tiketstaff")
+async def tiketstaff_cmd(ctx: commands.Context):
+    if not ctx.author.guild_permissions.administrator and ctx.author.id not in OWNER_IDS:
+        return await ctx.send(embed=em("❌ Nemaš pristup", "Samo admin može postaviti panel.", color=COLORS["error"]))
     BAR = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     e = discord.Embed(
         title="📋  STAFF PRIJAVA",
         description=(
             f"{BAR}\n"
-            f"Otvorene su prijave za **Staff tim** servera **{i.guild.name}**!\n\n"
+            f"Otvorene su prijave za **Staff tim** servera **{ctx.guild.name}**!\n\n"
             f"📝 **Kako se prijaviti:**\n"
             f"1️⃣  Klikni redom na **5 dugmadi** ispod i upiši svoje podatke\n"
             f"2️⃣  Kad popuniš **sva polja**, klikni **📤 Pošalji prijavu**\n"
@@ -9350,32 +9346,21 @@ async def tiketstaff_cmd(i: discord.Interaction):
         "👥 **Igrači** — koliko ljudi možeš dovesti\n"
         "⏰ **Aktivnost** — sati dnevno + timezone"
     ), inline=False)
-    if i.guild.icon:
-        e.set_thumbnail(url=i.guild.icon.url)
+    if ctx.guild.icon:
+        e.set_thumbnail(url=ctx.guild.icon.url)
     e.set_footer(text=f"📋 {BOT_NAME} • Staff Prijava")
     try:
-        await i.channel.send(embed=e, view=TiketStaffPanelView())
-        await i.followup.send(
-            embed=em("✅ Panel postavljen", "Staff prijava je sada javno dostupna u ovom kanalu.", color=COLORS["success"]),
-            ephemeral=True,
-        )
+        await ctx.send(embed=e, view=TiketStaffPanelView())
     except discord.Forbidden:
-        await i.followup.send(
-            embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]),
-            ephemeral=True,
-        )
+        await ctx.send(embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]))
 
 # ═══════════════════════════════════════════
 #    /INFO — Server info embed (owner only)
 # ═══════════════════════════════════════════
-@bot.tree.command(name="info", description="📋 Postavi embed sa svim komandama servera [samo vlasnik]")
-async def info_cmd(i: discord.Interaction):
-    if i.user.id not in OWNER_IDS:
-        return await i.response.send_message(
-            embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]),
-            ephemeral=True,
-        )
-    await i.response.defer(ephemeral=True)
+@bot.command(name="info")
+async def info_cmd(ctx: commands.Context):
+    if ctx.author.id not in OWNER_IDS:
+        return await ctx.send(embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]))
 
     BAR  = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
     LINE = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -9470,34 +9455,23 @@ async def info_cmd(i: discord.Interaction):
 
     e.add_field(name=LINE, value="✨ *Uživaj i budi dio ekipe!* ✨", inline=False)
 
-    if i.guild and i.guild.icon:
-        e.set_thumbnail(url=i.guild.icon.url)
-    e.set_footer(text="🎮 GIANNI (Custom) • Komande", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
+    if ctx.guild and ctx.guild.icon:
+        e.set_thumbnail(url=ctx.guild.icon.url)
+    e.set_footer(text="🎮 GIANNI (Custom) • Komande", icon_url=ctx.guild.icon.url if ctx.guild and ctx.guild.icon else None)
 
     try:
-        await i.channel.send(embed=e)
-        await i.followup.send(
-            embed=em("✅ Postavljeno", "Info embed je objavljen u kanalu.", color=COLORS["success"]),
-            ephemeral=True,
-        )
+        await ctx.send(embed=e)
     except discord.Forbidden:
-        await i.followup.send(
-            embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]),
-            ephemeral=True,
-        )
+        await ctx.send(embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]))
 
 
 # ═══════════════════════════════════════════
-#    /PRAVILA — Pravilnik servera (owner only)
+#    .pravila — Pravilnik servera (owner only)
 # ═══════════════════════════════════════════
-@bot.tree.command(name="pravila", description="📜 Postavi embed sa pravilnikom servera [samo vlasnik]")
-async def pravila_cmd(i: discord.Interaction):
-    if i.user.id not in OWNER_IDS:
-        return await i.response.send_message(
-            embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]),
-            ephemeral=True,
-        )
-    await i.response.defer(ephemeral=True)
+@bot.command(name="pravila")
+async def pravila_cmd(ctx: commands.Context):
+    if ctx.author.id not in OWNER_IDS:
+        return await ctx.send(embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]))
 
     e = discord.Embed(
         title="📜  P R A V I L N I K  S E R V E R A",
@@ -9552,21 +9526,14 @@ async def pravila_cmd(i: discord.Interaction):
         "Poštuj druge, čuvaj atmosferu — **dobrodošao kući** 🏠"
     ), inline=False)
 
-    if i.guild and i.guild.icon:
-        e.set_thumbnail(url=i.guild.icon.url)
-    e.set_footer(text="📜 GIANNI • Pravilnik", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
+    if ctx.guild and ctx.guild.icon:
+        e.set_thumbnail(url=ctx.guild.icon.url)
+    e.set_footer(text="📜 GIANNI • Pravilnik", icon_url=ctx.guild.icon.url if ctx.guild and ctx.guild.icon else None)
 
     try:
-        await i.channel.send(embed=e)
-        await i.followup.send(
-            embed=em("✅ Postavljeno", "Pravilnik je objavljen u kanalu.", color=COLORS["success"]),
-            ephemeral=True,
-        )
+        await ctx.send(embed=e)
     except discord.Forbidden:
-        await i.followup.send(
-            embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]),
-            ephemeral=True,
-        )
+        await ctx.send(embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]))
 
 
 # ─── 🔊 PRAVILA VOICE (privatni voice kanali) ───
@@ -9656,14 +9623,10 @@ class VoiceCreateButton(discord.ui.View):
             )
 
 
-@bot.tree.command(name="pravila-voice", description="🔊 Postavi embed sa pravilima privatnih voice kanala [samo vlasnik]")
-async def pravila_voice_cmd(i: discord.Interaction):
-    if i.user.id not in OWNER_IDS:
-        return await i.response.send_message(
-            embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]),
-            ephemeral=True,
-        )
-    await i.response.defer(ephemeral=True)
+@bot.command(name="pravila-voice")
+async def pravila_voice_cmd(ctx: commands.Context):
+    if ctx.author.id not in OWNER_IDS:
+        return await ctx.send(embed=em("❌ Nemaš pristup", "Ova komanda je dostupna samo vlasniku bota.", color=COLORS["error"]))
 
     e = discord.Embed(
         title="🔊  P R I V A T N I  V O I C E  K A N A L I",
@@ -9702,21 +9665,14 @@ async def pravila_voice_cmd(i: discord.Interaction):
         "`1.` ⚠️ Upozorenje  `2.` 🔇 Voice mute  `3.` 🚫 Zabrana voice-a  `4.` 👢 Kick / 🔨 Ban"
     ), inline=False)
 
-    if i.guild and i.guild.icon:
-        e.set_thumbnail(url=i.guild.icon.url)
-    e.set_footer(text="🔊 GIANNI • Voice Pravila", icon_url=i.guild.icon.url if i.guild and i.guild.icon else None)
+    if ctx.guild and ctx.guild.icon:
+        e.set_thumbnail(url=ctx.guild.icon.url)
+    e.set_footer(text="🔊 GIANNI • Voice Pravila", icon_url=ctx.guild.icon.url if ctx.guild and ctx.guild.icon else None)
 
     try:
-        await i.channel.send(embed=e, view=VoiceCreateButton())
-        await i.followup.send(
-            embed=em("✅ Postavljeno", "Voice pravila + dugme za kreiranje voice-a su objavljeni.", color=COLORS["success"]),
-            ephemeral=True,
-        )
+        await ctx.send(embed=e, view=VoiceCreateButton())
     except discord.Forbidden:
-        await i.followup.send(
-            embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]),
-            ephemeral=True,
-        )
+        await ctx.send(embed=em("❌ Permisija", "Bot nema dozvolu da piše u ovaj kanal!", color=COLORS["error"]))
 
 
 # ─── 🔄 SYNC — manualno ponovno učitavanje slash komandi ───
